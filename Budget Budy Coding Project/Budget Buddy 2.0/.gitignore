@@ -1,0 +1,13 @@
+# Database - don't upload, it'll be empty/different on every PC
+*.db
+
+# Python auto-generated folders and files
+__pycache__/
+*.pyc
+
+# Virtual environment folder (if you use one)
+venv/
+.venv/
+
+# Environment variables / secrets
+.env
