@@ -87,7 +87,7 @@ class Reminder(db.Model):
 #---------------------------Helper Functions---------------------------#
 #----------------------------------------------------------------------#
 
-def days_until_due(due_day, is_paid=False):
+def days_until_due(due_day):
     """     Works out when next bill is due    """
 
     today = datetime.datetime.now()
@@ -123,7 +123,7 @@ def get_status(payment):
         return "paid"
     
     today  = datetime.datetime.now()
-    days_in_month = calendar.monthrange(today.year, today.month)[1]
+    days_in_month = calendar.monthhrange(today.year, today.month)[1]
     due_day = min(payment.due_day, days_in_month)
  
 
@@ -132,7 +132,7 @@ def get_status(payment):
         return "overdue"
     
     #if due within 5 days -> "soon"
-    if days_until_due(payment.due_day, payment.is_paid) <= 5:
+    if days_until_due(payment.due_day) <= 5:
         return "soon"
     
     return "upcoming"
@@ -155,7 +155,7 @@ def dashboard():
         payments_with_status.append({
             "payment": p,
             "status": get_status(p),
-            "days_left": days_until_due(p.due_day, p.is_paid),
+            "days_left": days_until_due(p.due_day),
         })
 
     # usefull monthly totals
@@ -189,17 +189,17 @@ def add_payment():
 #add name = request.form[name] which will be the name of the form, 
 # wheras description will be, more detailed, 
 # e.g. name = Spotify, description = spotify premium patinum duo, paid via vodacom airtime deduction
-        name = request.form["name"]
-        description = request.form["description"]
-        amount = float(request.form["amount"])
-        due_day = int(request.form["due_day"])
+        name = request.form[name]
+        description = request.form[description]
+        amount = float(request.form[amount])
+        due_day = int(request.form[due_day])
 
 #create a new payment, one row of information
         new_payment = Payment(
             name=name,
             description=description,
             amount=amount,
-            due_day=due_day,
+            due_date=due_date,
         )
 
 #add to database
@@ -207,13 +207,13 @@ def add_payment():
         db.session.commit()
 
 #show a message after commit to show it was added succesfuly
-        flash(f"Added '{name}' successfully to your bills.", "success")
+        flash(f"Added'{name}' successfuly to your bills. ")
         return redirect(url_for("dashboard"))
-
+    
     #when request is just GET then show empty form
-    return render_template("add_payment.html")
+    return render_template("add_payment")
 
-@app.route("/pay/<int:payment_id>")
+@app.route("/pay<int:payment_id>")
 def mark_paid(payment_id):
     """ Mark a Bill as PAID for this month. payment_id is the bill's id """
     #find the bill by its id, or show a 404 if it is not found
