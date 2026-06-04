@@ -1,0 +1,322 @@
+[
+  {
+    "id": 1,
+    "timestamp": "2026-05-29T07:15:46.012954",
+    "symbol": "BTC-USD",
+    "side": "BUY",
+    "price": 19503.486345187055,
+    "units": 0.012818221090081846,
+    "cash_after": 749.75,
+    "reason": "SIGNAL-ENTER"
+  },
+  {
+    "id": 2,
+    "timestamp": "2026-05-29T07:15:46.019459",
+    "symbol": "BTC-USD",
+    "side": "SELL",
+    "price": 18602.847711626673,
+    "units": 0.012818221090081846,
+    "cash_after": 987.9669594578811,
+    "reason": "STOP-LOSS"
+  },
+  {
+    "id": 3,
+    "timestamp": "2026-05-29T07:15:46.025386",
+    "symbol": "BTC-USD",
+    "side": "BUY",
+    "price": 18621.459865415192,
+    "units": 0.013263822581558013,
+    "cash_after": 740.7282278535463,
+    "reason": "SIGNAL-ENTER"
+  },
+  {
+    "id": 4,
+    "timestamp": "2026-05-29T07:15:46.030489",
+    "symbol": "BTC-USD",
+    "side": "SELL",
+    "price": 18254.81029522061,
+    "units": 0.013263822581558013,
+    "cash_after": 982.6146643043353,
+    "reason": "SIGNAL-EXIT"
+  },
+  {
+    "id": 5,
+    "timestamp": "2026-05-29T07:15:46.036170",
+    "symbol": "BTC-USD",
+    "side": "BUY",
+    "price": 19775.08789277422,
+    "units": 0.012422380492470287,
+    "cash_after": 736.7153445621753,
+    "reason": "SIGNAL-ENTER"
+  },
+  {
+    "id": 6,
+    "timestamp": "2026-05-29T07:15:46.043263",
+    "symbol": "BTC-USD",
+    "side": "SELL",
+    "price": 19093.960477301855,
+    "units": 0.012422380492470287,
+    "cash_after": 973.6705942772513,
+    "reason": "STOP-LOSS"
+  },
+  {
+    "id": 7,
+    "timestamp": "2026-05-29T07:15:46.047711",
+    "symbol": "BTC-USD",
+    "side": "BUY",
+    "price": 19113.06398953527,
+    "units": 0.012735668582629566,
+    "cash_after": 730.0095280593691,
+    "reason": "SIGNAL-ENTER"
+  },
+  {
+    "id": 8,
+    "timestamp": "2026-05-29T07:15:46.052223",
+    "symbol": "BTC-USD",
+    "side": "SELL",
+    "price": 20568.657106666866,
+    "units": 0.012735668582629566,
+    "cash_after": 991.7031725595265,
+    "reason": "TAKE-PROFIT"
+  },
+  {
+    "id": 9,
+    "timestamp": "2026-05-29T07:15:46.057752",
+    "symbol": "BTC-USD",
+    "side": "BUY",
+    "price": 20589.23605324682,
+    "units": 0.012041524634459906,
+    "cash_after": 743.529453626505,
+    "reason": "SIGNAL-ENTER"
+  },
+  {
+    "id": 10,
+    "timestamp": "2026-05-29T07:15:46.063864",
+    "symbol": "BTC-USD",
+    "side": "SELL",
+    "price": 22577.06008082732,
+    "units": 0.012041524634459906,
+    "cash_after": 1015.1198165383315,
+    "reason": "TAKE-PROFIT"
+  },
+  {
+    "id": 11,
+    "timestamp": "2026-05-29T07:15:46.068236",
+    "symbol": "BTC-USD",
+    "side": "BUY",
+    "price": 22599.648435085273,
+    "units": 0.011229376194215355,
+    "cash_after": 761.0860824496141,
+    "reason": "SIGNAL-ENTER"
+  },
+  {
+    "id": 12,
+    "timestamp": "2026-05-29T07:15:46.073373",
+    "symbol": "BTC-USD",
+    "side": "SELL",
+    "price": 24085.638555938738,
+    "units": 0.011229376194215355,
+    "cash_after": 1031.2823119759255,
+    "reason": "TAKE-PROFIT"
+  },
+  {
+    "id": 13,
+    "timestamp": "2026-05-29T07:15:46.078349",
+    "symbol": "BTC-USD",
+    "side": "BUY",
+    "price": 24109.73624333837,
+    "units": 0.010693629137698193,
+    "cash_after": 773.2039134039501,
+    "reason": "SIGNAL-ENTER"
+  },
+  {
+    "id": 14,
+    "timestamp": "2026-05-29T07:15:46.085417",
+    "symbol": "BTC-USD",
+    "side": "SELL",
+    "price": 25566.083097007166,
+    "units": 0.010693629137698193,
+    "cash_after": 1046.3247303357762,
+    "reason": "TAKE-PROFIT"
+  },
+  {
+    "id": 15,
+    "timestamp": "2026-05-29T07:15:46.093187",
+    "symbol": "BTC-USD",
+    "side": "BUY",
+    "price": 25591.661969540433,
+    "units": 0.01022134408055568,
+    "cash_after": 784.4819665692482,
+    "reason": "SIGNAL-ENTER"
+  },
+  {
+    "id": 16,
+    "timestamp": "2026-05-29T07:15:46.097152",
+    "symbol": "BTC-USD",
+    "side": "SELL",
+    "price": 24345.79191721218,
+    "units": 0.01022134408055568,
+    "cash_after": 1033.0798359525859,
+    "reason": "STOP-LOSS"
+  },
+  {
+    "id": 17,
+    "timestamp": "2026-05-29T07:15:46.101361",
+    "symbol": "BTC-USD",
+    "side": "BUY",
+    "price": 24370.14988811484,
+    "units": 0.010597799364135343,
+    "cash_after": 774.5516070054513,
+    "reason": "SIGNAL-ENTER"
+  },
+  {
+    "id": 18,
+    "timestamp": "2026-05-29T07:15:46.105851",
+    "symbol": "BTC-USD",
+    "side": "SELL",
+    "price": 23495.88528654587,
+    "units": 0.010597799364135343,
+    "cash_after": 1023.3072804768544,
+    "reason": "STOP-LOSS"
+  },
+  {
+    "id": 19,
+    "timestamp": "2026-05-29T07:15:46.109733",
+    "symbol": "BTC-USD",
+    "side": "BUY",
+    "price": 23519.392925651962,
+    "units": 0.010877271404407307,
+    "cash_after": 767.2246335375216,
+    "reason": "SIGNAL-ENTER"
+  },
+  {
+    "id": 20,
+    "timestamp": "2026-05-29T07:15:46.113727",
+    "symbol": "BTC-USD",
+    "side": "SELL",
+    "price": 23665.546869788606,
+    "units": 0.010877271404407307,
+    "cash_after": 1024.3837931976977,
+    "reason": "SIGNAL-EXIT"
+  },
+  {
+    "id": 21,
+    "timestamp": "2026-05-29T07:15:46.121281",
+    "symbol": "BTC-USD",
+    "side": "BUY",
+    "price": 22385.31195949628,
+    "units": 0.011440356460647116,
+    "cash_after": 768.0317489499739,
+    "reason": "SIGNAL-ENTER"
+  },
+  {
+    "id": 22,
+    "timestamp": "2026-05-29T07:15:46.125477",
+    "symbol": "BTC-USD",
+    "side": "SELL",
+    "price": 24111.408639977493,
+    "units": 0.011440356460647116,
+    "cash_after": 1043.5990154500334,
+    "reason": "TAKE-PROFIT"
+  },
+  {
+    "id": 23,
+    "timestamp": "2026-05-29T07:15:46.129052",
+    "symbol": "BTC-USD",
+    "side": "BUY",
+    "price": 24135.532110352655,
+    "units": 0.010809778407603388,
+    "cash_after": 782.4383618336626,
+    "reason": "SIGNAL-ENTER"
+  },
+  {
+    "id": 24,
+    "timestamp": "2026-05-29T07:15:46.133668",
+    "symbol": "BTC-USD",
+    "side": "SELL",
+    "price": 25949.153369984568,
+    "units": 0.010809778407603388,
+    "cash_after": 1062.662455030316,
+    "reason": "TAKE-PROFIT"
+  },
+  {
+    "id": 25,
+    "timestamp": "2026-05-29T07:15:46.137504",
+    "symbol": "BTC-USD",
+    "side": "BUY",
+    "price": 25975.115504421767,
+    "units": 0.010227697109271931,
+    "cash_after": 796.7311756589795,
+    "reason": "SIGNAL-ENTER"
+  },
+  {
+    "id": 26,
+    "timestamp": "2026-05-29T07:15:46.141841",
+    "symbol": "BTC-USD",
+    "side": "SELL",
+    "price": 27757.331997792317,
+    "units": 0.010227697109271931,
+    "cash_after": 1080.3408663096664,
+    "reason": "TAKE-PROFIT"
+  },
+  {
+    "id": 27,
+    "timestamp": "2026-05-29T07:15:46.145741",
+    "symbol": "BTC-USD",
+    "side": "BUY",
+    "price": 27785.103215398907,
+    "units": 0.009720504346650454,
+    "cash_after": 809.9855645156724,
+    "reason": "SIGNAL-ENTER"
+  },
+  {
+    "id": 28,
+    "timestamp": "2026-05-29T07:15:46.149719",
+    "symbol": "BTC-USD",
+    "side": "SELL",
+    "price": 29484.533458878457,
+    "units": 0.009720504346650454,
+    "cash_after": 1096.3034956260153,
+    "reason": "TAKE-PROFIT"
+  },
+  {
+    "id": 29,
+    "timestamp": "2026-05-29T07:15:46.154042",
+    "symbol": "BTC-USD",
+    "side": "BUY",
+    "price": 29514.032741978885,
+    "units": 0.00928629023022922,
+    "cash_after": 821.953545845605,
+    "reason": "SIGNAL-ENTER"
+  },
+  {
+    "id": 30,
+    "timestamp": "2026-05-29T07:15:46.158642",
+    "symbol": "BTC-USD",
+    "side": "SELL",
+    "price": 31280.290171527115,
+    "units": 0.00928629023022922,
+    "cash_after": 1112.1409210111738,
+    "reason": "TAKE-PROFIT"
+  },
+  {
+    "id": 31,
+    "timestamp": "2026-05-29T07:15:46.162481",
+    "symbol": "BTC-USD",
+    "side": "BUY",
+    "price": 31311.58610966771,
+    "units": 0.00887962779269581,
+    "cash_after": 833.8276555281275,
+    "reason": "SIGNAL-ENTER"
+  },
+  {
+    "id": 32,
+    "timestamp": "2026-05-29T07:15:46.168781",
+    "symbol": "BTC-USD",
+    "side": "SELL",
+    "price": 32074.823023454883,
+    "units": 0.00887962779269581,
+    "cash_after": 1118.355333003032,
+    "reason": "SIGNAL-EXIT"
+  }
+]

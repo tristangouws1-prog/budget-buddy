@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trade Bot — Terminal</title>
+<!--
+  ============================================================================
+   dashboard.html  —  LAYER 5: THE MONITORING LAYER
+  ============================================================================
+  Your window into what the bots did and why. Two views:
+    - SINGLE   : one symbol  (data from trades.json,       via bot.py)
+    - WATCHLIST: many symbols (data from trades_multi.json, via multi_runner.py)
+
+  TO USE:
+    1. python bot.py            and/or   python multi_runner.py
+    2. python export_trades.py  (writes trades.json / trades_multi.json)
+    3. open dashboard.html in your browser
+
+  COLOUR SCHEME (as requested):
+    - Background      : black
+    - Titles/headers  : red
+    - Body text       : white
+  ============================================================================
+-->
+<style>
+  /* -- Colour tokens: black base, red headers, white body. ----------------*/
+  :root {
+    --black:#000000;        /* main background */
+    --panel:#0a0a0a;        /* slightly raised panels so they read on black */
+    --line:#1f1f1f;         /* hairline borders */
+    --red:#ff1e1e;          /* titles and headers */
+    --red-dim:#7a1010;      /* muted red for rules/accents */
+    --white:#ffffff;        /* normal text */
+    --grey:#9a9a9a;         /* secondary/labels (still legible on black) */
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    background:var(--black); color:var(--white);
+    font-family:'Georgia','Times New Roman',serif;   /* refined body text */
+    padding:36px; max-width:1120px; margin:0 auto;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono { font-family:'Courier New',ui-monospace,monospace; }
+
+  /* -- Headers & titles: all red. -----------------------------------------*/
+  h1 {
+    color:var(--red); font-size:26px; font-weight:700; letter-spacing:.02em;
+    text-transform:uppercase; font-family:'Courier New',monospace;
+  }
+  h2 {
+    color:var(--red); font-size:13px; font-weight:700; letter-spacing:.18em;
+    text-transform:uppercase; margin-bottom:16px;
+    font-family:'Courier New',monospace;
+    border-bottom:1px solid var(--red-dim); padding-bottom:8px;
+  }
+  .sub { color:var(--grey); font-size:13px; margin-top:6px; }
+
+  /* -- Tab switcher between Single and Watchlist views. -------------------*/
+  .tabs { display:flex; gap:4px; margin:26px 0 22px; }
+  .tab {
+    background:var(--panel); color:var(--grey); border:1px solid var(--line);
+    padding:10px 20px; cursor:pointer; font-family:'Courier New',monospace;
+    font-size:12px; letter-spacing:.1em; text-transform:uppercase;
+  }
+  .tab.active { color:var(--red); border-color:var(--red); }
+  .tab:hover { color:var(--white); }
+
+  .cards { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px; }
+  .card { background:var(--panel); border:1px solid var(--line); padding:18px; }
+  .card .label { color:var(--red); font-size:10px; text-transform:uppercase; letter-spacing:.14em; font-family:'Courier New',monospace; }
+  .card .value { color:var(--white); font-size:26px; font-weight:600; margin-top:10px; }
+
+  .panel { background:var(--panel); border:1px solid var(--line); padding:22px; margin-bottom:18px; }
+
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th {
+    color:var(--red); text-align:left; font-weight:700; padding:9px 10px;
+    border-bottom:1px solid var(--red-dim); font-size:10px;
+    text-transform:uppercase; letter-spacing:.12em; font-family:'Courier New',monospace;
+  }
+  td { color:var(--white); padding:10px; border-bottom:1px solid var(--line); }
+  tr:last-child td { border-bottom:none; }
+  .buy  { color:var(--red); font-weight:700; }
+  .sell { color:var(--grey); }
+  .tag {
+    font-size:10px; padding:2px 8px; border:1px solid var(--line);
+    color:var(--grey); font-family:'Courier New',monospace;
+  }
+
+  canvas { width:100%; height:230px; display:block; }
+  .empty { color:var(--grey); padding:34px; text-align:center; font-size:14px; }
+  .pos { color:var(--red); } .neg { color:var(--grey); }
+  .note {
+    color:var(--grey); font-size:12px; margin-top:24px; line-height:1.7;
+    border-top:1px solid var(--red-dim); padding-top:16px;
+  }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+  <h1>Trade Bot Terminal</h1>
+  <div class="sub">Paper-trading review. No real money is involved.</div>
+
+  <!-- Two views: Single symbol vs combined Watchlist -->
+  <div class="tabs">
+    <div class="tab active" id="tab-single" onclick="switchView('single')">Single</div>
+    <div class="tab" id="tab-watch" onclick="switchView('watch')">Watchlist</div>
+  </div>
+
+  <!-- ===================== SINGLE-SYMBOL VIEW ===================== -->
+  <div id="view-single">
+    <div class="cards">
+      <div class="card"><div class="label">Final Value</div><div class="value mono" id="s-value">—</div></div>
+      <div class="card"><div class="label">Total Return</div><div class="value mono" id="s-return">—</div></div>
+      <div class="card"><div class="label">Trades</div><div class="value mono" id="s-trades">—</div></div>
+      <div class="card"><div class="label">Win Rate</div><div class="value mono" id="s-winrate">—</div></div>
+    </div>
+    <div class="panel">
+      <h2>Equity Curve</h2>
+      <canvas id="s-chart"></canvas>
+    </div>
+    <div class="panel">
+      <h2>Trade Log</h2>
+      <div id="s-trades-table"></div>
+    </div>
+  </div>
+
+  <!-- ===================== COMBINED WATCHLIST VIEW ===================== -->
+  <div id="view-watch" class="hidden">
+    <div class="cards">
+      <div class="card"><div class="label">Symbols</div><div class="value mono" id="w-symbols">—</div></div>
+      <div class="card"><div class="label">Total Trades</div><div class="value mono" id="w-trades">—</div></div>
+      <div class="card"><div class="label">Best Symbol</div><div class="value mono" id="w-best">—</div></div>
+      <div class="card"><div class="label">Worst Symbol</div><div class="value mono" id="w-worst">—</div></div>
+    </div>
+    <div class="panel">
+      <h2>Per-Symbol Breakdown</h2>
+      <div id="w-breakdown"></div>
+    </div>
+    <div class="panel">
+      <h2>Combined Trade Log</h2>
+      <div id="w-trades-table"></div>
+    </div>
+  </div>
+
+  <div class="note">
+    Reading the log: every SELL shows WHY — SIGNAL-EXIT (strategy changed its
+    mind), STOP-LOSS (risk layer cut a loser), TAKE-PROFIT (locked a winner).
+    In the watchlist, BUY reasons include a rank score: when several symbols
+    signalled at once, capital went to the highest score. One good run proves
+    nothing — judge across many symbols and periods. Not financial advice.
+  </div>
+
+<script>
+// ===========================================================================
+// Load both data files (each may or may not exist) and render both views.
+// ===========================================================================
+async function tryFetch(path) {
+  try { const r = await fetch(path); if (!r.ok) return null; return await r.json(); }
+  catch (e) { return null; }
+}
+
+function fmt(n) { return '$' + Number(n).toLocaleString(undefined,{maximumFractionDigits:2}); }
+
+function switchView(which) {
+  document.getElementById('view-single').classList.toggle('hidden', which !== 'single');
+  document.getElementById('view-watch').classList.toggle('hidden', which !== 'watch');
+  document.getElementById('tab-single').classList.toggle('active', which === 'single');
+  document.getElementById('tab-watch').classList.toggle('active', which === 'watch');
+}
+
+// --- Pair BUYs with the following SELL to measure each round-trip. ----------
+// Returns {trips:[{symbol,entry,exit,pnlPct}], winRate}.
+function roundTrips(trades) {
+  const trips = [];
+  const openBySymbol = {};
+  for (const t of trades) {
+    if (t.side === 'BUY') {
+      openBySymbol[t.symbol] = t.price;
+    } else if (t.side === 'SELL' && openBySymbol[t.symbol] != null) {
+      const entry = openBySymbol[t.symbol];
+      trips.push({ symbol: t.symbol, entry, exit: t.price,
+                   pnlPct: (t.price/entry - 1) * 100 });
+      openBySymbol[t.symbol] = null;
+    }
+  }
+  const wins = trips.filter(t => t.pnlPct > 0).length;
+  const winRate = trips.length ? wins/trips.length*100 : 0;
+  return { trips, winRate };
+}
+
+// ---------------------------------------------------------------------------
+// SINGLE-SYMBOL VIEW
+// ---------------------------------------------------------------------------
+function renderSingle(trades) {
+  if (!trades || !trades.length) {
+    document.getElementById('s-trades-table').innerHTML =
+      '<div class="empty">No trades.json found.<br>Run <span class="mono">python bot.py</span> then <span class="mono">python export_trades.py</span></div>';
+    return;
+  }
+  const startCash = 1000; // matches config.py
+  const sells = trades.filter(t => t.side === 'SELL');
+  const equity = [startCash, ...sells.map(t => t.cash_after)];
+  const finalVal = equity[equity.length - 1];
+  const ret = (finalVal/startCash - 1) * 100;
+  const { winRate } = roundTrips(trades);
+
+  document.getElementById('s-value').textContent = fmt(finalVal);
+  const rEl = document.getElementById('s-return');
+  rEl.textContent = (ret>=0?'+':'') + ret.toFixed(1) + '%';
+  rEl.className = 'value mono ' + (ret>=0?'pos':'neg');
+  document.getElementById('s-trades').textContent = trades.length;
+  document.getElementById('s-winrate').textContent = winRate.toFixed(0) + '%';
+
+  drawChart('s-chart', equity);
+  document.getElementById('s-trades-table').innerHTML = tradeTable(trades);
+}
+
+// ---------------------------------------------------------------------------
+// COMBINED WATCHLIST VIEW
+// ---------------------------------------------------------------------------
+function renderWatch(trades) {
+  if (!trades || !trades.length) {
+    document.getElementById('w-breakdown').innerHTML =
+      '<div class="empty">No trades_multi.json found.<br>Run <span class="mono">python multi_runner.py</span> then <span class="mono">python export_trades.py</span></div>';
+    return;
+  }
+  // Group round-trips by symbol to build a per-symbol scorecard.
+  const { trips } = roundTrips(trades);
+  const bySymbol = {};
+  for (const t of trips) {
+    if (!bySymbol[t.symbol]) bySymbol[t.symbol] = { trips:0, wins:0, pnlSum:0 };
+    const s = bySymbol[t.symbol];
+    s.trips++; if (t.pnlPct>0) s.wins++; s.pnlSum += t.pnlPct;
+  }
+  const symbols = Object.keys(bySymbol);
+
+  // KPI cards.
+  document.getElementById('w-symbols').textContent = symbols.length;
+  document.getElementById('w-trades').textContent = trades.length;
+
+  // Best / worst symbol by total P&L sum.
+  let best=null, worst=null;
+  for (const sym of symbols) {
+    const p = bySymbol[sym].pnlSum;
+    if (best===null || p>bySymbol[best].pnlSum) best=sym;
+    if (worst===null || p<bySymbol[worst].pnlSum) worst=sym;
+  }
+  document.getElementById('w-best').textContent = best || '—';
+  document.getElementById('w-worst').textContent = worst || '—';
+
+  // Per-symbol breakdown table.
+  let rows = symbols.map(sym => {
+    const s = bySymbol[sym];
+    const wr = s.trips ? (s.wins/s.trips*100) : 0;
+    const pnlClass = s.pnlSum>=0 ? 'pos' : 'neg';
+    return `<tr>
+      <td class="buy">${sym}</td>
+      <td class="mono">${s.trips}</td>
+      <td class="mono">${wr.toFixed(0)}%</td>
+      <td class="mono ${pnlClass}">${(s.pnlSum>=0?'+':'')}${s.pnlSum.toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('w-breakdown').innerHTML =
+    `<table><tr><th>Symbol</th><th>Round Trips</th><th>Win Rate</th><th>Sum P&L</th></tr>${rows}</table>`;
+
+  // Combined trade log (all symbols interleaved, newest first).
+  document.getElementById('w-trades-table').innerHTML = tradeTable(trades);
+}
+
+// Shared trade-log table builder.
+function tradeTable(trades) {
+  const rows = trades.slice().reverse().map(t => `
+    <tr>
+      <td class="mono" style="color:var(--grey)">${(t.timestamp||'').slice(0,19).replace('T',' ')}</td>
+      <td class="buy">${t.symbol}</td>
+      <td class="${t.side==='BUY'?'buy':'sell'}">${t.side}</td>
+      <td class="mono">${Number(t.price).toFixed(2)}</td>
+      <td class="mono">${Number(t.units).toFixed(6)}</td>
+      <td><span class="tag">${t.reason||''}</span></td>
+    </tr>`).join('');
+  return `<table><tr><th>Time (UTC)</th><th>Symbol</th><th>Side</th><th>Price</th><th>Units</th><th>Reason</th></tr>${rows}</table>`;
+}
+
+// Hand-drawn equity line on a canvas (red on black, no library needed).
+function drawChart(canvasId, series) {
+  const cv = document.getElementById(canvasId);
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = 230;
+  cv.width = w*dpr; cv.height = h*dpr;
+  const ctx = cv.getContext('2d'); ctx.scale(dpr,dpr);
+  if (!series || series.length < 2) return;
+
+  const min = Math.min(...series), max = Math.max(...series);
+  const pad = 14, range = (max-min)||1;
+  const x = i => pad + i*(w-2*pad)/(series.length-1);
+  const y = v => h-pad - (v-min)/range*(h-2*pad);
+
+  // Faint red fill under the line.
+  ctx.beginPath(); ctx.moveTo(x(0), y(series[0]));
+  series.forEach((v,i)=>ctx.lineTo(x(i),y(v)));
+  ctx.lineTo(x(series.length-1), h-pad); ctx.lineTo(x(0), h-pad); ctx.closePath();
+  ctx.fillStyle = 'rgba(255,30,30,.10)'; ctx.fill();
+
+  // The line in red.
+  ctx.beginPath(); ctx.moveTo(x(0), y(series[0]));
+  series.forEach((v,i)=>ctx.lineTo(x(i),y(v)));
+  ctx.strokeStyle = '#ff1e1e'; ctx.lineWidth = 2; ctx.stroke();
+}
+
+// Boot: load both files, render both views.
+async function boot() {
+  const single = await tryFetch('trades.json');
+  const multi  = await tryFetch('trades_multi.json');
+  renderSingle(single);
+  renderWatch(multi);
+}
+boot();
+</script>
+</body>
+</html>

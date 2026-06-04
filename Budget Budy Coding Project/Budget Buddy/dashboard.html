@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{# This page reuses base.html's header/footer and fills in the content below. #}
+{% block content %}
+
+<!-- ===== Summary card: the single most important info, shown up top ===== -->
+<section class="hero">
+    <p class="hero-label">Left to pay this month</p>
+    <p class="hero-amount">£{{ "%.2f"|format(total_unpaid) }}</p>
+    <p class="hero-sub">
+        {% if unpaid_count == 0 %}
+            Everything's paid. Amazing work!
+        {% else %}
+            {{ unpaid_count }} bill{{ 's' if unpaid_count != 1 else '' }} still to pay ·
+            £{{ "%.2f"|format(total_monthly) }} in bills total
+        {% endif %}
+    </p>
+</section>
+
+<!-- ===== Reminders the user hasn't ticked off yet ===== -->
+{# Only show this whole section if there's at least one reminder. #}
+{% if reminders %}
+<section class="reminders-box">
+    <h2>Things to check</h2>
+    {% for r in reminders %}
+        <div class="reminder reminder-{{ r.category }}">
+            <span>{{ r.message }}</span>
+            <!-- Tapping this ticks the reminder off so it disappears from here. -->
+            <a class="reminder-done"
+               href="{{ url_for('mark_reminder_read', reminder_id=r.id) }}">Got it</a>
+        </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+<!-- ===== The list of bills ===== -->
+<section>
+    <div class="section-head">
+        <h2>Your bills</h2>
+        <a class="btn-primary" href="{{ url_for('add_payment') }}">+ Add a bill</a>
+    </div>
+
+    {% if payments_with_status %}
+        <div class="bill-list">
+            {# Loop over each bill (with its status) and draw a card for it. #}
+            {% for item in payments_with_status %}
+                <!-- "bill-{{ item.status }}" applies a colour based on status. -->
+                <div class="bill bill-{{ item.status }}">
+                    <div class="bill-main">
+                        <span class="bill-name">{{ item.payment.description }}</span>
+                        <span class="bill-meta">
+                            Due on day {{ item.payment.due_day }} ·
+                            {% if item.status == 'paid' %}
+                                Paid this month
+                            {% elif item.status == 'overdue' %}
+                                Overdue
+                            {% elif item.status == 'soon' %}
+                                {% if item.days_left == 0 %}
+                                    Due today
+                                {% else %}
+                                    Due in {{ item.days_left }} day{{ 's' if item.days_left != 1 else '' }}
+                                {% endif %}
+                            {% else %}
+                                Due in {{ item.days_left }} days
+                            {% endif %}
+                        </span>
+                    </div>
+
+                    <div class="bill-right">
+                        <span class="bill-amount">£{{ "%.2f"|format(item.payment.amount) }}</span>
+
+                        <div class="bill-actions">
+                            {% if item.payment.is_paid %}
+                                <!-- Already paid: offer an "Undo" link. -->
+                                <a class="btn-small btn-undo"
+                                   href="{{ url_for('mark_unpaid', payment_id=item.payment.id) }}">Undo</a>
+                            {% else %}
+                                <!-- Not paid: offer a "Mark paid" link. -->
+                                <a class="btn-small btn-pay"
+                                   href="{{ url_for('mark_paid', payment_id=item.payment.id) }}">Mark paid</a>
+                            {% endif %}
+                            <!-- The onclick confirm() asks "are you sure?" before deleting. -->
+                            <a class="btn-small btn-delete"
+                               href="{{ url_for('delete_payment', payment_id=item.payment.id) }}"
+                               onclick="return confirm('Delete this bill?');">Delete</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <!-- Shown only when there are no bills yet. -->
+        <div class="empty">
+            <p>No bills yet.</p>
+            <a class="btn-primary" href="{{ url_for('add_payment') }}">Add your first bill</a>
+        </div>
+    {% endif %}
+</section>
+
+{% endblock %}
