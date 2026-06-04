@@ -49,10 +49,7 @@ class Payment(db.Model):
 #unique id number, primary_key=True as means database is filled with unique identifiers automatically
     id = db.Column(db.Integer, primary_key=True)
 
-#short name of bill e.g. "Spotify"
-    name = db.Column(db.String(100), nullable=False)
-
-#longer description e.g. "Spotify Premium Platinum Duo via Vodacom"
+#description of bill or subscription
     description = db.Column(db.String(100), nullable=False)
 
 #cost of subscription in float to allow for decimals
@@ -76,7 +73,7 @@ class Reminder(db.Model):
     message = db.Column(db.String(255), nullable=False)
 
 #weekly or monthly reminder
-    category = db.Column(db.String(20), nullable=False)
+    catagory = db.Column(db.String(20), nullable=False)
 
 #ticked off yes or no
     is_read = db.Column(db.Boolean, default=False)

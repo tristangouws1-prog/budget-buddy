@@ -231,6 +231,7 @@ def add_payment():
     if request.method == "POST":
         # request.form holds what the user typed. The keys ("description" etc.)
         # match the name="..." attributes on the <input> fields in the HTML.
+    #add nam = request.form[name] which will be the name of the form, wheras description will be, more detailed, e.g. name = Spotify, description = spotify premium patinum
         description = request.form["description"]
         amount = float(request.form["amount"])   # text -> number with decimals
         due_day = int(request.form["due_day"])    # text -> whole number
