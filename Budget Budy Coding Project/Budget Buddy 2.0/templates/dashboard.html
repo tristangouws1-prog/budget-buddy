@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- ===== Hero: the most important number up top ===== -->
+{% set paid_count = payments_with_status | selectattr('status', 'equalto', 'paid') | list | length %}
+{% set total_count = payments_with_status | length %}
+
+<section class="hero">
+    <p class="hero-label">Left to pay this month</p>
+    <p class="hero-amount">R{{ "%.2f"|format(total_unpaid) }}</p>
+    <p class="hero-sub">
+        {% if unpaid_count == 0 %}
+            Everything's paid. Amazing work!
+        {% else %}
+            {{ unpaid_count }} bill{{ 's' if unpaid_count != 1 else '' }} still to pay &middot;
+            R{{ "%.2f"|format(total_monthly) }} total this month
+        {% endif %}
+    </p>
+    {% if total_count > 0 %}
+    <div class="hero-progress">
+        <div class="hero-progress-fill"
+             style="width: {{ (paid_count / total_count * 100)|round|int }}%"></div>
+    </div>
+    {% endif %}
+</section>
+
+<!-- ===== Stats row ===== -->
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-label">Total monthly bills</div>
+        <div class="stat-value">R{{ "%.2f"|format(total_monthly) }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Bills paid</div>
+        <div class="stat-value">{{ paid_count }} / {{ total_count }}</div>
+    </div>
+</div>
+
+<!-- ===== Reminders ===== -->
+{% if reminders %}
+<section class="reminders-box">
+    <h2>Things to check</h2>
+    {% for r in reminders %}
+        <div class="reminder reminder-{{ r.category }}">
+            <span>{{ r.message }}</span>
+            <a class="reminder-done"
+               href="{{ url_for('mark_reminder_read', reminder_id=r.id) }}">Got it</a>
+        </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+<!-- ===== Bill list ===== -->
+<section>
+    <div class="section-head">
+        <h2>Your bills</h2>
+        <a class="btn-primary" href="{{ url_for('add_payment') }}">+ Add a bill</a>
+    </div>
+
+    {% if payments_with_status %}
+        <div class="bill-list">
+            {% for item in payments_with_status %}
+                <div class="bill bill-{{ item.status }}">
+                    <div class="bill-main">
+                        <span class="bill-name">{{ item.payment.name }}</span>
+                        {% if item.payment.description %}
+                            <span class="bill-description">{{ item.payment.description }}</span>
+                        {% endif %}
+                        <span class="bill-meta">
+                            <span class="status-badge badge-{{ item.status }}">
+                                {{ item.status }}
+                            </span>
+                            Due day {{ item.payment.due_day }} &middot;
+                            {% if item.status == 'paid' %}
+                                Paid this month
+                            {% elif item.status == 'overdue' %}
+                                {{ (-item.days_left) }} day{{ 's' if item.days_left != -1 else '' }} overdue
+                            {% elif item.status == 'soon' %}
+                                {% if item.days_left == 0 %}Due today
+                                {% else %}Due in {{ item.days_left }} day{{ 's' if item.days_left != 1 else '' }}
+                                {% endif %}
+                            {% else %}
+                                Due in {{ item.days_left }} days
+                            {% endif %}
+                        </span>
+                    </div>
+
+                    <div class="bill-right">
+                        <span class="bill-amount">R{{ "%.2f"|format(item.payment.amount) }}</span>
+                        <div class="bill-actions">
+                            {% if item.payment.is_paid %}
+                                <a class="btn-small btn-undo"
+                                   href="{{ url_for('mark_unpaid', payment_id=item.payment.id) }}">Undo</a>
+                            {% else %}
+                                <a class="btn-small btn-pay"
+                                   href="{{ url_for('mark_paid', payment_id=item.payment.id) }}">Mark paid</a>
+                            {% endif %}
+                            <a class="btn-small btn-delete"
+                               href="{{ url_for('delete_payment', payment_id=item.payment.id) }}"
+                               onclick="return confirm('Delete {{ item.payment.name }}?');">Delete</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty">
+            <p>No bills yet — add one to get started.</p>
+            <a class="btn-primary" href="{{ url_for('add_payment') }}">Add your first bill</a>
+        </div>
+    {% endif %}
+</section>
+
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="form-card auth-card">
+    <h2>Create your account</h2>
+    <p class="form-intro">Your bills stay private to you.</p>
+
+    <form method="POST">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username"
+               placeholder="Pick a username" required autofocus>
+
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password"
+               placeholder="Choose a password" required>
+
+        <label for="confirm">Confirm password</label>
+        <input type="password" id="confirm" name="confirm"
+               placeholder="Type it again" required>
+
+        <button type="submit" class="btn-primary btn-block">Create account</button>
+    </form>
+
+    <p class="auth-switch">
+        Already have an account? <a href="{{ url_for('login') }}">Log in</a>
+    </p>
+</section>
+
+{% endblock %}

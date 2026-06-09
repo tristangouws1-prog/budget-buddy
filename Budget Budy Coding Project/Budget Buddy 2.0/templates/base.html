@@ -1,0 +1,65 @@
+<!--
+  base.html is the SHARED layout used by EVERY page.
+  Other templates "extend" this file and only fill in its content area.
+  That way the header, fonts, and footer are written once, here.
+
+  The curly-brace tags in these templates are Jinja2 - the templating language
+  Flask uses to insert Python values into HTML.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Makes the page display correctly on phones, which matters for a
+         check-on-the-go app. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budget Buddy</title>
+
+    <!-- Load two nice fonts from Google Fonts (a display font + a body font). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Load OUR stylesheet. url_for('static', filename='style.css') builds the
+         correct path to a file in the 'static' folder. -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- The navigation bar, shown at the top of every page. -->
+    <header class="site-header">
+        <a href="{{ url_for('dashboard') }}" class="logo">Budget Buddy</a>
+        <nav>
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('dashboard') }}">Home</a>
+                <a href="{{ url_for('reminders') }}">Reminders</a>
+                <a href="{{ url_for('logout') }}">Log out</a>
+                <a href="{{ url_for('add_payment') }}" class="btn-nav">+ Add a bill</a>
+            {% else %}
+                <a href="{{ url_for('login') }}">Log in</a>
+                <a href="{{ url_for('register') }}" class="btn-nav">Sign up</a>
+            {% endif %}
+        </nav>
+    </header>
+
+    <main class="container">
+        <!--
+          Flash messages are short one-time notes, like "Saved!".
+          get_flashed_messages() collects any we set in app.py, and we show them.
+        -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Each page's unique content gets dropped in here. -->
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        <p>Staying on top of your money, one small step at a time.</p>
+    </footer>
+</body>
+</html>
