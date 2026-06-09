@@ -8,11 +8,12 @@
 
 #claude code was used to help determine what the skeleton of the app would be.
 #determining what is neccesary
-#claude code was also used to help add user accounts (login/register) to the app.
 
 
 
-#TODO   add a catagory called once off bills
+#TODO add a catagory called once off bills
+#TODO add logic that adds st rd or th to the end of of the due day
+#TODO add a settings menu where colour scheme can be changed
 
 
 """
@@ -21,7 +22,6 @@
 #------------------------------------------------------------------------------#
 
 What this app does
-    - each person makes their own account (login + password) so their bills are private
     - add monthly bills / subscriptions
     - once a week the app sends a gentle reminder asking if the user has any new bills or subscriptions to add
     - once a week sends a reminder about upcoming payments and overdue bills
@@ -31,11 +31,6 @@ What this app does
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import (
-    LoginManager, UserMixin, login_user, logout_user,
-    login_required, current_user,
-)
-from werkzeug.security import generate_password_hash, check_password_hash
 from apscheduler.schedulers.background import BackgroundScheduler
 import datetime
 import calendar
@@ -46,12 +41,6 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-fallback")
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///budget.db"
 
 db = SQLAlchemy(app)
-
-#Flask-Login keeps track of who is logged in (using a secure cookie).
-login_manager = LoginManager(app)
-#if a not-logged-in person visits a protected page, send them to the login page
-login_manager.login_view = "login"
-login_manager.login_message = "Please log in to see your bills."
 
 """
 TODO: Currencies?
@@ -64,32 +53,7 @@ split datetime between date and time as seperate columns?
 #--------------------Setting up Python Classes / Database models---------------#
 #------------------------------------------------------------------------------#
 
-class User(db.Model, UserMixin):
-    """One person's account. UserMixin gives Flask-Login the methods it needs."""
-
-    id = db.Column(db.Integer, primary_key=True)
-
-#the name they log in with, must be unique (no two people share one)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-
-#we NEVER store the real password, only a scrambled (hashed) version of it
-    password_hash = db.Column(db.String(255), nullable=False)
-
-#a user's bills and reminders. backref lets us write payment.user to get the owner
-    payments = db.relationship("Payment", backref="user", lazy=True)
-    reminders = db.relationship("Reminder", backref="user", lazy=True)
-
-    def set_password(self, password):
-        #scramble the password before saving it
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        #returns True if the typed password matches the saved hash
-        return check_password_hash(self.password_hash, password)
-
-
 class Payment(db.Model):
-    """One regular bill or subscription belonging to a user."""
 #unique id number, primary_key=True as means database is filled with unique identifiers automatically
     id = db.Column(db.Integer, primary_key=True)
 
@@ -111,9 +75,6 @@ class Payment(db.Model):
 #captures exactly when a new bill or subscription was added
     date_added = db.Column(db.DateTime, default=datetime.datetime.now)
 
-#which user owns this bill
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-
 class Reminder(db.Model):
     #send a message to user
 
@@ -131,14 +92,6 @@ class Reminder(db.Model):
 #snap of when reminder was created
     created_at = db.Column(db.DateTime, default=datetime.datetime.now)
 
-#which user this reminder is for
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-
-
-@login_manager.user_loader
-def load_user(user_id):
-    #Flask-Login uses this to look a user up from the id stored in their cookie
-    return User.query.get(int(user_id))
 
 
 #----------------------------------------------------------------------#
@@ -195,98 +148,16 @@ def get_status(payment):
     return "upcoming"
 
 #-----------------------------------------------------------------------------#
-#-----------------AUTH ROUTES - register, login, logout-----------------------#
-#-----------------------------------------------------------------------------#
-
-@app.route("/register", methods=["GET", "POST"])
-def register():
-    """ Make a new account """
-    #if already logged in, no need to register
-    if current_user.is_authenticated:
-        return redirect(url_for("dashboard"))
-
-    if request.method == "POST":
-        username = request.form["username"].strip()
-        password = request.form["password"]
-        confirm = request.form["confirm"]
-
-        #simple checks before we create the account
-        if not username or not password:
-            flash("Please fill in both a username and a password.", "warning")
-            return redirect(url_for("register"))
-
-        if password != confirm:
-            flash("Those passwords don't match. Try again.", "warning")
-            return redirect(url_for("register"))
-
-        #is this username already taken?
-        if User.query.filter_by(username=username).first():
-            flash("That username is already taken. Pick another.", "warning")
-            return redirect(url_for("register"))
-
-        #make the user, scramble their password, save them
-        user = User(username=username)
-        user.set_password(password)
-        db.session.add(user)
-        db.session.commit()
-
-        #log them straight in after registering
-        login_user(user)
-        flash(f"Welcome to Budget Buddy, {username}!", "success")
-        return redirect(url_for("dashboard"))
-
-    return render_template("register.html")
-
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    """ Log into an existing account """
-    if current_user.is_authenticated:
-        return redirect(url_for("dashboard"))
-
-    if request.method == "POST":
-        username = request.form["username"].strip()
-        password = request.form["password"]
-
-        user = User.query.filter_by(username=username).first()
-
-        #check the user exists AND the password is correct
-        if user is None or not user.check_password(password):
-            flash("Wrong username or password.", "warning")
-            return redirect(url_for("login"))
-
-        login_user(user)
-        flash(f"Welcome back, {username}!", "success")
-        return redirect(url_for("dashboard"))
-
-    return render_template("login.html")
-
-
-@app.route("/logout")
-@login_required
-def logout():
-    """ Log out of the current account """
-    logout_user()
-    flash("You've been logged out.", "success")
-    return redirect(url_for("login"))
-
-
-#-----------------------------------------------------------------------------#
 #-----------------ROUTES - each function references a web page----------------#
 #-----------------------------------------------------------------------------#
 
 
 @app.route("/")
-@login_required
 def dashboard():
     """ Home Page: Show totals,upcoming reminders and overdues, list of bills"""
 
-    #get only THIS user's payments, sorted by due day first
-    payments = (
-        Payment.query.filter_by(user_id=current_user.id)
-        .order_by(Payment.due_day)
-        .all()
-    )
+    #get every payment from the database, sorted by due day first
+    payments = Payment.query.order_by(Payment.due_day).all()
 
     #build a list pairing each payment with its status + days left
     payments_with_status = []
@@ -302,9 +173,8 @@ def dashboard():
     unpaid = [p for p in payments if not p.is_paid]
     total_unpaid = sum(p.amount for p in unpaid)
 
-    #only THIS user's unread reminders
     unread_reminders = (
-        Reminder.query.filter_by(user_id=current_user.id, is_read=False)
+        Reminder.query.filter_by(is_read=False)
         .order_by(Reminder.created_at.desc())
         .all()
     )
@@ -320,7 +190,6 @@ def dashboard():
     )
 
 @app.route("/add", methods=["GET", "POST"])
-@login_required
 def add_payment():
 
     """   Show add bill or subscription form and save when submitted   """
@@ -334,13 +203,12 @@ def add_payment():
         amount = float(request.form["amount"])
         due_day = int(request.form["due_day"])
 
-#create a new payment, one row of information, owned by the logged-in user
+#create a new payment, one row of information
         new_payment = Payment(
             name=name,
             description=description,
             amount=amount,
             due_day=due_day,
-            user_id=current_user.id,
         )
 
 #add to database
@@ -354,65 +222,36 @@ def add_payment():
     #when request is just GET then show empty form
     return render_template("add_payment.html")
 
-
-def get_owned_payment_or_404(payment_id):
-    """ Fetch a bill by id but ONLY if it belongs to the logged-in user.
-        Stops someone editing another person's bills by guessing ids. """
-    return Payment.query.filter_by(
-        id=payment_id, user_id=current_user.id
-    ).first_or_404()
-
-
 @app.route("/pay/<int:payment_id>")
-@login_required
 def mark_paid(payment_id):
     """ Mark a Bill as PAID for this month. payment_id is the bill's id """
-    #find the bill by its id (and make sure the user owns it), or show a 404
-    payment = get_owned_payment_or_404(payment_id)
+    #find the bill by its id, or show a 404 if it is not found
+    payment = Payment.query.get_or_404(payment_id)
     payment.is_paid = True      #turns status to paid
     db.session.commit()         #saves the status change
     flash(f"'{payment.name}' is paid.", "success") # green
     return redirect(url_for("dashboard"))
 
 @app.route("/unpaid/<int:payment_id>")
-@login_required
 def mark_unpaid(payment_id):
     """ mark a bill as unpaid """
-    payment = get_owned_payment_or_404(payment_id)
+    payment = Payment.query.get_or_404(payment_id)
     payment.is_paid = False
     db.session.commit()
     flash(f"'{payment.name}' has not been paid yet.", "warning") # yellow
     return redirect(url_for("dashboard"))
 
-@app.route("/delete/<int:payment_id>")
-@login_required
-def delete_payment(payment_id):
-    """ Remove a bill completely (e.g. you cancelled a subscription) """
-    payment = get_owned_payment_or_404(payment_id)
-    db.session.delete(payment)
-    db.session.commit()
-    flash(f"Deleted '{payment.name}'.", "success")
-    return redirect(url_for("dashboard"))
-
 @app.route("/reminders")
-@login_required
 def reminders():
     """ Page showing all reminders (read and unread) sorted by newest first """
-    all_reminders = (
-        Reminder.query.filter_by(user_id=current_user.id)
-        .order_by(Reminder.created_at.desc())
-        .all()
-    )
+    all_reminders = Reminder.query.order_by(Reminder.created_at.desc()).all()
     return render_template("reminders.html", reminders=all_reminders)
 
 @app.route("/reminders/read/<int:reminder_id>")
-@login_required
 def mark_reminder_read(reminder_id):
     """ Tick off a reminder so it stops showing on the home page """
 
-    reminder = Reminder.query.filter_by(
-        id=reminder_id, user_id=current_user.id
-    ).first_or_404()
+    reminder = Reminder.query.get_or_404(reminder_id)
     reminder.is_read = True
     db.session.commit()
     return redirect(request.referrer or url_for("dashboard"))
@@ -422,52 +261,48 @@ def mark_reminder_read(reminder_id):
 #---------------------------------------------------------#
 
 """
-automated reminders that run once a week or once a month etc.
-they loop over every user so everyone gets their own reminders.
+automated reminders that run once a week or once a month etc
 """
 
 def create_weekly_reminder():
-    #runs once a week, gives every user a gentle nudge
+    #runs once a week
 
     with app.app_context():
-        for user in User.query.all():
-            db.session.add(Reminder(
-                message=("Weekly Check in! Have you added any new bills or subscriptions this week? Click on + to add"),
-                category="weekly",
-                user_id=user.id,
-            ))
+        reminder = Reminder(
+            message=("Weekly Check in! Have you added any new bills or subscriptions this week? Click on + to add"),
+            category="weekly",
+        )
+        db.session.add(reminder)
         db.session.commit()
 
 
 def create_monthly_reminders():
-    #runs once a month, resets every bill back to not paid for every user
+    #runs once a month, resets every bill back to not paid
 
     with app.app_context():
-        for user in User.query.all():
-            payments = Payment.query.filter_by(user_id=user.id).all()
+        payments = Payment.query.all()
 
-            #1 new month so reset all of this user's payments
-            for p in payments:
-                p.is_paid = False
+    #1 new month so all reset all payments
+        for p in payments:
+            p.is_paid = False
 
 #TODO aadd logic that adds st rd or th to the end of of the due day
 
-            #2 create a reminder for each bill
-            for p in payments:
-                db.session.add(Reminder(
-                    message=(f"Monthly reminder: '{p.name}' (R{p.amount:.2f}) is due on {p.due_day} this month"),
-                    category="monthly",
-                    user_id=user.id,
-                ))
+    #2 create a reminder for each bill
+        for p in payments:
+            db.session.add(Reminder(
+                message=(f"Monthly reminder: '{p.name}' (R{p.amount:.2f}) is due on {p.due_day} this month"),
+                category="monthly"
+            ))
 
-            #add a reminder that gives a summary of the monthly bills (if there are bills)
-            if payments:
-                total = sum(p.amount for p in payments)
-                db.session.add(Reminder(
-                    message=(f"New month! You have {len(payments)} bills totalling R{total:.2f} to stay on top of. You've got this!"),
-                    category="monthly",
-                    user_id=user.id,
-                ))
+
+    #add a reminder that gives a summary of the montly bills(if there are bills
+        if payments:
+            total = sum(p.amount for p in payments)
+            db.session.add(Reminder(
+                message=(f"New month! You have {len(payments)} bills totalling R{total:.2f} to stay on top of. You've got this!"),
+                category="monthly",
+            ))
 
         db.session.commit()
 
@@ -482,17 +317,17 @@ def create_monthly_reminders():
 scheduler = BackgroundScheduler()
 
 #WEEKLY: every monday at 09:00 AM, ask about new bills
-#trigger = "cron"
+#trigger = "cron" 
 scheduler.add_job(
     func=create_weekly_reminder,
     trigger="cron",
     day_of_week="mon",
     hour=9,
     minute=0,
-    id="weekly_reminder",
+    id="weekly_reminder",  
 )
 
-#MONTHLY: on the 1st of each month at 9 am, reset paid status
+#MONTHLY: on the 1wst of each month at 9 am, reset paid status
 scheduler.add_job(
     func=create_monthly_reminders,
     trigger="cron",
@@ -520,7 +355,7 @@ scheduler.add_job(
 #--------------------------Start Everything-------------------------#
 #-------------------------------------------------------------------#
 
-if __name__ == "__main__":
+if __name__== "__main__":
     #create database tables if they dont exist yet
     with app.app_context():
         db.create_all()

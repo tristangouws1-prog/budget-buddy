@@ -16,10 +16,12 @@
             R{{ "%.2f"|format(total_monthly) }} total this month
         {% endif %}
     </p>
-    {% if total_count > 0 %}
+    {% if total_monthly > 0 %}
+        {# fill by money paid (total - what's left), capped at 100% so it can't overflow#}
+        {% set paid_percentage = [((total_monthly - total_unpaid) / total_monthly * 100)|round|int, 100]|min %}
     <div class="hero-progress">
-        <div class="hero-progress-fill"
-             style="width: {{ (paid_count / total_count * 100)|round|int }}%"></div>
+        <div class="hero-progress-fill" style="width: {{ paid_percentage }}%">
+        </div>
     </div>
     {% endif %}
 </section>
@@ -97,7 +99,7 @@
                             {% endif %}
                             <a class="btn-small btn-delete"
                                href="{{ url_for('delete_payment', payment_id=item.payment.id) }}"
-                               onclick="return confirm('Delete {{ item.payment.name }}?');">Delete</a>
+                               onclick="return confirm('Delete this bill?');">Delete</a>
                         </div>
                     </div>
                 </div>
