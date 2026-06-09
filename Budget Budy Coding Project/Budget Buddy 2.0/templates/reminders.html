@@ -13,7 +13,7 @@
                 <div>
                     <span>{{ r.message }}</span>
                     <!-- A small date so you know when the reminder appeared.
-                         strftime turns the date into text like "05 Jun 2026". -->
+                         strftime turns the date into text. -->
                     <div class="reminder-date">{{ r.created_at.strftime('%d %b %Y') }}</div>
                 </div>
                 {% if not r.is_read %}
