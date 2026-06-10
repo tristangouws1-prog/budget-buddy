@@ -163,10 +163,12 @@ def load_user(user_id):
 #---------------------------Helper Functions---------------------------#
 #----------------------------------------------------------------------#
 
-@app.tempolate_filter("ordinal")
+@app.template_filter("ordinal")
 def ordinal_day(day):
-    """Turn a day into its text version 1 becomes 1st, 22 becomes 22nd, 13 becomes 15th and 3 becomes 3rd etc[11th, 12, 13th are special edge cases]"""
-    
+    """Turn a day into its text version 1 becomes 1st, 22 becomes 22nd, 
+    15 becomes 15th and 3 becomes 3rd etc
+    [11th, 12, 13th are special edge cases]"""
+
 
 
 
