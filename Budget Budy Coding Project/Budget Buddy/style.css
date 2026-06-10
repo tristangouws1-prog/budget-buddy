@@ -11,8 +11,8 @@
     --surface: #ffffff;       /* white cards */
     --ink: #2e2a25;           /* main text colour (soft near-black) */
     --muted: #8a8073;         /* lighter text for less-important info */
-    --primary: #2e8b70;       /* calm green for main buttons */
-    --primary-dark: #246b57;
+    --primary: #753c8b;       /* calm green for main buttons */
+    --primary-dark: #5d267c;
     --border: #ece4d6;        /* soft border colour */
 
     /* Status colours - kept GENTLE on purpose, so the app feels calm not scary. */
