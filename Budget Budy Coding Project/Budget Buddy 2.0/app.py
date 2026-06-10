@@ -20,10 +20,11 @@
 #TODO split date and time into seperate columns
 #TODO add on the dashboard how much the total bill cost is
 
-
 #TODO offline version that can run anywhere, mobile,pc,laptop etc
 
-
+#TODO: Currencies?
+#double check what happens with months that have 30 days vs 31 vs 28 or 29
+#split datetime between date and time as seperate columns?
 
 #future TODO add a small pixel buddy that motivates the user
 # to keep up to date with their budget info
@@ -34,7 +35,6 @@
 #no need to worry about even more money problems
 #can make a house for buddy tha can be decorated
 #buddy will appear and live on left side of screen
-
 
 """
 #------------------------------------------------------------------------------#
@@ -76,11 +76,6 @@ login_manager.login_message = "Please log in to see your bills."
 #style the "please log in" flash like our other warnings (so it gets a colour)
 login_manager.login_message_category = "warning"
 
-"""
-TODO: Currencies?
-double check what happens with months that have 30 days vs 31 vs 28 or 29
-split datetime between date and time as seperate columns?
-"""
 
 
 #------------------------------------------------------------------------------#
