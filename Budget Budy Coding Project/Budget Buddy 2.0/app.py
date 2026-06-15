@@ -9,26 +9,32 @@
 #determining what is neccesary
 #claude code was also used to help add user accounts (login/register) to the app.
 
-#TODO the box that says Welcome to Budget Buddy is currently green, make it a pastel blue
-#TODO add a partial payment amount option instead of just "paid", add a progress bar for each individual bill as well, with a small dark divider bewteen if the unpaid part comes from a previous month 
+#1!  TODO welcome message
+#2   TODO add a partial payment amount option instead of just "paid", add a progress bar for each individual bill as well, with a small dark divider bewteen if the unpaid part comes from a previous month
+#3   TODO add a catagory called once off bills
+#4!  TODO add logic that adds st rd or th to the end of of the due day
+#5   TODO add a settings menu where colour scheme can be changed
+#6!  TODO add different payment modes(e.g. spotify is paid from airtime, WiFi bill is paid from debit card etc)
+#7   TODO add currency option
+#8   TODO split date and time into seperate columns
+#9!  TODO add on the dashboard how much the total bill cost is
+#10  TODO offline version that can run anywhere, mobile,pc,laptop etc
+#11  TODO Currencies?
+#12! TODO double check what happens with months that have 30 days vs 31 vs 28 or 29
+#13  TODO split datetime between date and time as seperate columns?
+#14  TODO add a progress bar and stuff for payments that re not just a fixed amount.
+#15  TODO something like aaq store account that has a store credit of R10 000, a payment per month that is R500
+#16  TODO vs a loan that is a fixed amount that is just paid down.
+#17  TODO for loan catagory add a question for rent % and months remaining and loan insurance so a more accurate budget can be made
+#18  TODO Edit bill — you can only delete right now, no way to correct a typo or change an amount
+#19  TODO Bill sorting / filtering — filter by status (overdue only, etc.) or sort by amount
+#20  TODO Monthly spending history — a simple chart showing total spend over the last 6 months
+#21  TODO Budget limit — let users set a monthly budget cap; warn them in the hero if they're over
+#20  TODO Dark mode — pairs well with TODO #5 (settings menu)
 
-#TODO add a catagory called once off bills
-#TODO add logic that adds st rd or th to the end of of the due day
-#TODO add a settings menu where colour scheme can be changed
-#TODO add different payment modes(e.g. spotify is paid from airtime, WiFi bill is paid from debit card etc)
-#TODO add currency option
-#TODO split date and time into seperate columns
-#TODO add on the dashboard how much the total bill cost is
-
-#TODO offline version that can run anywhere, mobile,pc,laptop etc
-
-#TODO: Currencies?
-#double check what happens with months that have 30 days vs 31 vs 28 or 29
-#split datetime between date and time as seperate columns?
 
 #future TODO add a small pixel buddy that motivates the user
 # to keep up to date with their budget info
-
 #after that include an egg hatching system to get new buddies
 #paying bills and registering bills and daily check ins grat xp
 #which can be used to get cosmetics for your buddy as they level up
@@ -38,7 +44,7 @@
 
 """
 #------------------------------------------------------------------------------#
-#-------Budget Buddy - Budgeting + Reminder App Built with Flask & Python------#
+#-------Budget Buddy = Budgeting + Reminder App Built with Flask & Python------#
 #------------------------------------------------------------------------------#
 
 What this app does
@@ -117,6 +123,9 @@ class Payment(db.Model):
 #longer description e.g. "Spotify Premium Platinum Duo via Vodacom"
     description = db.Column(db.String(100), nullable=True)
 
+#how the bill is paid(airtime vs debit card etc)
+    payment_method = db.Column(db.String(50), nullable = True)
+
 #cost of subscription in float to allow for decimals
     amount = db.Column(db.Float, nullable=False)
 
@@ -125,6 +134,15 @@ class Payment(db.Model):
 
 #true or false of whether payment has been made or not
     is_paid = db.Column(db.Boolean, default=False)
+
+#"fixed" for normal bills, "loan" for debts being paid down, "credit" for store/credit accounts
+    bill_type = db.Column(db.String(20), nullable=False, default="fixed")
+
+#for loans: original loan amount; for credit accounts: the credit limit
+    total_value = db.Column(db.Float, nullable=True)
+
+#for loans: remaining balance owed; for credit accounts: current balance used
+    current_balance = db.Column(db.Float, nullable=True)
 
 #captures exactly when a new bill or subscription was added
     date_added = db.Column(db.DateTime, default=datetime.datetime.now)
@@ -168,7 +186,13 @@ def ordinal_day(day):
     """Turn a day into its text version 1 becomes 1st, 22 becomes 22nd, 
     15 becomes 15th and 3 becomes 3rd etc
     [11th, 12, 13th are special edge cases]"""
-
+    if day in (11, 12, 13):
+        suffix = "th"
+    else:
+        
+        #last digit decides suffix: 1 -> st, 2 -> nd, 3 -> rd, rest are th
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    return f"{day}{suffix}"
 
 
 
@@ -259,7 +283,7 @@ def register():
 
         #log them straight in after registering
         login_user(user)
-        flash(f"Welcome to Budget Buddy, {username}!", "success")
+        flash(f"Welcome to Budget Buddy, {username}!", "welcome")
         return redirect(url_for("dashboard"))
 
     return render_template("register.html")
@@ -283,7 +307,7 @@ def login():
             return redirect(url_for("login"))
 
         login_user(user)
-        flash(f"Welcome back, {username}!", "success")
+        flash(f"Welcome back, {username}!", "welcome")
         return redirect(url_for("dashboard"))
 
     return render_template("login.html")
@@ -360,6 +384,12 @@ def add_payment():
         description = request.form["description"] or None
         amount = float(request.form["amount"])
         due_day = int(request.form["due_day"])
+        payment_method = request.form.get("payment_method") or None
+        bill_type = request.form.get("bill_type", "fixed")
+        raw_total = request.form.get("total_value")
+        raw_balance = request.form.get("current_balance")
+        total_value = float(raw_total) if raw_total else None
+        current_balance = float(raw_balance) if raw_balance else None
 
 #create a new payment, one row of information, owned by the logged-in user
         new_payment = Payment(
@@ -367,6 +397,10 @@ def add_payment():
             description=description,
             amount=amount,
             due_day=due_day,
+            payment_method=payment_method,
+            bill_type=bill_type,
+            total_value=total_value,
+            current_balance=current_balance,
             user_id=current_user.id,
         )
 
@@ -380,6 +414,24 @@ def add_payment():
 
     #when request is just GET then show empty form
     return render_template("add_payment.html")
+
+@app.route("/edit/<int:payment_id>", methods=["GET", "POST"])
+@login_required
+def edit_payment(payment_id):
+    """ Edit a bill - change name,amount, due day, etc. """
+    payment  = get_owned_payment_or_404(payment_id)
+    if request.method == "POST":
+        #overwrite the bill's fields with new values
+        payment.name = request.form["name"]
+        payment.description = request.form["description"] or None
+        payment.amount = float(request.form["amount"])
+        payment.due_day = int(request.form["due_day"])
+        payment.payment_method = request.form.get("payment_method") or None
+        db.session.commit()
+        flash(f"Updated '{payment.name}' successfully", "success")
+        return redirect(url_for("dashboard"))
+    #show new form with updated values
+    return render_template("edit_payment.html", payment=payment)
 
 
 def get_owned_payment_or_404(payment_id):
@@ -419,6 +471,16 @@ def delete_payment(payment_id):
     db.session.delete(payment)
     db.session.commit()
     flash(f"Deleted '{payment.name}'.", "success")
+    return redirect(url_for("dashboard"))
+
+@app.route("/update_balance/<int:payment_id>", methods=["POST"])
+@login_required
+def update_balance(payment_id):
+    """ Update the current balance for a loan or credit account bill """
+    payment = get_owned_payment_or_404(payment_id)
+    payment.current_balance = float(request.form["new_balance"])
+    db.session.commit()
+    flash(f"Balance updated for '{payment.name}'.", "success")
     return redirect(url_for("dashboard"))
 
 @app.route("/reminders")
@@ -482,7 +544,7 @@ def create_monthly_reminders():
             #2 create a reminder for each bill
             for p in payments:
                 db.session.add(Reminder(
-                    message=(f"Monthly reminder: '{p.name}' (R{p.amount:.2f}) is due on {p.due_day} this month"),
+                    message=(f"Monthly reminder: '{p.name}' (R{p.amount:.2f}) is due on the {ordinal_day(p.due_day)} this month"),
                     category="monthly",
                     user_id=user.id,
                 ))
@@ -529,7 +591,7 @@ scheduler.add_job(
     id="monthly_reminder",
 )
 
-
+ 
 #-----Tips for testing-----#
 # The reminders above only fire on their REAL schedule, so you might wait days
 # to see one! To test quickly, temporarily replace a job's trigger with an

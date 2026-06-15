@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="form-card">
+    <h2>Edit a bill or subscription</h2>
+    <p class="form-intro">Update this bill's details and save your changes.</p>
+
+    <form method="POST">
+        <label for="name">Short name</label>
+        <input type="text" id="name" name="name"
+               value="{{ payment.name }}" required>
+
+        <label for="description">Description (optional)</label>
+        <input type="text" id="description" name="description"
+               value="{{ payment.description or '' }}">
+
+        <label for="payment_method">Payment Method?</label>
+        <select id="payment_method" name="payment_method">
+            <option value="">- choose -</option>
+            <option value="Airtime" {% if payment.payment_method == "Airtime" %}selected{% endif %}>Airtime</option>
+            <option value="Debit Card" {% if payment.payment_method == "Debit Card" %}selected{% endif %}>Debit Card</option>
+            <option value="Credit Card" {% if payment.payment_method == "Credit Card" %}selected{% endif %}>Credit Card</option>
+            <option value="Cash" {% if payment.payment_method == "Cash" %}selected{% endif %}>Cash</option>
+            <option value="EFT" {% if payment.payment_method == "EFT" %}selected{% endif %}>EFT</option>
+            <option value="Other" {% if payment.payment_method == "Other" %}selected{% endif %}>Other</option>
+        </select>
+
+        <label for="amount">Monthly payment amount (R)</label>
+        <input type="number" id="amount" name="amount" step="0.01" min="0"
+               value="{{ payment.amount }}" required>
+
+        <label for="due_day">Due day of the month</label>
+        <input type="number" id="due_day" name="due_day" min="1" max="31"
+               value="{{ payment.due_day }}" required>
+
+        <button type="submit" class="btn-primary btn-block">Save changes</button>
+    </form>
+
+    <a class="back-link" href="{{ url_for('dashboard') }}">&larr; Back to home</a>
+</section>
+
+{% endblock %}

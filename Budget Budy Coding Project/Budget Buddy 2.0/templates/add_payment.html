@@ -14,7 +14,34 @@
         <input type="text" id="description" name="description"
                placeholder="e.g. Spotify Premium Duo via Vodacom airtime">
 
-        <label for="amount">Amount (R)</label>
+       <label for="payment_method">Payment Method?</label>
+       <select id="payment_method" name="payment_method">
+              <option value="">- choose -</option>
+              <option value="Airtime">Airtime</option>
+              <option value="Debit Card">Debit Card</option>
+              <option value="Credit Card">Credit Card</option>
+              <option value="Cash">Cash</option>
+              <option value="EFT">EFT</option>
+              <option value="Other">Other</option>
+       </select>
+
+        <label for="bill_type">Bill type</label>
+        <select id="bill_type" name="bill_type" onchange="toggleBalanceFields(this.value)">
+            <option value="fixed">Fixed monthly (e.g. Spotify, rent)</option>
+            <option value="loan">Loan (gets paid down over time)</option>
+            <option value="credit">Credit account (store account, credit card)</option>
+        </select>
+
+        <div id="balance-fields" style="display:none">
+            <label for="total_value" id="total-label">Total loan amount (R)</label>
+            <input type="number" id="total_value" name="total_value" step="0.01" min="0"
+                   placeholder="e.g. 50000">
+            <label for="current_balance" id="balance-label">Current balance owed (R)</label>
+            <input type="number" id="current_balance" name="current_balance" step="0.01" min="0"
+                   placeholder="e.g. 34200">
+        </div>
+
+        <label for="amount">Monthly payment amount (R)</label>
         <input type="number" id="amount" name="amount" step="0.01" min="0"
                placeholder="e.g. 199.99" required>
 
@@ -22,10 +49,29 @@
         <input type="number" id="due_day" name="due_day" min="1" max="31"
                placeholder="e.g. 5" required>
 
-        <button type="submit" class="btn-primary btn-block">Save bill</button>
+        <button type="submit" class="btn-primary btn-block">Save Bill</button>
     </form>
 
     <a class="back-link" href="{{ url_for('dashboard') }}">&larr; Back to home</a>
 </section>
+
+<script>
+function toggleBalanceFields(type) {
+    const fields = document.getElementById('balance-fields');
+    const totalLabel = document.getElementById('total-label');
+    const balanceLabel = document.getElementById('balance-label');
+    if (type === 'fixed') {
+        fields.style.display = 'none';
+    } else if (type === 'loan') {
+        fields.style.display = 'block';
+        totalLabel.textContent = 'Total loan amount (R)';
+        balanceLabel.textContent = 'Current balance owed (R)';
+    } else {
+        fields.style.display = 'block';
+        totalLabel.textContent = 'Credit limit (R)';
+        balanceLabel.textContent = 'Current balance used (R)';
+    }
+}
+</script>
 
 {% endblock %}
