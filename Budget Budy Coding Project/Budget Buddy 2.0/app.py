@@ -22,11 +22,11 @@
 #11  TODO Currencies?
 #12! TODO double check what happens with months that have 30 days vs 31 vs 28 or 29
 #13  TODO split datetime between date and time as seperate columns?
-#14  TODO add a progress bar and stuff for payments that re not just a fixed amount.
-#15  TODO something like aaq store account that has a store credit of R10 000, a payment per month that is R500
-#16  TODO vs a loan that is a fixed amount that is just paid down.
+#14! TODO add a progress bar and stuff for payments that re not just a fixed amount.
+#15! TODO something like aaq store account that has a store credit of R10 000, a payment per month that is R500
+#16! TODO vs a loan that is a fixed amount that is just paid down.
 #17  TODO for loan catagory add a question for rent % and months remaining and loan insurance so a more accurate budget can be made
-#18  TODO Edit bill — you can only delete right now, no way to correct a typo or change an amount
+#18! TODO Edit bill
 #19  TODO Bill sorting / filtering — filter by status (overdue only, etc.) or sort by amount
 #20  TODO Monthly spending history — a simple chart showing total spend over the last 6 months
 #21  TODO Budget limit — let users set a monthly budget cap; warn them in the hero if they're over
@@ -55,6 +55,7 @@ What this app does
     - once a month send a reminder of all the bills and reset the previous months budget sheet
     - which means that if a bill was marked as paid in june the new page saying july will mark everything as not paid
 """
+#imports
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
@@ -93,13 +94,16 @@ class User(db.Model, UserMixin):
 
     id = db.Column(db.Integer, primary_key=True)
 
-#the name they log in with, must be unique (no two people share one)
+#the username, must be unique (no two people share one)
     username = db.Column(db.String(80), unique=True, nullable=False)
 
-#we NEVER store the real password, only a scrambled (hashed) version of it
+#NEVER store the real password
     password_hash = db.Column(db.String(255), nullable=False)
 
-#a user's bills and reminders. backref lets us write payment.user to get the owner
+    #symbol shown before every money amount (e.g. R, $, €, £)
+    currency = db.Column(db.String(5), nullable=False, default="R")
+
+#a user's bills and reminders.
     payments = db.relationship("Payment", backref="user", lazy=True)
     reminders = db.relationship("Reminder", backref="user", lazy=True)
 
@@ -114,7 +118,7 @@ class User(db.Model, UserMixin):
 
 class Payment(db.Model):
     """One regular bill or subscription belonging to a user."""
-#unique id number, primary_key=True as means database is filled with unique identifiers automatically
+#unique id number
     id = db.Column(db.Integer, primary_key=True)
 
 #short name of bill e.g. "Spotify"
@@ -170,10 +174,10 @@ class Reminder(db.Model):
 #which user this reminder is for
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
-
+# TODO look at this again
 @login_manager.user_loader
 def load_user(user_id):
-    #Flask-Login uses this to look a user up from the id stored in their cookie
+    #Flask-Login
     return User.query.get(int(user_id))
 
 
@@ -193,7 +197,6 @@ def ordinal_day(day):
         #last digit decides suffix: 1 -> st, 2 -> nd, 3 -> rd, rest are th
         suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
     return f"{day}{suffix}"
-
 
 
 def days_until_due(due_day, is_paid=False):
@@ -326,7 +329,6 @@ def logout():
 #-----------------ROUTES - each function references a web page----------------#
 #-----------------------------------------------------------------------------#
 
-
 @app.route("/")
 @login_required
 def dashboard():
@@ -427,12 +429,26 @@ def edit_payment(payment_id):
         payment.amount = float(request.form["amount"])
         payment.due_day = int(request.form["due_day"])
         payment.payment_method = request.form.get("payment_method") or None
+        payment.bill_type = request.form.get("bill_type", "fixed")
+        raw_total = request.form.get("total_value")
+        raw_balance= request.form.get("current_value")
+        payment.total_value = float(raw_total) if raw_total else None
+        payment.current_balance = float(raw_balance) if raw_balance else None
         db.session.commit()
         flash(f"Updated '{payment.name}' successfully", "success")
         return redirect(url_for("dashboard"))
     #show new form with updated values
     return render_template("edit_payment.html", payment=payment)
 
+@app.route("/settings", methods=["GET", "POST"])
+@login_required
+def settings():
+    if request.method == "POST":
+        current_user.currency = request.form.get("currency", "R")
+        db.session.commit()
+        flash("Settings saved", "saved")
+        return redirect(url_for("settings"))
+    return render_template("settings.html")
 
 def get_owned_payment_or_404(payment_id):
     """ Fetch a bill by id but ONLY if it belongs to the logged-in user.
@@ -440,7 +456,6 @@ def get_owned_payment_or_404(payment_id):
     return Payment.query.filter_by(
         id=payment_id, user_id=current_user.id
     ).first_or_404()
-
 
 @app.route("/pay/<int:payment_id>")
 @login_required
@@ -506,9 +521,11 @@ def mark_reminder_read(reminder_id):
     db.session.commit()
     return redirect(request.referrer or url_for("dashboard"))
 
+
 #---------------------------------------------------------#
 #------Scheduled reminder jobs(automated reminders)-------#
 #---------------------------------------------------------#
+
 
 """
 automated reminders that run once a week or once a month etc.
@@ -559,7 +576,6 @@ def create_monthly_reminders():
                 ))
 
         db.session.commit()
-
 
 
 #-------------------------------------------------------------------#
