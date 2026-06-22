@@ -6,41 +6,8 @@
 #But you still must cite any use of such tools in the comments of your code.
 
 #claude code was used to help determine what the skeleton of the app would be.
-#determining what is neccesary
+#determining what is necessary
 #claude code was also used to help add user accounts (login/register) to the app.
-
-#1!  TODO welcome message
-#2   TODO add a partial payment amount option instead of just "paid", add a progress bar for each individual bill as well, with a small dark divider bewteen if the unpaid part comes from a previous month
-#3   TODO add a catagory called once off bills
-#4!  TODO add logic that adds st rd or th to the end of of the due day
-#5   TODO add a settings menu where colour scheme can be changed
-#6!  TODO add different payment modes(e.g. spotify is paid from airtime, WiFi bill is paid from debit card etc)
-#7   TODO add currency option
-#8   TODO split date and time into seperate columns
-#9!  TODO add on the dashboard how much the total bill cost is
-#10  TODO offline version that can run anywhere, mobile,pc,laptop etc
-#11  TODO Currencies?
-#12! TODO double check what happens with months that have 30 days vs 31 vs 28 or 29
-#13  TODO split datetime between date and time as seperate columns?
-#14! TODO add a progress bar and stuff for payments that re not just a fixed amount.
-#15! TODO something like aaq store account that has a store credit of R10 000, a payment per month that is R500
-#16! TODO vs a loan that is a fixed amount that is just paid down.
-#17  TODO for loan catagory add a question for rent % and months remaining and loan insurance so a more accurate budget can be made
-#18! TODO Edit bill
-#19  TODO Bill sorting / filtering — filter by status (overdue only, etc.) or sort by amount
-#20  TODO Monthly spending history — a simple chart showing total spend over the last 6 months
-#21  TODO Budget limit — let users set a monthly budget cap; warn them in the hero if they're over
-#20  TODO Dark mode — pairs well with TODO #5 (settings menu)
-
-
-#future TODO add a small pixel buddy that motivates the user
-# to keep up to date with their budget info
-#after that include an egg hatching system to get new buddies
-#paying bills and registering bills and daily check ins grat xp
-#which can be used to get cosmetics for your buddy as they level up
-#no need to worry about even more money problems
-#can make a house for buddy tha can be decorated
-#buddy will appear and live on left side of screen
 
 """
 #------------------------------------------------------------------------------#
@@ -103,9 +70,12 @@ class User(db.Model, UserMixin):
     #symbol shown before every money amount (e.g. R, $, €, £)
     currency = db.Column(db.String(5), nullable=False, default="R")
 
+    budget_limit = db.Column(db.Float, nullable=True)
+
 #a user's bills and reminders.
     payments = db.relationship("Payment", backref="user", lazy=True)
     reminders = db.relationship("Reminder", backref="user", lazy=True)
+    incomes = db.relationship("Income", backref="user", lazy=True)
 
     def set_password(self, password):
         #scramble the password before saving it
@@ -135,6 +105,8 @@ class Payment(db.Model):
 
 #day of the month which the next payment is due
     due_day = db.Column(db.Integer, nullable=False)
+
+
 
 #true or false of whether payment has been made or not
     is_paid = db.Column(db.Boolean, default=False)
@@ -174,11 +146,32 @@ class Reminder(db.Model):
 #which user this reminder is for
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
-# TODO look at this again
+class Income(db.Model):
+    """Source of income """
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    #name of source of income
+    name = db.Column(db.String(100), nullable=False)
+
+    #last known amount
+    amount = db.Column(db.Float, nullable=False)
+
+    # fixed amount for a stable income
+    income_type = db.Column(db.String(20), nullable=False, default="fixed")
+
+    #variable income, confirm if that months amount has been confirmed.
+    #reset to False each month automatically
+    is_confirmed = db.Column(db.Boolean, default=True)
+
+    #which user the income belongs to
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+
 @login_manager.user_loader
 def load_user(user_id):
     #Flask-Login
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))
 
 
 #----------------------------------------------------------------------#
@@ -362,6 +355,12 @@ def dashboard():
         .all()
     )
 
+    over_budget = (current_user.budget_limit is not None and total_monthly > current_user.budget_limit)
+
+    income_sources = Income.query.filter_by(user_id=current_user.id).all()
+    total_income = sum(i.amount for i in income_sources)
+    money_remaining = total_income - total_monthly
+
     # render template loads dashboard.html and loads the values passed to it
     return render_template(
         "dashboard.html",
@@ -370,13 +369,17 @@ def dashboard():
         total_unpaid=total_unpaid,
         unpaid_count=len(unpaid),
         reminders=unread_reminders,
+        over_budget=over_budget,
+        budget_limit=current_user.budget_limit,
+        income_sources=income_sources,
+        total_income=total_income,
+        money_remaining=money_remaining
     )
 
 @app.route("/add", methods=["GET", "POST"])
 @login_required
 def add_payment():
-
-    """   Show add bill or subscription form and save when submitted   """
+    """Show add bill or subscription form and save when submitted."""
 
 #create the form the user will use
     if request.method == "POST":
@@ -417,11 +420,38 @@ def add_payment():
     #when request is just GET then show empty form
     return render_template("add_payment.html")
 
+
+@app.route("/income/add", methods=["GET", "POST"])
+@login_required
+def add_income():
+    """show income form(fixed or varied) and save when submitted """
+
+    if request.method == "POST":
+
+        name=request.form["name"]
+        amount=float(request.form["amount"])
+        income_type = request.form.get("income_type", "fixed")
+
+        new_income = Income(
+            name=name,
+            amount=amount,
+            income_type=income_type,
+            user_id=current_user.id,
+        )
+
+
+        db.session.add(new_income)
+        db.session.commit()
+        flash(f"Added '{name}' as an income source.", "success")
+        return redirect(url_for("dashboard"))
+
+    return render_template("add_income.html")
+
 @app.route("/edit/<int:payment_id>", methods=["GET", "POST"])
 @login_required
 def edit_payment(payment_id):
-    """ Edit a bill - change name,amount, due day, etc. """
-    payment  = get_owned_payment_or_404(payment_id)
+    """ Edit a bill """
+    payment = get_owned_payment_or_404(payment_id)
     if request.method == "POST":
         #overwrite the bill's fields with new values
         payment.name = request.form["name"]
@@ -431,7 +461,7 @@ def edit_payment(payment_id):
         payment.payment_method = request.form.get("payment_method") or None
         payment.bill_type = request.form.get("bill_type", "fixed")
         raw_total = request.form.get("total_value")
-        raw_balance= request.form.get("current_value")
+        raw_balance = request.form.get("current_balance")
         payment.total_value = float(raw_total) if raw_total else None
         payment.current_balance = float(raw_balance) if raw_balance else None
         db.session.commit()
@@ -440,11 +470,30 @@ def edit_payment(payment_id):
     #show new form with updated values
     return render_template("edit_payment.html", payment=payment)
 
+
+@app.route("/income/edit/<int:income_id>", methods=["GET", "POST"])
+@login_required
+def edit_income(income_id):
+    """Edit income"""
+    income = get_owned_income_or_404(income_id)
+    if request.method == "POST":
+        income.name = request.form["name"]
+        income.amount = float(request.form["amount"])
+        income.income_type = request.form.get("income_type", "fixed")
+        db.session.commit()
+        flash(f"Updated '{income.name}' successfully", "success")
+        return redirect(url_for("dashboard"))
+    
+    return render_template("edit_income.html", income=income)
+
+
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
 def settings():
     if request.method == "POST":
         current_user.currency = request.form.get("currency", "R")
+        raw_limit = request.form.get("budget_limit") 
+        current_user.budget_limit = float(raw_limit) if raw_limit else None
         db.session.commit()
         flash("Settings saved", "saved")
         return redirect(url_for("settings"))
@@ -456,6 +505,13 @@ def get_owned_payment_or_404(payment_id):
     return Payment.query.filter_by(
         id=payment_id, user_id=current_user.id
     ).first_or_404()
+
+def get_owned_income_or_404(income_id):
+    """ Fetch an income by id but only if it belongs to the logged-in user."""
+    return Income.query.filter_by(
+        id=income_id, user_id=current_user.id
+    ).first_or_404()
+
 
 @app.route("/pay/<int:payment_id>")
 @login_required
@@ -478,6 +534,7 @@ def mark_unpaid(payment_id):
     flash(f"'{payment.name}' has not been paid yet.", "warning") # yellow
     return redirect(url_for("dashboard"))
 
+
 @app.route("/delete/<int:payment_id>")
 @login_required
 def delete_payment(payment_id):
@@ -486,6 +543,30 @@ def delete_payment(payment_id):
     db.session.delete(payment)
     db.session.commit()
     flash(f"Deleted '{payment.name}'.", "success")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/income/delete/<int:income_id>")
+@login_required
+def delete_income(income_id):
+    """ Remove an income source completely """
+    income = get_owned_income_or_404(income_id)
+    db.session.delete(income)
+    db.session.commit()
+    flash(f"Deleted '{income.name}'.", "success")
+    return redirect(url_for("dashboard"))
+
+@app.route("/income/confirm/<int:income_id>", methods=["POST"])
+@login_required
+def confirm_income(income_id):
+    """ Confirm an income source """
+    income = get_owned_income_or_404(income_id)
+    raw = request.form.get("new_amount")
+    if raw:
+        income.amount = float(raw)
+    income.is_confirmed = True
+    db.session.commit()
+    flash(f"Income '{income.name}' confirmed.", "success")
     return redirect(url_for("dashboard"))
 
 @app.route("/update_balance/<int:payment_id>", methods=["POST"])
@@ -498,6 +579,7 @@ def update_balance(payment_id):
     flash(f"Balance updated for '{payment.name}'.", "success")
     return redirect(url_for("dashboard"))
 
+
 @app.route("/reminders")
 @login_required
 def reminders():
@@ -508,6 +590,7 @@ def reminders():
         .all()
     )
     return render_template("reminders.html", reminders=all_reminders)
+
 
 @app.route("/reminders/read/<int:reminder_id>")
 @login_required
@@ -525,8 +608,6 @@ def mark_reminder_read(reminder_id):
 #---------------------------------------------------------#
 #------Scheduled reminder jobs(automated reminders)-------#
 #---------------------------------------------------------#
-
-
 """
 automated reminders that run once a week or once a month etc.
 they loop over every user so everyone gets their own reminders.
@@ -542,6 +623,18 @@ def create_weekly_reminder():
                 category="weekly",
                 user_id=user.id,
             ))
+            #reminder for variable income(weekly)
+            variable_incomes = Income.query.filter_by(
+                user_id=user.id, 
+                income_type="variable",
+                is_confirmed=False
+            ).all()
+            for income in variable_incomes:
+                db.session.add(Reminder(
+                    message=(f"Have you received your '{income.name}' income this month?"),
+                    category="weekly",
+                    user_id=user.id,
+                ))
         db.session.commit()
 
 
@@ -556,12 +649,18 @@ def create_monthly_reminders():
             for p in payments:
                 p.is_paid = False
 
-#TODO add logic that adds st rd or th to the end of of the due day
+            #variable income reminder(monthly)
+            variable_incomes = Income.query.filter_by(
+                user_id=user.id,
+                income_type="variable",
+            ).all()
+            for income in variable_incomes:
+                income.is_confirmed = False
 
             #2 create a reminder for each bill
             for p in payments:
                 db.session.add(Reminder(
-                    message=(f"Monthly reminder: '{p.name}' (R{p.amount:.2f}) is due on the {ordinal_day(p.due_day)} this month"),
+                    message=(f"Monthly reminder: '{p.name}' ({user.currency}{p.amount:.2f}) is due on the {ordinal_day(p.due_day)} this month"),
                     category="monthly",
                     user_id=user.id,
                 ))
@@ -570,7 +669,7 @@ def create_monthly_reminders():
             if payments:
                 total = sum(p.amount for p in payments)
                 db.session.add(Reminder(
-                    message=(f"New month! You have {len(payments)} bills totalling R{total:.2f} to stay on top of. You've got this!"),
+                    message=(f"New month! You have {len(payments)} bills totalling {user.currency}{total:.2f} to stay on top of. You've got this!"),
                     category="monthly",
                     user_id=user.id,
                 ))
@@ -635,4 +734,4 @@ if __name__ == "__main__":
 
     #start web server
     #once running open http://127.0.0.1:5000
-    app.run(debug=True, use_reloader=False)
+    app.run(debug=os.environ.get("FLASK_DEBUG", "false").lower() == "true", use_reloader=False)

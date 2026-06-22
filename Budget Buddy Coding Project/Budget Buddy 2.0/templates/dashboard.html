@@ -7,22 +7,32 @@
 
 <section class="hero">
     <p class="hero-label">Left to pay this month</p>
-    <p class="hero-amount">R{{ "%.2f"|format(total_unpaid) }}</p>
+    <p class="hero-amount">{{ current_user.currency }}{{ "%.2f"|format(total_unpaid) }}</p>
     <p class="hero-sub">
         {% if unpaid_count == 0 %}
             Everything's paid. Amazing work!
         {% else %}
             {{ unpaid_count }} bill{{ 's' if unpaid_count != 1 else '' }} still to pay &middot;
-            R{{ "%.2f"|format(total_monthly) }} total this month
+            {{ current_user.currency }}{{ "%.2f"|format(total_monthly) }} total this month
         {% endif %}
     </p>
+    {% if over_budget %}
+        <p class="hero-budget-warning">
+            You're {{ current_user.currency }}{{ "%.2f"|format(total_monthly - budget_limit) }} over your budget limit.
+        </p>
+    {% elif budget_limit %}
+        <p class="hero-budget-ok">
+            {{ current_user.currency }}{{ "%.2f"|format(budget_limit - total_monthly) }} left in your budget
+        </p>
+    {% endif %}
+
     {% if total_monthly > 0 %}
         {# fill by money paid (total - what's left), capped at 100% so it can't overflow#}
         {% set paid_percentage = [((total_monthly - total_unpaid) / total_monthly * 100)|round|int, 100]|min %}
-    <div class="hero-progress">
-        <div class="hero-progress-fill" style="width: {{ paid_percentage }}%">
+        <div class="hero-progress">
+            <div class="hero-progress-fill" style="width: {{ paid_percentage }}%">
+            </div>
         </div>
-    </div>
     {% endif %}
 </section>
 
@@ -30,13 +40,75 @@
 <div class="stats-row">
     <div class="stat-card">
         <div class="stat-label">Total monthly bills</div>
-        <div class="stat-value">R{{ "%.2f"|format(total_monthly) }}</div>
+        <div class="stat-value">{{ current_user.currency }}{{ "%.2f"|format(total_monthly) }}</div>
     </div>
     <div class="stat-card">
         <div class="stat-label">Bills paid</div>
         <div class="stat-value">{{ paid_count }} / {{ total_count }}</div>
     </div>
+
+    <div class="stat-card">
+        <div class="stat-label">Total Income</div>
+        <div class="stat-value">{{ current_user.currency }}{{ "%.2f"|format(total_income) }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Remaining balance</div>
+        <div class="stat-value {% if money_remaining < 0 %}stat-negative{% else %}stat-positive{% endif %}">
+            {{ current_user.currency }}{{ "%.2f"|format(money_remaining) }}
+        </div>
+    </div>
 </div>
+
+
+<!-- Income sources-->
+<section>
+    <div class="section-head">
+        <h2>Income</h2>
+        <a class="btn-primary" href="{{ url_for('add_income') }}">+ Add income</a>
+    </div>
+
+    {% if income_sources %}
+        <div class="bill-list">
+            {% for income in income_sources %}
+                <div class="bill">
+                    <div class="bill-main">
+                        <span class="bill-name">{{ income.name }}</span>
+                        <span class="method-badge">{{ income.income_type }}</span>
+                        {% if income.income_type == 'variable' and not income.is_confirmed %}
+                            <span class="status-badge badge-soon">Unconfirmed</span>
+                            <form method="POST" action="{{ url_for('confirm_income', income_id=income.id)}}" class="update-balance-form">
+                                <input type="number" name="new_amount" step="0.01" min="0"
+                                       placeholder="This month's amount" required>
+                                <button type="submit" class="btn-small btn-update">Confirm</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                    <div class="bill-right">
+                        <span class="bill-amount">{{ current_user.currency }}{{ "%.2f"|format(income.amount) }}</span>
+                        <div class="bill-actions">
+                            <a class="btn-small btn-edit"
+                            href="{{ url_for('edit_income', income_id=income.id) }}">Edit</a>
+                            <a class="btn-small btn-delete"
+                            href="{{ url_for('delete_income', income_id=income.id) }}"
+                            onclick="return confirm('Delete this income source?');">Delete</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty">
+            <p>No income sources yet - add one to get started.</p>
+        </div>
+    {% endif %}
+</section>
+
+
+
+
+
+
+
 
 <!-- ===== Reminders ===== -->
 {% if reminders %}
@@ -95,10 +167,10 @@
                             {% set bill_total = item.payment.total_value %}
                             {% if item.payment.bill_type == 'loan' %}
                                 {% set fill_percent = [((bill_total - bill_balance) / bill_total * 100)|round|int, 100]|min %}
-                                <span class="bill-balance-label">R{{ "%.2f"|format(bill_balance) }} remaining of R{{ "%.2f"|format(bill_total) }}</span>
+                                <span class="bill-balance-label">{{ current_user.currency }}{{ "%.2f"|format(bill_balance) }} remaining of {{ current_user.currency }}{{ "%.2f"|format(bill_total) }}</span>
                             {% else %}
                                 {% set fill_percent = [(bill_balance / bill_total * 100)|round|int, 100]|min %}
-                                <span class="bill-balance-label">R{{ "%.2f"|format(bill_balance) }} used of R{{ "%.2f"|format(bill_total) }} limit</span>
+                                <span class="bill-balance-label">{{ current_user.currency }}{{ "%.2f"|format(bill_balance) }} used of {{ current_user.currency }}{{ "%.2f"|format(bill_total) }} limit</span>
                             {% endif %}
                             <div class="bill-progress-bar">
                                 <div class="bill-progress-fill bill-progress-{{ item.payment.bill_type }}" style="width: {{ fill_percent }}%"></div>
@@ -111,7 +183,7 @@
                     </div>
 
                     <div class="bill-right">
-                        <span class="bill-amount">R{{ "%.2f"|format(item.payment.amount) }}</span>
+                        <span class="bill-amount">{{ current_user.currency }}{{ "%.2f"|format(item.payment.amount) }}</span>
                         <div class="bill-actions">
                             {% if item.payment.is_paid %}
                                 <a class="btn-small btn-undo"
