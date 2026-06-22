@@ -25,6 +25,9 @@
 #25! TODO add a category for non permanent work like freelance work, which will also receive a weekly or monthly reminder that asks for the income or if it has changed
 #26  TODO readme for CS50
 #27  TODO 2 minute app walkthrough
+#28  TODO loan category: add fields for total months remaining, interest rate (%), loan initiation fee, and monthly insurance so that a truly accurate monthly cost and payoff timeline can be displayed
+#29  TODO store/credit account category: add fields for interest rate (%), minimum payment percentage, and credit limit so that the true minimum payment and interest charged can be calculated and displayed accurately
+#30  TODO deploy app online via PythonAnywhere (free tier) so it can be accessed from any device without VS Code — user accounts, bills, and income data all persist as normal with SQLite
 #28  TODO test the reminder messages
 
 

@@ -9,6 +9,8 @@
 #claude code was used to help determine what the skeleton of the app would be.
 #determining what is necessary
 #claude code was also used to help add user accounts (login/register) to the app.
+#claude was used to help me restore much of my lost data when i misunderstood what i was doing and pressed overwrite save
+#claude helped determine what to import and also to look for and fix typos and syntax errors
 
 """
 #------------------------------------------------------------------------------#
@@ -43,12 +45,12 @@ app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///budget.db"
 
 db = SQLAlchemy(app)
 
-#Flask-Login keeps track of who is logged in (using a secure cookie).
+#Flask-Login keeps track of who is logged in 
 login_manager = LoginManager(app)
 #if a not-logged-in person visits a protected page, send them to the login page
 login_manager.login_view = "login"
 login_manager.login_message = "Please log in to see your bills."
-#style the "please log in" flash like our other warnings (so it gets a colour)
+
 login_manager.login_message_category = "warning"
 
 
@@ -58,14 +60,14 @@ login_manager.login_message_category = "warning"
 #------------------------------------------------------------------------------#
 
 class User(db.Model, UserMixin):
-    """One person's account. UserMixin gives Flask-Login the methods it needs."""
+    """One person's account."""
 
     id = db.Column(db.Integer, primary_key=True)
 
-#the username, must be unique (no two people share one)
+#the username, must be unique
     username = db.Column(db.String(80), unique=True, nullable=False)
 
-#NEVER store the real password
+#NEVER stores the real password
     password_hash = db.Column(db.String(255), nullable=False)
 
     #symbol shown before every money amount (e.g. R, $, €, £)
@@ -79,7 +81,7 @@ class User(db.Model, UserMixin):
     incomes = db.relationship("Income", backref="user", lazy=True)
 
     def set_password(self, password):
-        #scramble the password before saving it
+        #scramble the password
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
@@ -101,7 +103,7 @@ class Payment(db.Model):
 #how the bill is paid(airtime vs debit card etc)
     payment_method = db.Column(db.String(50), nullable = True)
 
-#cost of subscription in float to allow for decimals
+#cost of subscription or bill in float to allow for decimals
     amount = db.Column(db.Float, nullable=False)
 
 #day of the month which the next payment is due
@@ -225,6 +227,7 @@ def get_status(payment):
     "upcoming" -> (neutral)
 
     """
+
     if payment.is_paid:
         return "paid"
 
@@ -267,12 +270,12 @@ def register():
             flash("Those passwords don't match. Try again.", "warning")
             return redirect(url_for("register"))
 
-        #is this username already taken?
+        #is the username already taken
         if User.query.filter_by(username=username).first():
             flash("That username is already taken. Pick another.", "warning")
             return redirect(url_for("register"))
 
-        #make the user, scramble their password, save them
+        #make the user, scramble the password, save user
         user = User(username=username)
         user.set_password(password)
         db.session.add(user)
@@ -331,7 +334,7 @@ def dashboard():
     filter_status = request.args.get("filter", "all")
     sort_by = request.args.get("sort", "due_day")
 
-    #get only THIS user's payments, sorted by due day first
+    #get only this user's payments, sorted by due day first
     payments = (
         Payment.query.filter_by(user_id=current_user.id)
         .order_by(Payment.due_day)
@@ -362,7 +365,7 @@ def dashboard():
     unpaid = [p for p in payments if not p.is_paid]
     total_unpaid = sum(p.amount for p in unpaid)
 
-    #only THIS user's unread reminders
+    #only this user's unread reminders
     unread_reminders = (
         Reminder.query.filter_by(user_id=current_user.id, is_read=False)
         .order_by(Reminder.created_at.desc())
@@ -375,7 +378,7 @@ def dashboard():
     total_income = sum(i.amount for i in income_sources)
     money_remaining = total_income - total_monthly
 
-    # render template loads dashboard.html and loads the values passed to it
+    # render template loads dashboard.html
     return render_template(
         "dashboard.html",
         payments_with_status=payments_with_status,
@@ -630,7 +633,7 @@ they loop over every user so everyone gets their own reminders.
 """
 
 def create_weekly_reminder():
-    #runs once a week, gives every user a gentle nudge
+    #runs once a week
 
     with app.app_context():
         for user in User.query.all():
@@ -661,7 +664,7 @@ def create_monthly_reminders():
         for user in User.query.all():
             payments = Payment.query.filter_by(user_id=user.id).all()
 
-            #1 new month so reset all of this user's payments
+            # new month so reset all of this user's payments
             for p in payments:
                 p.is_paid = False
 
@@ -673,7 +676,7 @@ def create_monthly_reminders():
             for income in variable_incomes:
                 income.is_confirmed = False
 
-            #2 create a reminder for each bill
+            # create a reminder for each bill
             for p in payments:
                 db.session.add(Reminder(
                     message=(f"Monthly reminder: '{p.name}' ({user.currency}{p.amount:.2f}) is due on the {ordinal_day(p.due_day)} this month"),
