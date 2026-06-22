@@ -185,6 +185,19 @@
                             {% if item.payment.bill_type == 'loan' %}
                                 {% set fill_percent = [((bill_total - bill_balance) / bill_total * 100)|round|int, 100]|min %}
                                 <span class="bill-balance-label">{{ current_user.currency }}{{ "%.2f"|format(bill_balance) }} remaining of {{ current_user.currency }}{{ "%.2f"|format(bill_total) }}</span>
+                                {% if item.payment.interest_rate %}
+                                    <span class="bill-balance-label">Interest Rate: {{ "%.2f"|format(item.payment.interest_rate) }}%</span>
+                                {% endif %}
+                                {% if item.payment.months_remaining %}
+                                    <span class="bill-balance-label">{{ item.payment.months_remaining }} month{{ 's' if item.payment.months_remaining != 1 else '' }} remaining</span>
+                                {% endif %}
+                                {% if item.payment.loan_insurance %}
+                                    <span class="bill-balance-label">True monthly cost: {{ current_user.currency }}{{ "%.2f"|format(item.payment.amount + item.payment.loan_insurance) }} (incl. {{ current_user.currency }}{{ "%.2f"|format(item.payment.loan_insurance) }} insurance)</span>
+                                {% endif %}
+                                {% if item.payment.initiation_fee %}
+                                    <span class="bill-balance-label">Initiation fee: {{ current_user.currency }}{{ "%.2f"|format(item.payment.initiation_fee) }}</span>
+                                {% endif %}
+
                             {% else %}
                                 {% set fill_percent = [(bill_balance / bill_total * 100)|round|int, 100]|min %}
                                 <span class="bill-balance-label">{{ current_user.currency }}{{ "%.2f"|format(bill_balance) }} used of {{ current_user.currency }}{{ "%.2f"|format(bill_total) }} limit</span>
@@ -193,7 +206,7 @@
                                 <div class="bill-progress-fill bill-progress-{{ item.payment.bill_type }}" style="width: {{ fill_percent }}%"></div>
                             </div>
                             <form method="POST" action="{{ url_for('update_balance', payment_id=item.payment.id) }}" class="update-balance-form">
-                                <input type="number" name="new_balance" step="0.01" min="0" placeholder="Update balance (R)" required>
+                                <input type="number" name="new_balance" step="0.01" min="0" placeholder="Update balance ({{ current_user.currency }})" required>
                                 <button type="submit" class="btn-small btn-update">Update</button>
                             </form>
                         {% endif %}

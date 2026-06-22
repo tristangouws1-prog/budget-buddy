@@ -14,18 +14,18 @@
 #14! TODO add a progress bar and stuff for payments that are not just a fixed amount.
 #15! TODO something like aaq store account that has a store credit of R10 000, a payment per month that is R500
 #16! TODO vs a loan that is a fixed amount that is just paid down.
-#17  TODO for loan category add a question for rent % and months remaining and loan insurance so a more accurate budget can be made
+#17! TODO for loan category add a question for rent % and months remaining and loan insurance so a more accurate budget can be made
 #18! TODO Edit bill
 #19! TODO Bill sorting / filtering — filter by status (overdue only, etc.) or sort by amount
 #20  TODO Monthly spending history — a simple chart showing total spend over the last 6 months
 #21! TODO Budget limit — let users set a monthly budget cap; warn them in the hero if they're over
 #22  TODO Dark mode — pairs well with TODO #5 (settings menu)
-#23 TODO loans need to have a catagory for service fees, loan insurance and rent % so that can auto update, then there needs to be a reminder that tells the user to make sure the amount shown is correct
+#23! TODO loans need to have a catagory for service fees, loan insurance and rent % so that can auto update, then there needs to be a reminder that tells the user to make sure the amount shown is correct
 #24! TODO add income as a category so income vs budget vs actual use can be compared
 #25! TODO add a category for non permanent work like freelance work, which will also receive a weekly or monthly reminder that asks for the income or if it has changed
 #26  TODO readme for CS50
 #27  TODO 2 minute app walkthrough
-#28  TODO loan category: add fields for total months remaining, interest rate (%), loan initiation fee, and monthly insurance so that a truly accurate monthly cost and payoff timeline can be displayed
+#28! TODO loan category: add fields for total months remaining, interest rate (%), loan initiation fee, and monthly insurance so that a truly accurate monthly cost and payoff timeline can be displayed
 #29  TODO store/credit account category: add fields for interest rate (%), minimum payment percentage, and credit limit so that the true minimum payment and interest charged can be calculated and displayed accurately
 #30  TODO deploy app online via PythonAnywhere (free tier) so it can be accessed from any device without VS Code — user accounts, bills, and income data all persist as normal with SQLite
 #31  TODO test the reminder messages

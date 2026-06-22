@@ -34,15 +34,28 @@
         </select>
 
         <div id="balance-fields" style="display:none">
-            <label for="total_value" id="total-label">Total loan amount (R)</label>
+            <label for="total_value" id="total-label">Total loan amount ({{ current_user.currency }})</label>
             <input type="number" id="total_value" name="total_value" step="0.01" min="0"
                    placeholder="e.g. 50000">
-            <label for="current_balance" id="balance-label">Current balance owed (R)</label>
+            <label for="current_balance" id="balance-label">Current balance owed ({{ current_user.currency }})</label>
             <input type="number" id="current_balance" name="current_balance" step="0.01" min="0"
                    placeholder="e.g. 34200">
+            
+            <label for="interest_rate" id="interest-label">Interest Rate (%)</label>
+            <input type="number" id="interest_rate" name="interest_rate" step="0.01" min="0"
+                   placeholder="e.g. 12.5">
+            <label for="months_remaining" id="months-label">Months remaining</label>
+            <input type="number" id="months_remaining" name="months_remaining" step="1" min="0"
+                   placeholder="e.g. 48">
+            <label for="loan_insurance" id="insurance-label">Monthly insurance/protection ({{ current_user.currency }})</label>
+            <input type="number" id="loan_insurance" name="loan_insurance" step="0.01" min="0"
+                   placeholder="e.g. 150">
+            <label for="initiation_fee">Initiation fee ({{ current_user.currency }})</label>
+            <input type="number" id="initiation_fee" name="initiation_fee" step="0.01" min="0"
+                   placeholder="e.g. 1200">
         </div>
 
-        <label for="amount">Monthly payment amount (R)</label>
+        <label for="amount">Monthly payment amount ({{ current_user.currency }})</label>
         <input type="number" id="amount" name="amount" step="0.01" min="0"
                placeholder="e.g. 199.99" required>
 
@@ -65,12 +78,12 @@ function toggleBalanceFields(type) {
         fields.style.display = 'none';
     } else if (type === 'loan') {
         fields.style.display = 'block';
-        totalLabel.textContent = 'Total loan amount (R)';
-        balanceLabel.textContent = 'Current balance owed (R)';
+        totalLabel.textContent = 'Total loan amount ({{ current_user.currency }})';
+        balanceLabel.textContent = 'Current balance owed ({{ current_user.currency }})';
     } else {
         fields.style.display = 'block';
-        totalLabel.textContent = 'Credit limit (R)';
-        balanceLabel.textContent = 'Current balance used (R)';
+        totalLabel.textContent = 'Credit limit ({{ current_user.currency }})';
+        balanceLabel.textContent = 'Current balance used ({{ current_user.currency }})';
     }
 }
 </script>

@@ -34,16 +34,29 @@
         </select>
 
 <div id="balance-fields" style="display:none">
-    <label for="total_value" id="total-label">Total loan amount (R)</label>
+    <label for="total_value" id="total-label">Total loan amount ({{ current_user.currency }})</label>
     <input type="number" id="total_value" name="total_value" step="0.01" min="0"
            value="{{ payment.total_value or '' }}">
-    <label for="current_value" id="balance-label">Current balance owed (R)</label>
+    <label for="current_value" id="balance-label">Current balance owed ({{ current_user.currency }})</label>
     <input type="number" id="current_value" name="current_balance" step="0.01" min="0"
            value="{{ payment.current_balance or '' }}">
+    
+    <label for="interest_rate" id="interest-label">Interest Rate(%)</label>
+    <input type="number" id="interest_rate" name="interest_rate" step="0.01" min="0"
+           value="{{ payment.interest_rate or '' }}">
+    <label for="months_remaining" id="months-label">Months remaining</label>
+    <input type="number" id="months_remaining" name="months_remaining" step="1" min="0"
+           value="{{ payment.months_remaining or '' }}">
+    <label for="loan_insurance" id="insurance-label">Loan Insurance ({{ current_user.currency }})</label>
+    <input type="number" id="loan_insurance" name="loan_insurance" step="0.01" min="0"
+           value="{{ payment.loan_insurance or '' }}">
+    <label for="initiation_fee" id="initiation-label">Initiation fee ({{ current_user.currency }})</label>
+    <input type="number" id="initiation_fee" name="initiation_fee" step="0.01" min="0"
+           value="{{ payment.initiation_fee or '' }}">
 </div>
 
 
-        <label for="amount">Monthly payment amount (R)</label>
+        <label for="amount">Monthly payment amount ({{ current_user.currency }})</label>
         <input type="number" id="amount" name="amount" step="0.01" min="0"
                value="{{ payment.amount }}" required>
 
@@ -66,12 +79,12 @@ function toggleBalanceFields(type) {
         fields.style.display = 'none';
     } else if (type === 'loan') {
         fields.style.display = 'block';
-        totalLabel.textContent = 'Total loan amount (R)';
-        balanceLabel.textContent = 'Current balance owed (R)';
+        totalLabel.textContent = 'Total loan amount ({{ current_user.currency }})';
+        balanceLabel.textContent = 'Current balance owed ({{ current_user.currency }})';
     } else {
         fields.style.display = 'block';
-        totalLabel.textContent = 'Credit limit (R)';
-        balanceLabel.textContent = 'Current balance used (R)';
+        totalLabel.textContent = 'Credit limit ({{ current_user.currency }})';
+        balanceLabel.textContent = 'Current balance used ({{ current_user.currency }})';
     }
 }
 toggleBalanceFields(document.getElementById('bill_type').value);

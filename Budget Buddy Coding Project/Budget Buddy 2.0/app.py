@@ -110,7 +110,6 @@ class Payment(db.Model):
     due_day = db.Column(db.Integer, nullable=False)
 
 
-
 #true or false of whether payment has been made or not
     is_paid = db.Column(db.Boolean, default=False)
 
@@ -122,6 +121,18 @@ class Payment(db.Model):
 
 #for loans: remaining balance owed; for credit accounts: current balance used
     current_balance = db.Column(db.Float, nullable=True)
+
+#for loans: interest rate percentage
+    interest_rate = db.Column(db.Float, nullable=True)
+
+#for loans: months remaining on the loan
+    months_remaining = db.Column(db.Integer, nullable=True)
+
+#for loans: monthly loan insuraance/protection premium
+    loan_insurance = db.Column(db.Float, nullable=True)
+
+#for loan: once-off initiation fee
+    initiation_fee = db.Column(db.Float, nullable=True)
 
 #captures exactly when a new bill or subscription was added
     date_added = db.Column(db.DateTime, default=datetime.datetime.now)
@@ -414,6 +425,16 @@ def add_payment():
         raw_balance = request.form.get("current_balance")
         total_value = float(raw_total) if raw_total else None
         current_balance = float(raw_balance) if raw_balance else None
+        
+        raw_interest = request.form.get("interest_rate")
+        raw_months = request.form.get("months_remaining")
+        raw_insurance = request.form.get("loan_insurance")
+        raw_initiation = request.form.get("initiation_fee")
+        interest_rate = float(raw_interest) if raw_interest else None
+        months_remaining = int(raw_months) if raw_months else None
+        loan_insurance = float(raw_insurance) if raw_insurance else None
+        initiation_fee = float(raw_initiation) if raw_initiation else None
+
 
 #create a new payment, one row of information, owned by the logged-in user
         new_payment = Payment(
@@ -426,6 +447,11 @@ def add_payment():
             total_value=total_value,
             current_balance=current_balance,
             user_id=current_user.id,
+            
+            interest_rate=interest_rate,
+            months_remaining=months_remaining,
+            loan_insurance=loan_insurance,
+            initiation_fee=initiation_fee
         )
 
 #add to database
@@ -479,10 +505,24 @@ def edit_payment(payment_id):
         payment.due_day = int(request.form["due_day"])
         payment.payment_method = request.form.get("payment_method") or None
         payment.bill_type = request.form.get("bill_type", "fixed")
+        
         raw_total = request.form.get("total_value")
         raw_balance = request.form.get("current_balance")
+        
         payment.total_value = float(raw_total) if raw_total else None
         payment.current_balance = float(raw_balance) if raw_balance else None
+        
+        raw_interest = request.form.get("interest_rate")
+        raw_months = request.form.get("months_remaining")
+        raw_insurance = request.form.get("loan_insurance")
+        raw_initiation = request.form.get("initiation_fee")
+
+        payment.interest_rate = float(raw_interest) if raw_interest else None
+        payment.months_remaining = int(raw_months) if raw_months else None
+        payment.loan_insurance = float(raw_insurance) if raw_insurance else None
+        payment.initiation_fee = float(raw_initiation) if raw_initiation else None
+
+
         db.session.commit()
         flash(f"Updated '{payment.name}' successfully", "success")
         return redirect(url_for("dashboard"))
