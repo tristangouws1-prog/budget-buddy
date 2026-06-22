@@ -29,7 +29,8 @@
         <select id="bill_type" name="bill_type" onchange="toggleBalanceFields(this.value)">
             <option value="fixed" {% if payment.bill_type == "fixed" %}selected{% endif %}>Fixed monthly (e.g. Spotify, rent)</option>
             <option value="loan"  {% if payment.bill_type == "loan"  %}selected{% endif %}>Loan (gets paid down over time)</option>
-            <option value="credit"{% if payment.bill_type == "credit"%}selected{% endif %}>Credit account (store account, credit card)</option>
+            <option value="credit" {% if payment.bill_type == "credit"%}selected{% endif %}>Credit account (store account, credit card)</option>
+            <option value="once_off" {% if payment.bill_type == "once_off" %}selected{% endif %}>Once-off (single payment, doesn't repeat)</option>
         </select>
 
 <div id="balance-fields" style="display:none">

@@ -666,7 +666,8 @@ def create_monthly_reminders():
 
             # new month so reset all of this user's payments
             for p in payments:
-                p.is_paid = False
+                if p.bill_type != "once_off" or not p.is_paid:
+                    p.is_paid = False
 
             #variable income reminder(monthly)
             variable_incomes = Income.query.filter_by(

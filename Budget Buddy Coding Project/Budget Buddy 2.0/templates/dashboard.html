@@ -157,6 +157,9 @@
                         {% if item.payment.payment_method %}
                             <span class="method-badge">Paid via {{ item.payment.payment_method }}</span>
                         {% endif %}
+                        {% if item.payment.bill_type == 'once_off' %}
+                            <span class="method-badge">Once-off</span>
+                        {% endif %}
 
                         <span class="bill-meta">
                             <span class="status-badge badge-{{ item.status }}">

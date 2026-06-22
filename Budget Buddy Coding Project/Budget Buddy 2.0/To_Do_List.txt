@@ -1,6 +1,6 @@
 #1!  TODO the box that says Welcome to Budget Buddy is currently green, make it a pastel blue
 #2   TODO add a partial payment amount option instead of just "paid", add a progress bar for each individual bill as well, with a small dark divider between if the unpaid part comes from a previous month
-#3   TODO add a category called once off bills
+#3!  TODO add a category called once off bills
 #4!  TODO add logic that adds st rd or th to the end of of the due day
 #5   TODO add a settings menu where colour scheme can be changed
 #6!  TODO add different payment modes(e.g. spotify is paid from airtime, WiFi bill is paid from debit card etc)
@@ -16,7 +16,7 @@
 #16! TODO vs a loan that is a fixed amount that is just paid down.
 #17  TODO for loan category add a question for rent % and months remaining and loan insurance so a more accurate budget can be made
 #18! TODO Edit bill
-#19  TODO Bill sorting / filtering — filter by status (overdue only, etc.) or sort by amount
+#19! TODO Bill sorting / filtering — filter by status (overdue only, etc.) or sort by amount
 #20  TODO Monthly spending history — a simple chart showing total spend over the last 6 months
 #21! TODO Budget limit — let users set a monthly budget cap; warn them in the hero if they're over
 #22  TODO Dark mode — pairs well with TODO #5 (settings menu)
@@ -28,7 +28,7 @@
 #28  TODO loan category: add fields for total months remaining, interest rate (%), loan initiation fee, and monthly insurance so that a truly accurate monthly cost and payoff timeline can be displayed
 #29  TODO store/credit account category: add fields for interest rate (%), minimum payment percentage, and credit limit so that the true minimum payment and interest charged can be calculated and displayed accurately
 #30  TODO deploy app online via PythonAnywhere (free tier) so it can be accessed from any device without VS Code — user accounts, bills, and income data all persist as normal with SQLite
-#28  TODO test the reminder messages
+#31  TODO test the reminder messages
 
 
 #future TODO add a small pixel buddy that motivates the user
@@ -44,6 +44,12 @@
 
 #That's a perfectly nice combination. 
 #Whenever you want to tidy or extend it (e.g. make the hero gradient blend purple→rose, or update the 💜 logo), just say the word — but I'll leave everything as-is for now.
+
+Your README.md file should be minimally multiple paragraphs in length, and should explain what your project is, 
+what each of the files you wrote for the project contains and does, and if you debated certain design choices, explaining why you made them. 
+Ensure you allocate sufficient time and energy to writing a README.md that documents your project thoroughly. 
+Be proud of it! A README.md in the neighborhood of 750 words is likely to be sufficient for describing your project and all aspects of its functionality. 
+If unable to reach that threshold, that probably means your project is insufficiently complex
 
 
 #---------------|||||||||||||||||||||||||||||---------------#
