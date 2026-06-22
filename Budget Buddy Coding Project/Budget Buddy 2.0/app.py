@@ -3,6 +3,7 @@
 # but the essence of the work must still be your own.
 # You've learned enough to use such tools as helpers.
 # Treat such tools as amplifying, not supplanting, your productivity.
+
 #But you still must cite any use of such tools in the comments of your code.
 
 #claude code was used to help determine what the skeleton of the app would be.
@@ -218,10 +219,10 @@ def get_status(payment):
     """
     Return a status WORD for a bill
     Colour coded
-    "paid"      -> already paid this month                  (green)
-    "overdue"   -> due day has passed and bill not paid     (soft red)
-    "soon"      -> due within the next 5 days, not yet paid (amber)
-    "upcoming"  -> not paid, but not due for a while        (neutral)
+    "paid"     -> (green)
+    "overdue"  -> (soft red)
+    "soon"     -> (amber)
+    "upcoming" -> (neutral)
 
     """
     if payment.is_paid:
@@ -327,6 +328,9 @@ def logout():
 def dashboard():
     """ Home Page: Show totals,upcoming reminders and overdues, list of bills"""
 
+    filter_status = request.args.get("filter", "all")
+    sort_by = request.args.get("sort", "due_day")
+
     #get only THIS user's payments, sorted by due day first
     payments = (
         Payment.query.filter_by(user_id=current_user.id)
@@ -342,6 +346,16 @@ def dashboard():
             "status": get_status(p),
             "days_left": days_until_due(p.due_day, p.is_paid),
         })
+
+    #filter
+    if filter_status != "all":
+        payments_with_status = [p for p in payments_with_status if p["status"] == filter_status]
+   
+    #sort
+    if sort_by =="amount":
+        payments_with_status.sort(key=lambda p: p["payment"].amount, reverse=True)
+    elif sort_by == "name":
+        payments_with_status.sort(key=lambda p: p["payment"].name.lower())
 
     # useful monthly totals
     total_monthly = sum(p.amount for p in payments)
@@ -373,7 +387,9 @@ def dashboard():
         budget_limit=current_user.budget_limit,
         income_sources=income_sources,
         total_income=total_income,
-        money_remaining=money_remaining
+        money_remaining=money_remaining,
+        filter_status=filter_status,
+        sort_by=sort_by
     )
 
 @app.route("/add", methods=["GET", "POST"])

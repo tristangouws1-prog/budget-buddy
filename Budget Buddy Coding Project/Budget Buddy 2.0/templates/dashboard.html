@@ -126,6 +126,20 @@
 
 <!-- ===== Bill list ===== -->
 <section>
+    <div class="filter">
+        <a href="{{ url_for('dashboard', filter='all', sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'all' }}">All</a>
+        <a href="{{ url_for('dashboard', filter='overdue', sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'overdue' }}">Overdue</a>
+        <a href="{{ url_for('dashboard', filter='soon',    sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'soon' }}">Due soon</a>
+        <a href="{{ url_for('dashboard', filter='paid',    sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'paid' }}">Paid</a>
+
+        <span class="filter-divider">Sort:</span>
+        <a href="{{ url_for('dashboard', filter=filter_status, sort='due_day') }}" class="{{ 'filter-active' if sort_by == 'due_day' }}">Due date</a>
+        <a href="{{ url_for('dashboard', filter=filter_status, sort='amount') }}"  class="{{ 'filter-active' if sort_by == 'amount' }}">Amount</a>
+        <a href="{{ url_for('dashboard', filter=filter_status, sort='name') }}"    class="{{ 'filter-active' if sort_by == 'name' }}">Name</a>
+    </div>
+
+
+
     <div class="section-head">
         <h2>Your bills</h2>
         <a class="btn-primary" href="{{ url_for('add_payment') }}">+ Add a bill</a>

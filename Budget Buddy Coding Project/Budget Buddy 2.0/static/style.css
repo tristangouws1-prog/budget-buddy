@@ -212,6 +212,35 @@ h1, h2, h3, .logo, .hero-amount {
 }
 .section-head h2 { font-size: 1.3rem; }
 
+/*── Filter / Sort by ──*/
+.filter{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+.filter a {
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 5px 14px;
+    border-radius: 999px;
+    text-decoration: none;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    transition: background  0.15s, color 0.15s;
+}
+.filter a:hover { background: var(--primary-light); color: var(--primary); }
+.filter-active { background: var(--primary) !important; color: #fff !important; border-color: var(--primary) !important; }
+.filter-divider {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin: 0 4px;
+}
+
+
+
 /* ── Bill cards ── */
 .bill-list { display: flex; flex-direction: column; gap: 10px; }
 
