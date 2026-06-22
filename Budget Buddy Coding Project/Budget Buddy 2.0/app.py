@@ -134,6 +134,9 @@ class Payment(db.Model):
 #for loan: once-off initiation fee
     initiation_fee = db.Column(db.Float, nullable=True)
 
+#for credit accounts: minimum % of balance due each month
+    minimum_payment_percent = db.Column(db.Float, nullable=True)
+
 #captures exactly when a new bill or subscription was added
     date_added = db.Column(db.DateTime, default=datetime.datetime.now)
 
@@ -425,6 +428,7 @@ def add_payment():
         raw_balance = request.form.get("current_balance")
         total_value = float(raw_total) if raw_total else None
         current_balance = float(raw_balance) if raw_balance else None
+
         
         raw_interest = request.form.get("interest_rate")
         raw_months = request.form.get("months_remaining")
@@ -434,6 +438,10 @@ def add_payment():
         months_remaining = int(raw_months) if raw_months else None
         loan_insurance = float(raw_insurance) if raw_insurance else None
         initiation_fee = float(raw_initiation) if raw_initiation else None
+
+
+        raw_min_pay = request.form.get("minimum_payment_percent")
+        minimum_payment_percent = float(raw_min_pay) if raw_min_pay else None
 
 
 #create a new payment, one row of information, owned by the logged-in user
@@ -451,7 +459,9 @@ def add_payment():
             interest_rate=interest_rate,
             months_remaining=months_remaining,
             loan_insurance=loan_insurance,
-            initiation_fee=initiation_fee
+            initiation_fee=initiation_fee,
+
+            minimum_payment_percent=minimum_payment_percent
         )
 
 #add to database
@@ -521,7 +531,8 @@ def edit_payment(payment_id):
         payment.months_remaining = int(raw_months) if raw_months else None
         payment.loan_insurance = float(raw_insurance) if raw_insurance else None
         payment.initiation_fee = float(raw_initiation) if raw_initiation else None
-
+        raw_min_pay = request.form.get("minimum_payment_percent")
+        payment.minimum_payment_percent = float(raw_min_pay) if raw_min_pay else None
 
         db.session.commit()
         flash(f"Updated '{payment.name}' successfully", "success")

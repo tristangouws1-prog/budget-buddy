@@ -40,20 +40,29 @@
             <label for="current_balance" id="balance-label">Current balance owed ({{ current_user.currency }})</label>
             <input type="number" id="current_balance" name="current_balance" step="0.01" min="0"
                    placeholder="e.g. 34200">
-            
-            <label for="interest_rate" id="interest-label">Interest Rate (%)</label>
+            <label for="interest_rate" id="interest-label">Interest rate (%)</label>
             <input type="number" id="interest_rate" name="interest_rate" step="0.01" min="0"
                    placeholder="e.g. 12.5">
-            <label for="months_remaining" id="months-label">Months remaining</label>
-            <input type="number" id="months_remaining" name="months_remaining" step="1" min="0"
-                   placeholder="e.g. 48">
-            <label for="loan_insurance" id="insurance-label">Monthly insurance/protection ({{ current_user.currency }})</label>
-            <input type="number" id="loan_insurance" name="loan_insurance" step="0.01" min="0"
-                   placeholder="e.g. 150">
-            <label for="initiation_fee">Initiation fee ({{ current_user.currency }})</label>
-            <input type="number" id="initiation_fee" name="initiation_fee" step="0.01" min="0"
-                   placeholder="e.g. 1200">
+
+            <div id="loan-only-fields" style="display:none">
+                <label for="months_remaining">Months remaining</label>
+                <input type="number" id="months_remaining" name="months_remaining" min="0"
+                       placeholder="e.g. 48">
+                <label for="loan_insurance">Monthly insurance/protection ({{ current_user.currency }})</label>
+                <input type="number" id="loan_insurance" name="loan_insurance" step="0.01" min="0"
+                       placeholder="e.g. 150">
+                <label for="initiation_fee">Initiation fee ({{ current_user.currency }})</label>
+                <input type="number" id="initiation_fee" name="initiation_fee" step="0.01" min="0"
+                       placeholder="e.g. 1200">
+            </div>
+
+            <div id="credit-only-fields" style="display:none">
+                <label for="minimum_payment_percent">Minimum monthly payment (%)</label>
+                <input type="number" id="minimum_payment_percent" name="minimum_payment_percent"
+                       step="0.01" min="0" max="100" placeholder="e.g. 3">
+            </div>
         </div>
+
 
         <label for="amount">Monthly payment amount ({{ current_user.currency }})</label>
         <input type="number" id="amount" name="amount" step="0.01" min="0"
@@ -72,20 +81,30 @@
 <script>
 function toggleBalanceFields(type) {
     const fields = document.getElementById('balance-fields');
+    const loanFields = document.getElementById('loan-only-fields');
+    const creditFields = document.getElementById('credit-only-fields');
     const totalLabel = document.getElementById('total-label');
     const balanceLabel = document.getElementById('balance-label');
-    if (type === 'fixed') {
+
+    if (type === 'fixed' || type === 'once_off') {
         fields.style.display = 'none';
+        loanFields.style.display = 'none';
+        creditFields.style.display = 'none';
     } else if (type === 'loan') {
         fields.style.display = 'block';
+        loanFields.style.display = 'block';
+        creditFields.style.display = 'none';
         totalLabel.textContent = 'Total loan amount ({{ current_user.currency }})';
         balanceLabel.textContent = 'Current balance owed ({{ current_user.currency }})';
     } else {
         fields.style.display = 'block';
+        loanFields.style.display = 'none';
+        creditFields.style.display = 'block';
         totalLabel.textContent = 'Credit limit ({{ current_user.currency }})';
         balanceLabel.textContent = 'Current balance used ({{ current_user.currency }})';
     }
 }
+
 </script>
 
 {% endblock %}
