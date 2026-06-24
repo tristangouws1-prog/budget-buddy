@@ -197,10 +197,23 @@
                                 {% if item.payment.initiation_fee %}
                                     <span class="bill-balance-label">Initiation fee: {{ current_user.currency }}{{ "%.2f"|format(item.payment.initiation_fee) }}</span>
                                 {% endif %}
-
                             {% else %}
                                 {% set fill_percent = [(bill_balance / bill_total * 100)|round|int, 100]|min %}
                                 <span class="bill-balance-label">{{ current_user.currency }}{{ "%.2f"|format(bill_balance) }} used of {{ current_user.currency }}{{ "%.2f"|format(bill_total) }} limit</span>
+                                {% if item.payment.interest_rate %}
+                                    <span class="bill-balance-label">Interest rate: {{ "%.2f"|format(item.payment.interest_rate) }}%</span>
+                                {% endif %}
+                                {% if item.payment.minimum_payment_percent and item.payment.current_balance %}
+                                    {% set min_payment = item.payment.current_balance * (item.payment.minimum_payment_percent / 100) %}
+                                    <span class="bill-balance-label">Min. payment due: {{ current_user.currency }}{{ "%.2f"|format(min_payment) }}</span>
+                                    {% if item.payment.interest_rate %}
+                                        {% set monthly_interest = item.payment.current_balance * (item.payment.interest_rate / 100 / 12) %}
+                                        <span class="bill-balance-label">Est. monthly interest: {{ current_user.currency }}{{ "%.2f"|format(monthly_interest) }}</span>
+                                    {% endif %}
+                                {% endif %}
+
+                            
+                            
                             {% endif %}
                             <div class="bill-progress-bar">
                                 <div class="bill-progress-fill bill-progress-{{ item.payment.bill_type }}" style="width: {{ fill_percent }}%"></div>
