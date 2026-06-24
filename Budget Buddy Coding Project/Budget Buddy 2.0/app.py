@@ -113,6 +113,9 @@ class Payment(db.Model):
 #true or false of whether payment has been made or not
     is_paid = db.Column(db.Boolean, default=False)
 
+#amount that has been paid
+    amount_paid = db.Column(db.Float, nullable=True, default=0)
+
 #"fixed" for normal bills, "loan" for debts being paid down, "credit" for store/credit accounts
     bill_type = db.Column(db.String(20), nullable=False, default="fixed")
 
@@ -377,7 +380,7 @@ def dashboard():
     # useful monthly totals
     total_monthly = sum(p.amount for p in payments)
     unpaid = [p for p in payments if not p.is_paid]
-    total_unpaid = sum(p.amount for p in unpaid)
+    total_unpaid = sum(p.amount - (p.amount_paid or 0) for p in unpaid)
 
     #only this user's unread reminders
     unread_reminders = (
@@ -557,6 +560,25 @@ def edit_income(income_id):
     return render_template("edit_income.html", income=income)
 
 
+@app.route("/partial_pay/<int:payment_id>", methods=["POST"])
+@login_required
+def partial_pay(payment_id):
+    """record a partial payment """
+    payment = get_owned_payment_or_404(payment_id)
+    raw = request.form.get("paid_amount")
+    if raw:
+        payment.amount_paid = float(raw)
+        if payment.amount_paid >= payment.amount:
+            payment.is_paid = True
+            payment.amount_paid = payment.amount
+        else:
+            payment.is_paid = False
+    db.session.commit()
+    flash(f"Payment recorded for '{payment.name}'.","success")
+    return redirect(url_for("dashboard"))
+
+
+
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
 def settings():
@@ -719,6 +741,7 @@ def create_monthly_reminders():
             for p in payments:
                 if p.bill_type != "once_off" or not p.is_paid:
                     p.is_paid = False
+                    p.amount_paid = 0
 
             #variable income reminder(monthly)
             variable_incomes = Income.query.filter_by(

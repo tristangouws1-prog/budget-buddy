@@ -223,6 +223,26 @@
                                 <button type="submit" class="btn-small btn-update">Update</button>
                             </form>
                         {% endif %}
+
+                            {% if not item.payment.is_paid and item.payment.bill_type not in ('loan', 'credit') %}
+                            {% set paid_so_far = item.payment.amount_paid or 0 %}
+                            {% if paid_so_far > 0 %}
+                                {% set partial_percent = [(paid_so_far / item.payment.amount * 100)|round|int, 100]|min %}
+                                <div class="bill-progress-bar">
+                                    <div class="bill-progress-fill bill-progress-partial" style="width: {{ partial_percent }}%"></div>
+                                </div>
+                                <span class="bill-balance-label">{{ current_user.currency }}{{ "%.2f"|format(paid_so_far) }} paid of {{ current_user.currency }}{{ "%.2f"|format(item.payment.amount) }}</span>
+                            {% endif %}
+                            <form method="POST" action="{{ url_for('partial_pay', payment_id=item.payment.id) }}" class="update-balance-form">
+                                <input type="number" name="paid_amount" step="0.01" min="0"
+                                       max="{{ item.payment.amount }}"
+                                       placeholder="Amount paid so far"
+                                       value="{{ item.payment.amount_paid or '' }}">
+                                <button type="submit" class="btn-small btn-update">Update</button>
+                            </form>
+                        {% endif %}
+
+
                     </div>
 
                     <div class="bill-right">
