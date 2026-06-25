@@ -801,8 +801,10 @@ scheduler = BackgroundScheduler()
 #trigger = "cron"
 scheduler.add_job(
     func=create_weekly_reminder,
-    trigger="interval",
-    seconds=15,
+    trigger="cron",
+    day_of_week="mon",
+    hour=9,
+    minute=0,
     id="weekly_reminder",
 )
 
