@@ -139,6 +139,9 @@ h1, h2, h3, .logo, .hero-amount {
 }
 .hero-amount { font-size: 3.2rem; line-height: 1; color: #fff; margin: 4px 0 10px; }
 .hero-sub { opacity: 0.88; font-size: 0.97rem; }
+.hero-budget-warning { background: rgba(255, 80, 80, 0.25); color: #fff; padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 0.82rem; display: inline-block; margin-top: 8px; }
+.hero-budget-ok { background: rgba(80, 220, 130, 0.25); color: #fff; padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 0.82rem; display: inline-block; margin-top: 8px; }
+
 
 /* Progress bar inside hero */
 .hero-progress {
@@ -172,6 +175,9 @@ h1, h2, h3, .logo, .hero-amount {
 }
 .stat-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
 .stat-value { font-family: 'Fraunces', serif; font-size: 1.6rem; font-weight: 600; margin-top: 2px; }
+.stat-negative { color: var(--overdue-text); }
+.stat-positive { color: var(--paid-text); }
+
 
 /* ── Reminders ── */
 .reminders-box { margin-bottom: 28px; }
@@ -205,6 +211,7 @@ h1, h2, h3, .logo, .hero-amount {
     flex-shrink: 0;
 }
 .reminder-done:hover { background: #fff; }
+.is-read { opacity: 0.45; }
 .reminder-date { font-size: 0.78rem; opacity: 0.7; margin-top: 3px; }
 
 /* ── Section head ── */
@@ -390,6 +397,9 @@ h1, h2, h3, .logo, .hero-amount {
 }
 .form-card h2 { margin-bottom: 6px; }
 .form-intro { color: var(--muted); margin-bottom: 24px; font-size: 0.95rem; }
+
+.form-hint { font-size: 0.82rem; color: var(--muted); margin-top: 4px; }
+
 .form-card label {
     display: block;
     font-weight: 700;

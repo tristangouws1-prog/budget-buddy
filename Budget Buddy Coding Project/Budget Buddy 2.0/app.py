@@ -372,7 +372,7 @@ def dashboard():
         payments_with_status = [p for p in payments_with_status if p["status"] == filter_status]
    
     #sort
-    if sort_by =="amount":
+    if sort_by == "amount":
         payments_with_status.sort(key=lambda p: p["payment"].amount, reverse=True)
     elif sort_by == "name":
         payments_with_status.sort(key=lambda p: p["payment"].name.lower())
@@ -587,7 +587,7 @@ def settings():
         raw_limit = request.form.get("budget_limit") 
         current_user.budget_limit = float(raw_limit) if raw_limit else None
         db.session.commit()
-        flash("Settings saved", "saved")
+        flash("Settings saved", "success")
         return redirect(url_for("settings"))
     return render_template("settings.html")
 
@@ -727,7 +727,7 @@ def create_weekly_reminder():
                     category="weekly",
                     user_id=user.id,
                 ))
-        #remind about overdue and upcoming bills
+            #remind about overdue and upcoming bills
             user_payments = Payment.query.filter_by(user_id=user.id).all()
             for p in user_payments:
                 status = get_status(p)

@@ -8,9 +8,9 @@
 #8   TODO split date and time into separate columns
 #9!  TODO add on the dashboard how much the total bill cost is
 #10  TODO offline version that can run anywhere, mobile,pc,laptop etc
-#11! TODO: Currencies?
+#11! TODO: Currencies
 #12! TODO double check what happens with months that have 30 days vs 31 vs 28 or 29
-#13  TODO split datetime between date and time as separate columns?
+#13  TODO payment history
 #14! TODO add a progress bar and stuff for payments that are not just a fixed amount.
 #15! TODO something like aaq store account that has a store credit of R10 000, a payment per month that is R500
 #16! TODO vs a loan that is a fixed amount that is just paid down.
@@ -28,12 +28,11 @@
 #28! TODO loan category: add fields for total months remaining, interest rate (%), loan initiation fee, and monthly insurance so that a truly accurate monthly cost and payoff timeline can be displayed
 #29  TODO store/credit account category: add fields for interest rate (%), minimum payment percentage, and credit limit so that the true minimum payment and interest charged can be calculated and displayed accurately
 #30  TODO deploy app online via PythonAnywhere (free tier) so it can be accessed from any device without VS Code — user accounts, bills, and income data all persist as normal with SQLite
-#31  TODO test the reminder messages
-
+#31! TODO test the reminder messages
+#32  
 
 #future TODO add a small pixel buddy that motivates the user
 # to keep up to date with their budget info
-
 #after that include an egg hatching system to get new buddies
 #paying bills and registering bills and daily check ins grant xp
 #which can be used to get cosmetics for your buddy as they level up
@@ -42,8 +41,6 @@
 #buddy will appear and live on left side of screen
 
 
-#That's a perfectly nice combination. 
-#Whenever you want to tidy or extend it (e.g. make the hero gradient blend purple→rose, or update the 💜 logo), just say the word — but I'll leave everything as-is for now.
 
 Your README.md file should be minimally multiple paragraphs in length, and should explain what your project is, 
 what each of the files you wrote for the project contains and does, and if you debated certain design choices, explaining why you made them. 
@@ -53,30 +50,10 @@ If unable to reach that threshold, that probably means your project is insuffici
 
 
 #---------------|||||||||||||||||||||||||||||---------------#
-
-High value — worth doing before submission:
-
-#19 — Bill sorting/filtering (filter overdue, sort by amount). Medium effort, makes the app noticeably more useful when you have many bills.
-#3 — Once-off bills category (e.g. annual subscriptions, one-time expenses). Medium effort, fills an obvious gap.
-Medium value — nice to have:
-
-#2 — Partial payments + per-bill progress bar. More complex but impressive feature.
-#17/#23 — Loan enhancements (interest rate, months remaining, service fees). Niche but completes the loan category properly.
-#5/#22 — Colour scheme / dark mode. Pure cosmetic, low priority.
-Skip for now:
-
-#8/#13 — Split date/time columns. Low payoff.
-#20 — Spending history chart. Hard, and you'd need historical data stored first.
-#10 — Offline/mobile. Very complex, out of scope for CS50.
-Not in the TODO list but required for CS50:
-
-README.md — mandatory submission file
-~2 minute video walkthrough — mandatory
-The README and video are the most important things blocking submission. The app itself is already functional enough to pass. What do you want to tackle next?
-
+                        README.md
+                ~2 minute video walkthrough
 #---------------|||||||||||||||||||||||||||||---------------#
 
-| Rank | TODO | Effort | Importance |
 
 |---|---|---|---|
 
