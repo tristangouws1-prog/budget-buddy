@@ -1,5 +1,5 @@
 #1!  TODO the box that says Welcome to Budget Buddy is currently green, make it a pastel blue
-#2   TODO add a partial payment amount option instead of just "paid", add a progress bar for each individual bill as well, with a small dark divider between if the unpaid part comes from a previous month
+#2!  TODO add a partial payment amount option instead of just "paid", add a progress bar for each individual bill as well, with a small dark divider between if the unpaid part comes from a previous month
 #3!  TODO add a category called once off bills
 #4!  TODO add logic that adds st rd or th to the end of of the due day
 #5   TODO add a settings menu where colour scheme can be changed

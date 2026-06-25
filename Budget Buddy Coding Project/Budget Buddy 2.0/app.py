@@ -727,6 +727,24 @@ def create_weekly_reminder():
                     category="weekly",
                     user_id=user.id,
                 ))
+        #remind about overdue and upcoming bills
+            user_payments = Payment.query.filter_by(user_id=user.id).all()
+            for p in user_payments:
+                status = get_status(p)
+                if status == "overdue":
+                    db.session.add(Reminder(
+                        message=f"'{p.name}' ({user.currency}{p.amount:.2f}) is overdue! Due on the {ordinal_day(p.due_day)}.",
+                        category="weekly",
+                        user_id=user.id,
+                    ))
+                elif status == "soon":
+                    days = days_until_due(p.due_day, p.is_paid)
+                    db.session.add(Reminder(
+                        message=f"'{p.name}' ({user.currency}{p.amount:.2f}) is due in {days} day{'s' if days != 1 else ''}.",
+                        category="weekly",
+                        user_id=user.id,
+                    ))
+
         db.session.commit()
 
 
@@ -801,7 +819,7 @@ scheduler.add_job(
 )
 
  
-#-----Tips for testing-----#
+#TESTING
 # The reminders above only fire on their REAL schedule, so you might wait days
 # to see one! To test quickly, temporarily replace a job's trigger with an
 # interval one, for example:
