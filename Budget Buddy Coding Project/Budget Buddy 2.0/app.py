@@ -734,14 +734,14 @@ def create_weekly_reminder():
                 if status == "overdue":
                     db.session.add(Reminder(
                         message=f"'{p.name}' ({user.currency}{p.amount:.2f}) is overdue! Due on the {ordinal_day(p.due_day)}.",
-                        category="weekly",
+                        category="overdue",
                         user_id=user.id,
                     ))
                 elif status == "soon":
                     days = days_until_due(p.due_day, p.is_paid)
                     db.session.add(Reminder(
                         message=f"'{p.name}' ({user.currency}{p.amount:.2f}) is due in {days} day{'s' if days != 1 else ''}.",
-                        category="weekly",
+                        category="soon",
                         user_id=user.id,
                     ))
 
@@ -801,10 +801,8 @@ scheduler = BackgroundScheduler()
 #trigger = "cron"
 scheduler.add_job(
     func=create_weekly_reminder,
-    trigger="cron",
-    day_of_week="mon",
-    hour=9,
-    minute=0,
+    trigger="interval",
+    seconds=15,
     id="weekly_reminder",
 )
 

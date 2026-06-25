@@ -189,6 +189,8 @@ h1, h2, h3, .logo, .hero-amount {
 }
 .reminder-weekly  { background: #eef4fb; border-color: #c0d4f0; color: #2d4d80; }
 .reminder-monthly { background: var(--soon-bg); border-color: var(--soon-border); color: var(--soon-text); }
+.reminder-overdue { background: var(--overdue-bg); border-color: var(--overdue-border); color: var(--overdue-text); }
+.reminder-soon    { background: var(--soon-bg);    border-color: var(--soon-border);    color: var(--soon-text); }
 .reminder-done {
     white-space: nowrap;
     background: rgba(255,255,255,0.75);
@@ -218,6 +220,7 @@ h1, h2, h3, .logo, .hero-amount {
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
+    margin-top: 28px;
     margin-bottom: 16px;
 }
 .filter a {
