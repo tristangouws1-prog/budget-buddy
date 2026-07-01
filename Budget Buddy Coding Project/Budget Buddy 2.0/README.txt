@@ -31,7 +31,8 @@ they are added edit_payment.html helps to fix any errors such as typos or an inc
 happened. 
 
 
-7. settings.html 
+7. settings.html
+
 
 
 8. reminders.html
