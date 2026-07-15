@@ -99,7 +99,7 @@ or income by id alone, i wrote helper functions that only return a record if it 
 it returns 404. This stops one user from viewing or editing another user's data.
 
 
-I used calendar.monthrange and min(due_day, days_in_month)  in days_until_due() to make sure that the due days_in_monthis the last valid day in the month.
+I used calendar.monthrange and min(due_day, days_in_month) in days_until_due() to make sure that the due days_in_month is the last valid day in the month.
 This ensures that a bill that is due on the 31st still works in February.
 
 
