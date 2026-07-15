@@ -29,7 +29,9 @@
 #29  TODO store/credit account category: add fields for interest rate (%), minimum payment percentage, and credit limit so that the true minimum payment and interest charged can be calculated and displayed accurately
 #30  TODO deploy app online via PythonAnywhere (free tier) so it can be accessed from any device without VS Code — user accounts, bills, and income data all persist as normal with SQLite
 #31! TODO test the reminder messages
-#32  
+#32  TODO add email as a reminders mesage option
+#33  TODO spending history table
+#34  TODO spending history chart
 
 #future TODO add a small pixel buddy that motivates the user
 # to keep up to date with their budget info
