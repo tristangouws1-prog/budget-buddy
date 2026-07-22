@@ -12,9 +12,12 @@
             <div class="reminder reminder-{{ r.category }} {{ 'is-read' if r.is_read else '' }}">
                 <div>
                     <span>{{ r.message }}</span>
-                    <!-- date when the reminder appeared.
+                    <!-- date and time when the reminder appeared, shown separately.
                          strftime turns the date into text. -->
-                    <div class="reminder-date">{{ r.created_at.strftime('%d %b %Y') }}</div>
+                    <div class="reminder-date">
+                        <span>{{ r.created_at.strftime('%d %b %Y') }}</span> &middot;
+                        <span>{{ r.created_at.strftime('%H:%M') }}</span>
+                    </div>
                 </div>
                 {% if not r.is_read %}
                     <a class="reminder-done"

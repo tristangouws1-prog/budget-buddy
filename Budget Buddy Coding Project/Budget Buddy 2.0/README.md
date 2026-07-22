@@ -1,7 +1,10 @@
-This is my submission for CS50's final project.
+# This is my submission for CS50's final project. 
+# Budget Buddy
+#### Video Demo: <https://youtu.be/tVT7a62W9hE>
 
 
-1. My project is called Budget Buddy. It is a budgeting app that sends the user reminders to add new bills, 
+## 1. Overview
+My project is called Budget Buddy. It is a budgeting app that sends the user reminders to add new bills, 
 or sources of income, as well as to pay them when they are due and send reminders when they are overdue.
 The app is meant to be useful for people with adhd who have a high tendency of forgetting things like bills because of 
 object permanence. 
@@ -13,7 +16,8 @@ I plan on learning much more and
 continuing to grow this project.
 
 
-2. app.py is the main file. It is a Flask app that claude code helped with whenever I hit a brick wall. I asked claude to give me ideas, 
+## 2.  App.py
+app.py is the main file. It is a Flask app that claude code helped with whenever I hit a brick wall. I asked claude to give me ideas, 
 help me understand concepts, look for bug fixes as well as teach me how to commit and push code to github. 
 All the code in the project was manually typed by me except for bug fixes and typos that claude helped with.
 app.py contains the database models(User, Payment, Income, Reminder), 
@@ -22,7 +26,8 @@ helper functions(get_status() and ordinal_day())
 and the APScheduler that sends weekly and monthly reminders.
 
 
-3. style.css is the file that determines the look, colour scheme, spacing etc. of all the .html files
+## 3. Style.css
+style.css is the file that determines the look, colour scheme, spacing etc. of all the .html files
 This page determines the colours like red for overdue and green for paid.
 Consistent use of rounded edges on the card layouts to ensure a calm layout.
 I chose a calm colour scheme because the app is supposed to be easy to use and ease stress. 
@@ -31,7 +36,8 @@ The Stylesheet also includes a mobile friendly version.
 I used CSS variables to store the colour scheme in one place and then reuse those values
 accross the rest of the stylesheet to keep a consistant colour palette.
 
-4. dashboard.html is the main page that is seen when a user logs in. 
+## 4. Dashboard
+dashboard.html is the main page that is seen when a user logs in. 
 This page shows them their income, expenses, how much is left in their budget and all the reminders that are sent are shown here in different colours, red, amber and green.
 The dashboard page shows all the important information in one place. 
 The bills have a per-bill progress bar showing how much of the bill has been paid if only a partial payment was made.
@@ -39,33 +45,38 @@ Loans and credit cards also have progress bars as well as the budget-limit warni
 The page allows the user to filter/sort by overdue.
 
 
-5. add_payment.html and edit_payment.html are where payments are added and after 
+## 5. Add and Edit Payment
+add_payment.html and edit_payment.html are where payments are added and after 
 they are added edit_payment.html helps to fix any errors such as typos or an incorrect amount or date.
 add_payment allows for multiple bill types like once-off bills, subscriptions, loans and credit.
 Depending on the bill type different fields are shown or hidden using Javascript.
 
 
 
-6. add_income.html/edit_income.html are pages where sources of income are added and edited if any mistakes were made or updates
+## 6. Add and Edit Income
+add_income.html/edit_income.html are pages where sources of income are added and edited if any mistakes were made or updates
 happened. Income can either be a "fixed" value each month such as a salary or it can be a "variable"
 income that changes from month to month, such as income received from freelance work.
 Variable income defaults to unconfirmed each month, and asks the user via a reminder if they have received
 an income yet.
 
 
-7. settings.html is a page where the user can change their currency preference, this is useful because the currency symbol
+## 7. Settings
+settings.html is a page where the user can change their currency preference, this is useful because the currency symbol
 is used across the entire app and each user has the option to customise their preferred currency. To further upgrade this
 I am considering either adding more currency options, or adding a field where a custom currency can be typed in.
 The settings page also allows the user to set and update a custom budget limit.
 This is useful as the budget limit might be different from total income.
 
 
-8. reminders.html is a page that shows the full history of reminders that has been sent to the user. 
+## 8. Reminders
+reminders.html is a page that shows the full history of reminders that has been sent to the user. 
 Reminders that have been dismissed are dimmed and they are sorted newest first. 
 Using python's "strftime" also converts the dates to an easily readable format.
 
 
-9. login.html / register.html are the pages that handle account creation and subsequently login authentication.
+## 9. Login and Register
+login.html / register.html are the pages that handle account creation and subsequently login authentication.
 When a user registers, their password is never stored, it is hashed using Werkzeug's security functions.
 Login re-hashes the password and compares it to the stored hash.
 Flask-login keeps track of who is logged in and the "@login_required" line protects
@@ -74,7 +85,7 @@ redirected to the login page.
 Database queries are filtered using the user's id, which means each user can only see their own account details.
 
 
-10.Design Choices:
+## 10. Design Choices:
 
 SQLite was chosen as the database because Budget Buddy runs locally and only for one user at a time. A larger database would have added setup complexity
 and that is unnecessary for the scope of this project. The trade-off is that Budget Buddy is not currently suited to handle thousands of users, but that is not the goal here.

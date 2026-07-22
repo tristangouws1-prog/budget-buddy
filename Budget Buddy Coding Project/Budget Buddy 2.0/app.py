@@ -73,12 +73,16 @@ class User(db.Model, UserMixin):
     #symbol shown before every money amount (e.g. R, $, €, £)
     currency = db.Column(db.String(5), nullable=False, default="R")
 
+    #current theme
+    theme = db.Column(db.String(20), nullable=False, default="pastel")
+
     budget_limit = db.Column(db.Float, nullable=True)
 
 #a user's bills and reminders.
     payments = db.relationship("Payment", backref="user", lazy=True)
     reminders = db.relationship("Reminder", backref="user", lazy=True)
     incomes = db.relationship("Income", backref="user", lazy=True)
+    payment_logs = db.relationship("PaymentLog", backref="user", lazy=True)
 
     def set_password(self, password):
         #scramble the password
@@ -188,6 +192,30 @@ class Income(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
 
+class PaymentLog(db.Model):
+    """One record of money actually being paid towards a bill.
+    These rows are never reset by the monthly rollover,
+    so they slowly build up a permanent payment history."""
+
+    id = db.Column(db.Integer, primary_key=True)
+
+#name of the bill at the time it was paid
+#(saved as plain text so the history still makes sense if the bill is deleted later)
+    bill_name = db.Column(db.String(100), nullable=False)
+
+#how much money was paid in this specific payment (not the running total)
+    amount_paid = db.Column(db.Float, nullable=False)
+
+#exactly when the payment was recorded
+    paid_at = db.Column(db.DateTime, default=datetime.datetime.now)
+
+#which bill this payment was for
+    payment_id = db.Column(db.Integer, db.ForeignKey("payment.id"), nullable=True)
+
+#which user made the payment
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+
 @login_manager.user_loader
 def load_user(user_id):
     #Flask-Login
@@ -261,6 +289,20 @@ def get_status(payment):
         return "soon"
 
     return "upcoming"
+
+def log_payment(payment, amount):
+    """Save one row of payment history.
+    Called whenever money is paid towards a bill.
+    A negative amount means a correction (e.g. fixing a typo)."""
+    if amount == 0:
+        return
+    db.session.add(PaymentLog(
+        bill_name=payment.name,
+        amount_paid=amount,
+        payment_id=payment.id,
+        user_id=payment.user_id,
+    ))
+
 
 #-----------------------------------------------------------------------------#
 #-----------------AUTH ROUTES - register, login, logout-----------------------#
@@ -567,12 +609,15 @@ def partial_pay(payment_id):
     payment = get_owned_payment_or_404(payment_id)
     raw = request.form.get("paid_amount")
     if raw:
+        #remember what was already paid so only the NEW part is logged
+        old_paid = payment.amount_paid or 0
         payment.amount_paid = float(raw)
         if payment.amount_paid >= payment.amount:
             payment.is_paid = True
             payment.amount_paid = payment.amount
         else:
             payment.is_paid = False
+        log_payment(payment, payment.amount_paid - old_paid)
     db.session.commit()
     flash(f"Payment recorded for '{payment.name}'.","success")
     return redirect(url_for("dashboard"))
@@ -584,7 +629,8 @@ def partial_pay(payment_id):
 def settings():
     if request.method == "POST":
         current_user.currency = request.form.get("currency", "R")
-        raw_limit = request.form.get("budget_limit") 
+        current_user.theme = request.form.get("theme", "pastel")
+        raw_limit = request.form.get("budget_limit")
         current_user.budget_limit = float(raw_limit) if raw_limit else None
         db.session.commit()
         flash("Settings saved", "success")
@@ -611,7 +657,10 @@ def mark_paid(payment_id):
     """ Mark a Bill as PAID for this month. payment_id is the bill's id """
     #find the bill by its id (and make sure the user owns it), or show a 404
     payment = get_owned_payment_or_404(payment_id)
+    #log whatever part of the bill was still unpaid to the payment history
+    log_payment(payment, payment.amount - (payment.amount_paid or 0))
     payment.is_paid = True      #turns status to paid
+    payment.amount_paid = payment.amount
     db.session.commit()         #saves the status change
     flash(f"'{payment.name}' is paid.", "success") # green
     return redirect(url_for("dashboard"))
@@ -619,9 +668,19 @@ def mark_paid(payment_id):
 @app.route("/unpaid/<int:payment_id>")
 @login_required
 def mark_unpaid(payment_id):
-    """ mark a bill as unpaid """
+    """ mark a bill as unpaid (the Undo button).
+    Also removes this month's history rows for the bill,
+    so a mistaken 'Mark paid' doesn't stay in the payment history."""
     payment = get_owned_payment_or_404(payment_id)
     payment.is_paid = False
+    payment.amount_paid = 0
+    today = datetime.datetime.now()
+    month_start = datetime.datetime(today.year, today.month, 1)
+    PaymentLog.query.filter(
+        PaymentLog.payment_id == payment.id,
+        PaymentLog.user_id == current_user.id,
+        PaymentLog.paid_at >= month_start,
+    ).delete()
     db.session.commit()
     flash(f"'{payment.name}' has not been paid yet.", "warning") # yellow
     return redirect(url_for("dashboard"))
@@ -670,6 +729,63 @@ def update_balance(payment_id):
     db.session.commit()
     flash(f"Balance updated for '{payment.name}'.", "success")
     return redirect(url_for("dashboard"))
+
+
+@app.route("/history")
+@login_required
+def history():
+    """ Page showing every payment ever recorded, grouped by month, newest first """
+    logs = (
+        PaymentLog.query.filter_by(user_id=current_user.id)
+        .order_by(PaymentLog.paid_at.desc())
+        .all()
+    )
+
+    #group the logs into months, newest month first
+    #each month is a dict: its name e.g. "July 2026", its rows, and its total
+    months = []
+    for log in logs:
+        label = log.paid_at.strftime("%B %Y")
+        #logs are already sorted, so a new label means a new month has started
+        if not months or months[-1]["label"] != label:
+            months.append({"label": label, "logs": [], "total": 0})
+        months[-1]["logs"].append(log)
+        months[-1]["total"] += log.amount_paid
+    today = datetime.datetime.now()
+    year = today.year
+    month = today.month
+
+    chart_months = []
+    for _ in range(6):
+        start = datetime.datetime(year, month, 1)
+        if month == 12:
+            next_start = datetime.datetime(year + 1, 1, 1)
+        else:
+            next_start = datetime.datetime(year, month + 1, 1)
+
+        month_logs = PaymentLog.query.filter(
+            PaymentLog.user_id == current_user.id,
+            PaymentLog.paid_at >= start,
+            PaymentLog.paid_at < next_start
+        ).all()
+        total = sum(log.amount_paid for log in month_logs)
+
+        #short month name e.g. "Jul" so the label fits under a narrow chart bar
+        chart_months.append({"label": start.strftime("%b"), "total": total})
+
+        if month == 1:
+            month = 12
+            year -= 1
+        else:
+            month -= 1
+
+    chart_months.reverse()  # so the oldest month is first  
+
+    chart_max = max(m["total"] for m in chart_months) or 1
+    for m in chart_months:
+        m["height"] = max(round(m["total"] / chart_max * 100), 0)
+
+    return render_template("history.html", months=months, chart_months=chart_months)
 
 
 @app.route("/reminders")

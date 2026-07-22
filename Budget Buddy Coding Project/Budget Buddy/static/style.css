@@ -12,9 +12,6 @@
     --primary-dark: #a45d77;
     --primary-light: #ede8f8;
     --border: #e2daf0;
-    --dot: rgba(155, 127, 212, 0.08);
-    --header-bg: rgba(255,255,255,0.92);
-
     --radius: 18px;
     --radius-sm: 10px;
     --shadow: 0 4px 24px rgba(80, 60, 120, 0.08);
@@ -24,38 +21,7 @@
     --soon-bg: #fef5e4;     --soon-text: #b07a30;   --soon-border: #f8d898;
     --overdue-bg: #fdeaea;  --overdue-text: #c05050; --overdue-border: #f4b0b0;
     --upcoming-border: #c8d8f8;
-
-    --info-bg: #eef4fb;     --info-text: #2d4d80;    --info-border: #c0d4f0;
-    --welcome-bg: #efe9f9;  --welcome-text: #6f5aa8; --welcome-border: #d8c9ef;
-    --pill-bg: rgba(255,255,255,0.75);  --pill-bg-hover: #ffffff;
-    --track: rgba(0,0,0,0.07);
-    --neutral-bg: #f2ede6;
 }
-
-body.theme-dark {
-    --bg: #1a1a22;
-    --surface: #242430;
-    --surface2: #2c2c3a;
-    --ink: #ececf2;
-    --muted: #a0a0b4;
-    --border: #3a3a4a;
-    --dot: rgba(255, 255, 255, 0.035);
-    --header-bg: rgba(36, 36, 48, 0.92);
-
-    /* status colours re-tuned so they still read on a dark surface */
-    --paid-bg: #1e3a2e;   --paid-text: #7fd8a8;   --paid-border: #2f5f47;
-    --soon-bg: #3a3020;   --soon-text: #e8c078;   --soon-border: #5f4f2f;
-    --overdue-bg: #3a2020; --overdue-text: #f0a0a0; --overdue-border: #5f2f2f;
-    --upcoming-border: #3a4a6a;
-
-    --info-bg: #1e2a3f;     --info-text: #a8c4e8;    --info-border: #35507a;
-    --welcome-bg: #2c2545;  --welcome-text: #c4b0e8; --welcome-border: #453a6a;
-    --pill-bg: rgba(255,255,255,0.12);  --pill-bg-hover: rgba(255,255,255,0.22);
-    --track: rgba(255,255,255,0.1);
-    --neutral-bg: #33333f;
-    /* keep --primary / --primary-dark as-is, or lighten slightly for dark bg */
-}
-
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -65,7 +31,7 @@ body {
     color: var(--ink);
     line-height: 1.65;
     min-height: 100vh;
-    background-image: radial-gradient(var(--dot) 1px, transparent 1px);
+    background-image: radial-gradient(rgba(155, 127, 212, 0.08) 1px, transparent 1px);
     background-size: 24px 24px;
 }
 
@@ -81,7 +47,7 @@ h1, h2, h3, .logo, .hero-amount {
     align-items: center;
     justify-content: space-between;
     padding: 16px 32px;
-    background: var(--header-bg);
+    background: rgba(255,255,255,0.92);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border);
     position: sticky;
@@ -134,7 +100,7 @@ h1, h2, h3, .logo, .hero-amount {
 .flash-success { background: var(--paid-bg); color: var(--paid-text); border-color: var(--paid-border); }
 .flash-warning { background: var(--soon-bg); color: var(--soon-text); border-color: var(--soon-border); }
 .flash-danger  { background: var(--overdue-bg); color: var(--overdue-text); border-color: var(--overdue-border); }
-.flash-welcome { background: var(--welcome-bg); color: var(--welcome-text); border-color: var(--welcome-border); }
+.flash-welcome { background: #efe9f9; color: #6f5aa8; border-color: #d8c9ef; }
 
 /* ── Hero card ── */
 .hero {
@@ -227,13 +193,13 @@ h1, h2, h3, .logo, .hero-amount {
     border: 1px solid transparent;
     animation: rise 0.4s ease both;
 }
-.reminder-weekly  { background: var(--info-bg); border-color: var(--info-border); color: var(--info-text); }
+.reminder-weekly  { background: #eef4fb; border-color: #c0d4f0; color: #2d4d80; }
 .reminder-monthly { background: var(--soon-bg); border-color: var(--soon-border); color: var(--soon-text); }
 .reminder-overdue { background: var(--overdue-bg); border-color: var(--overdue-border); color: var(--overdue-text); }
 .reminder-soon    { background: var(--soon-bg);    border-color: var(--soon-border);    color: var(--soon-text); }
 .reminder-done {
     white-space: nowrap;
-    background: var(--pill-bg);
+    background: rgba(255,255,255,0.75);
     padding: 6px 14px;
     border-radius: 999px;
     text-decoration: none;
@@ -244,7 +210,7 @@ h1, h2, h3, .logo, .hero-amount {
     transition: background 0.15s;
     flex-shrink: 0;
 }
-.reminder-done:hover { background: var(--pill-bg-hover); }
+.reminder-done:hover { background: #fff; }
 .is-read { opacity: 0.45; }
 .reminder-date { font-size: 0.78rem; opacity: 0.7; margin-top: 3px; }
 
@@ -339,7 +305,7 @@ h1, h2, h3, .logo, .hero-amount {
 .badge-paid     { background: var(--paid-border);    color: var(--paid-text); }
 .badge-overdue  { background: var(--overdue-border); color: var(--overdue-text); }
 .badge-soon     { background: var(--soon-border);    color: var(--soon-text); }
-.badge-upcoming { background: var(--upcoming-border); color: var(--info-text); }
+.badge-upcoming { background: var(--upcoming-border); color: #2a5080; }
 
 .bill-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 
@@ -348,7 +314,7 @@ h1, h2, h3, .logo, .hero-amount {
 
 .bill-progress-bar {
     margin-top: 5px;
-    background: var(--track);
+    background: rgba(0,0,0,0.07);
     border-radius: 999px;
     height: 5px;
     overflow: hidden;
@@ -413,8 +379,8 @@ h1, h2, h3, .logo, .hero-amount {
 }
 .btn-small:hover { transform: translateY(-1px); }
 .btn-pay  { background: var(--paid-bg); color: var(--paid-text); border: 1px solid var(--paid-border); }
-.btn-pay:hover { background: var(--paid-border); }
-.btn-undo { background: var(--neutral-bg); color: var(--muted); border: 1px solid var(--border); }
+.btn-pay:hover { background: #d4eddf; }
+.btn-undo { background: #f2ede6; color: var(--muted); border: 1px solid var(--border); }
 .btn-edit { background: var(--primary-light); color: var(--primary-dark); border: 1px solid var(--border); }
 .btn-edit:hover { background: var(--primary); color: #fff; }
 .btn-delete { background: transparent; color: var(--muted); border: 1px solid transparent; }
@@ -459,7 +425,7 @@ h1, h2, h3, .logo, .hero-amount {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(127,128,212,0.12);
 }
-.form-card input::placeholder { color: var(--muted); }
+.form-card input::placeholder { color: #b0a898; }
 .back-link {
     display: inline-block;
     margin-top: 20px;
@@ -475,98 +441,6 @@ h1, h2, h3, .logo, .hero-amount {
 .auth-switch { margin-top: 20px; text-align: center; color: var(--muted); font-size: 0.92rem; }
 .auth-switch a { color: var(--primary); font-weight: 700; text-decoration: none; }
 .auth-switch a:hover { text-decoration: underline; }
-
-/* ── Payment history page ── */
-.history-month { margin-bottom: 28px; }
-.history-month-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    margin-bottom: 10px;
-}
-.history-month-head h3 { font-size: 1.1rem; }
-.history-month-total { color: var(--muted); font-weight: 700; font-size: 0.9rem; }
-.history-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
-}
-.history-table th, .history-table td {
-    padding: 10px 16px;
-    text-align: left;
-}
-.history-table th {
-    background: var(--surface2);
-    color: var(--muted);
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-.history-table td { border-top: 1px solid var(--border); }
-.history-table .history-amount { text-align: right; font-weight: 700; }
-.history-table .history-negative { color: var(--overdue-text); }
-
-/* ── Spending chart (last 6 months) ── */
-.chart-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-sm);
-    padding: 20px 24px 16px;
-    margin-bottom: 28px;
-}
-.chart-card h3 { font-size: 1.1rem; margin-bottom: 16px; }
-.chart {
-    display: flex;
-    align-items: flex-end;
-    gap: 10px;
-}
-.chart-col { flex: 1; min-width: 0; text-align: center; }
-.chart-bar-area {
-    /* fixed height so the bars' percentage heights have something to resolve against.
-       padding-top leaves headroom so a 100% bar's value label stays inside the card */
-    height: 160px;
-    padding-top: 24px;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    border-bottom: 1px solid var(--border);  /* the chart's baseline */
-}
-.chart-bar {
-    position: relative;  /* anchor for the value label floating above the bar */
-    width: 60%;
-    max-width: 48px;
-    min-height: 3px;     /* months with nothing paid still show a sliver */
-    background: var(--primary);
-    border-radius: 4px 4px 0 0;
-    transition: height 0.4s ease;
-}
-.chart-bar:hover { filter: brightness(0.95); }
-.chart-bar-current { background: var(--primary-dark); }
-.chart-value {
-    position: absolute;
-    top: -22px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.75rem;
-    font-weight: 700;
-    /* full-contrast ink, not muted: this is the actual data value, not decorative axis text.
-       it also acts as the accessible "relief" for the bar fill, which sits below WCAG contrast on its own */
-    color: var(--ink);
-    white-space: nowrap;
-}
-.chart-label {
-    display: block;
-    margin-top: 6px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--muted);
-}
 
 /* ── Empty state ── */
 .empty {

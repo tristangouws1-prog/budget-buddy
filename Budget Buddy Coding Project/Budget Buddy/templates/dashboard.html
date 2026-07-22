@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- ===== Hero: the most important number up top ===== -->
+{% set paid_count = payments_with_status | selectattr('status', 'equalto', 'paid') | list | length %}
+{% set total_count = payments_with_status | length %}
+
+<section class="hero">
+    <p class="hero-label">Left to pay this month</p>
+    <p class="hero-amount">{{ current_user.currency }}{{ "%.2f"|format(total_unpaid) }}</p>
+    <p class="hero-sub">
+        {% if unpaid_count == 0 %}
+            Everything's paid. Amazing work!
+        {% else %}
+            {{ unpaid_count }} bill{{ 's' if unpaid_count != 1 else '' }} still to pay &middot;
+            {{ current_user.currency }}{{ "%.2f"|format(total_monthly) }} total this month
+        {% endif %}
+    </p>
+    {% if over_budget %}
+        <p class="hero-budget-warning">
+            You're {{ current_user.currency }}{{ "%.2f"|format(total_monthly - budget_limit) }} over your budget limit.
+        </p>
+    {% elif budget_limit %}
+        <p class="hero-budget-ok">
+            {{ current_user.currency }}{{ "%.2f"|format(budget_limit - total_monthly) }} left in your budget
+        </p>
+    {% endif %}
+
+    {% if total_monthly > 0 %}
+        {# fill by money paid (total - what's left), capped at 100% so it can't overflow#}
+        {% set paid_percentage = [((total_monthly - total_unpaid) / total_monthly * 100)|round|int, 100]|min %}
+        <div class="hero-progress">
+            <div class="hero-progress-fill" style="width: {{ paid_percentage }}%">
+            </div>
+        </div>
+    {% endif %}
+</section>
+
+<!-- ===== Stats row ===== -->
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-label">Total monthly bills</div>
+        <div class="stat-value">{{ current_user.currency }}{{ "%.2f"|format(total_monthly) }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Bills paid</div>
+        <div class="stat-value">{{ paid_count }} / {{ total_count }}</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-label">Total Income</div>
+        <div class="stat-value">{{ current_user.currency }}{{ "%.2f"|format(total_income) }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Remaining balance</div>
+        <div class="stat-value {% if money_remaining < 0 %}stat-negative{% else %}stat-positive{% endif %}">
+            {{ current_user.currency }}{{ "%.2f"|format(money_remaining) }}
+        </div>
+    </div>
+</div>
+
+
+<!-- Income sources-->
+<section>
+    <div class="section-head">
+        <h2>Income</h2>
+        <a class="btn-primary" href="{{ url_for('add_income') }}">+ Add income</a>
+    </div>
+
+    {% if income_sources %}
+        <div class="bill-list">
+            {% for income in income_sources %}
+                <div class="bill">
+                    <div class="bill-main">
+                        <span class="bill-name">{{ income.name }}</span>
+                        <span class="method-badge">{{ income.income_type }}</span>
+                        {% if income.income_type == 'variable' and not income.is_confirmed %}
+                            <span class="status-badge badge-soon">Unconfirmed</span>
+                            <form method="POST" action="{{ url_for('confirm_income', income_id=income.id)}}" class="update-balance-form">
+                                <input type="number" name="new_amount" step="0.01" min="0"
+                                       placeholder="This month's amount" required>
+                                <button type="submit" class="btn-small btn-update">Confirm</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                    <div class="bill-right">
+                        <span class="bill-amount">{{ current_user.currency }}{{ "%.2f"|format(income.amount) }}</span>
+                        <div class="bill-actions">
+                            <a class="btn-small btn-edit"
+                            href="{{ url_for('edit_income', income_id=income.id) }}">Edit</a>
+                            <a class="btn-small btn-delete"
+                            href="{{ url_for('delete_income', income_id=income.id) }}"
+                            onclick="return confirm('Delete this income source?');">Delete</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty">
+            <p>No income sources yet - add one to get started.</p>
+        </div>
+    {% endif %}
+</section>
+
+
+
+
+
+
+
+
+<!-- ===== Reminders ===== -->
+{% if reminders %}
+<section class="reminders-box">
+    <h2>Things to check</h2>
+    {% for r in reminders %}
+        <div class="reminder reminder-{{ r.category }}">
+            <span>{{ r.message }}</span>
+            <a class="reminder-done"
+               href="{{ url_for('mark_reminder_read', reminder_id=r.id) }}">Got it</a>
+        </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+<!-- ===== Bill list ===== -->
+<section>
+    <div class="filter">
+        <a href="{{ url_for('dashboard', filter='all', sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'all' }}">All</a>
+        <a href="{{ url_for('dashboard', filter='overdue', sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'overdue' }}">Overdue</a>
+        <a href="{{ url_for('dashboard', filter='soon',    sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'soon' }}">Due soon</a>
+        <a href="{{ url_for('dashboard', filter='paid',    sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'paid' }}">Paid</a>
+
+        <span class="filter-divider">Sort:</span>
+        <a href="{{ url_for('dashboard', filter=filter_status, sort='due_day') }}" class="{{ 'filter-active' if sort_by == 'due_day' }}">Due date</a>
+        <a href="{{ url_for('dashboard', filter=filter_status, sort='amount') }}"  class="{{ 'filter-active' if sort_by == 'amount' }}">Amount</a>
+        <a href="{{ url_for('dashboard', filter=filter_status, sort='name') }}"    class="{{ 'filter-active' if sort_by == 'name' }}">Name</a>
+    </div>
+
+
+
+    <div class="section-head">
+        <h2>Your bills</h2>
+        <a class="btn-primary" href="{{ url_for('add_payment') }}">+ Add a bill</a>
+    </div>
+
+    {% if payments_with_status %}
+        <div class="bill-list">
+            {% for item in payments_with_status %}
+                <div class="bill bill-{{ item.status }}">
+                    <div class="bill-main">
+                        <span class="bill-name">{{ item.payment.name }}</span>
+                        {% if item.payment.description %}
+                            <span class="bill-description">{{ item.payment.description }}</span>
+                        {% endif %}
+                        {% if item.payment.payment_method %}
+                            <span class="method-badge">Paid via {{ item.payment.payment_method }}</span>
+                        {% endif %}
+                        {% if item.payment.bill_type == 'once_off' %}
+                            <span class="method-badge">Once-off</span>
+                        {% endif %}
+
+                        <span class="bill-meta">
+                            <span class="status-badge badge-{{ item.status }}">
+                                {{ item.status }}
+                            </span>
+                            Due {{ item.payment.due_day | ordinal }} &middot;
+                            {% if item.status == 'paid' %}
+                                Paid this month
+                            {% elif item.status == 'overdue' %}
+                                {{ (-item.days_left) }} day{{ 's' if item.days_left != -1 else '' }} overdue
+                            {% elif item.status == 'soon' %}
+                                {% if item.days_left == 0 %}Due today
+                                {% else %}Due in {{ item.days_left }} day{{ 's' if item.days_left != 1 else '' }}
+                                {% endif %}
+                            {% else %}
+                                Due in {{ item.days_left }} days
+                            {% endif %}
+                        </span>
+
+                        {% if item.payment.bill_type in ('loan', 'credit') and item.payment.total_value %}
+                            {% set bill_balance = item.payment.current_balance or 0 %}
+                            {% set bill_total = item.payment.total_value %}
+                            {% if item.payment.bill_type == 'loan' %}
+                                {% set fill_percent = [((bill_total - bill_balance) / bill_total * 100)|round|int, 100]|min %}
+                                <span class="bill-balance-label">{{ current_user.currency }}{{ "%.2f"|format(bill_balance) }} remaining of {{ current_user.currency }}{{ "%.2f"|format(bill_total) }}</span>
+                                {% if item.payment.interest_rate %}
+                                    <span class="bill-balance-label">Interest Rate: {{ "%.2f"|format(item.payment.interest_rate) }}%</span>
+                                {% endif %}
+                                {% if item.payment.months_remaining %}
+                                    <span class="bill-balance-label">{{ item.payment.months_remaining }} month{{ 's' if item.payment.months_remaining != 1 else '' }} remaining</span>
+                                {% endif %}
+                                {% if item.payment.loan_insurance %}
+                                    <span class="bill-balance-label">True monthly cost: {{ current_user.currency }}{{ "%.2f"|format(item.payment.amount + item.payment.loan_insurance) }} (incl. {{ current_user.currency }}{{ "%.2f"|format(item.payment.loan_insurance) }} insurance)</span>
+                                {% endif %}
+                                {% if item.payment.initiation_fee %}
+                                    <span class="bill-balance-label">Initiation fee: {{ current_user.currency }}{{ "%.2f"|format(item.payment.initiation_fee) }}</span>
+                                {% endif %}
+                            {% else %}
+                                {% set fill_percent = [(bill_balance / bill_total * 100)|round|int, 100]|min %}
+                                <span class="bill-balance-label">{{ current_user.currency }}{{ "%.2f"|format(bill_balance) }} used of {{ current_user.currency }}{{ "%.2f"|format(bill_total) }} limit</span>
+                                {% if item.payment.interest_rate %}
+                                    <span class="bill-balance-label">Interest rate: {{ "%.2f"|format(item.payment.interest_rate) }}%</span>
+                                {% endif %}
+                                {% if item.payment.minimum_payment_percent and item.payment.current_balance %}
+                                    {% set min_payment = item.payment.current_balance * (item.payment.minimum_payment_percent / 100) %}
+                                    <span class="bill-balance-label">Min. payment due: {{ current_user.currency }}{{ "%.2f"|format(min_payment) }}</span>
+                                    {% if item.payment.interest_rate %}
+                                        {% set monthly_interest = item.payment.current_balance * (item.payment.interest_rate / 100 / 12) %}
+                                        <span class="bill-balance-label">Est. monthly interest: {{ current_user.currency }}{{ "%.2f"|format(monthly_interest) }}</span>
+                                    {% endif %}
+                                {% endif %}
+
+                            
+                            
+                            {% endif %}
+                            <div class="bill-progress-bar">
+                                <div class="bill-progress-fill bill-progress-{{ item.payment.bill_type }}" style="width: {{ fill_percent }}%"></div>
+                            </div>
+                            <form method="POST" action="{{ url_for('update_balance', payment_id=item.payment.id) }}" class="update-balance-form">
+                                <input type="number" name="new_balance" step="0.01" min="0" placeholder="Update balance ({{ current_user.currency }})" required>
+                                <button type="submit" class="btn-small btn-update">Update</button>
+                            </form>
+                        {% endif %}
+
+                            {% if not item.payment.is_paid and item.payment.bill_type not in ('loan', 'credit') %}
+                            {% set paid_so_far = item.payment.amount_paid or 0 %}
+                            {% if paid_so_far > 0 %}
+                                {% set partial_percent = [(paid_so_far / item.payment.amount * 100)|round|int, 100]|min %}
+                                <div class="bill-progress-bar">
+                                    <div class="bill-progress-fill bill-progress-partial" style="width: {{ partial_percent }}%"></div>
+                                </div>
+                                <span class="bill-balance-label">{{ current_user.currency }}{{ "%.2f"|format(paid_so_far) }} paid of {{ current_user.currency }}{{ "%.2f"|format(item.payment.amount) }}</span>
+                            {% endif %}
+                            <form method="POST" action="{{ url_for('partial_pay', payment_id=item.payment.id) }}" class="update-balance-form">
+                                <input type="number" name="paid_amount" step="0.01" min="0"
+                                       max="{{ item.payment.amount }}"
+                                       placeholder="Amount paid so far"
+                                       value="{{ item.payment.amount_paid or '' }}">
+                                <button type="submit" class="btn-small btn-update">Update</button>
+                            </form>
+                        {% endif %}
+
+
+                    </div>
+
+                    <div class="bill-right">
+                        <span class="bill-amount">{{ current_user.currency }}{{ "%.2f"|format(item.payment.amount) }}</span>
+                        <div class="bill-actions">
+                            {% if item.payment.is_paid %}
+                                <a class="btn-small btn-undo"
+                                   href="{{ url_for('mark_unpaid', payment_id=item.payment.id) }}">Undo</a>
+                            {% else %}
+                                <a class="btn-small btn-pay"
+                                   href="{{ url_for('mark_paid', payment_id=item.payment.id) }}">Mark paid</a>
+                            {% endif %}
+                            <a class="btn-small btn-edit"
+                               href="{{ url_for('edit_payment', payment_id=item.payment.id) }}">Edit</a>
+                            <a class="btn-small btn-delete"
+                               href="{{ url_for('delete_payment', payment_id=item.payment.id) }}"
+                               onclick="return confirm('Delete this bill?');">Delete</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty">
+            <p>No bills yet — add one to get started.</p>
+            <a class="btn-primary" href="{{ url_for('add_payment') }}">Add your first bill</a>
+        </div>
+    {% endif %}
+</section>
+
+{% endblock %}

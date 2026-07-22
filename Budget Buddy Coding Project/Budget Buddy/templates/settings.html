@@ -14,13 +14,6 @@
             <option value="£" {{ 'selected' if current_user.currency == '£' }}>£ (British Pound)</option>
         </select>
 
-        <!--Colour theme-->
-        <label for="theme">Colour theme</label>
-        <select id="theme" name="theme">
-            <option value="pastel" {{ 'selected' if current_user.theme == 'pastel' }}>Pastel (light)</option>
-            <option value="dark" {{ 'selected' if current_user.theme == 'dark' }}>Dark</option>
-        </select>
-
         <!--Budget Limit-->
         <label for="budget_limit">Monthly Budget Limit</label>
         <p class="form-hint">Leave empty for no monthly budget limit</p>

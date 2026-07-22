@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="section-head">
+    <h2>Payment history</h2>
+</div>
+
+<!-- ===== Spending chart: last 6 months ===== -->
+{% if chart_months | sum(attribute='total') > 0 %}
+    <section class="chart-card">
+        <h3>Last 6 months</h3>
+        <div class="chart">
+            {% for month in chart_months %}
+                <div class="chart-col">
+                    <div class="chart-bar-area">
+                        <!-- the inline height is the bar's size as a % of the tallest month -->
+                        <div class="chart-bar {{ 'chart-bar-current' if loop.last }}"
+                             style="height: {{ month.height }}%">
+                            <span class="chart-value">{{ current_user.currency }}{{ "%.0f"|format(month.total) }}</span>
+                        </div>
+                    </div>
+                    <span class="chart-label">{{ month.label }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+{% endif %}
+
+{% if months %}
+    {% for month in months %}
+        <section class="history-month">
+            <div class="history-month-head">
+                <h3>{{ month.label }}</h3>
+                <span class="history-month-total">{{ current_user.currency }}{{ "%.2f"|format(month.total) }} paid</span>
+            </div>
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <!-- date and time in separate columns -->
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Bill</th>
+                        <th class="history-amount">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in month.logs %}
+                        <tr>
+                            <td>{{ log.paid_at.strftime('%d %b %Y') }}</td>
+                            <td>{{ log.paid_at.strftime('%H:%M') }}</td>
+                            <td>{{ log.bill_name }}</td>
+                            <!-- a negative amount means a correction, e.g. fixing a typo -->
+                            <td class="history-amount {{ 'history-negative' if log.amount_paid < 0 }}">
+                                {{ current_user.currency }}{{ "%.2f"|format(log.amount_paid) }}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    {% endfor %}
+{% else %}
+    <div class="empty">
+        <p>No payments recorded yet. Mark a bill as paid and it will show up here.</p>
+    </div>
+{% endif %}
+
+{% endblock %}

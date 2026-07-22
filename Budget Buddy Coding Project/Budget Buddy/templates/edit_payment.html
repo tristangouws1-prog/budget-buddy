@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="form-card">
+    <h2>Edit a bill or subscription</h2>
+    <p class="form-intro">Update this bill's details and save your changes.</p>
+
+    <form method="POST">
+        <label for="name">Short name</label>
+        <input type="text" id="name" name="name"
+               value="{{ payment.name }}" required>
+
+        <label for="description">Description (optional)</label>
+        <input type="text" id="description" name="description"
+               value="{{ payment.description or '' }}">
+
+        <label for="payment_method">Payment Method?</label>
+        <select id="payment_method" name="payment_method">
+            <option value="">- choose -</option>
+            <option value="Airtime" {% if payment.payment_method == "Airtime" %}selected{% endif %}>Airtime</option>
+            <option value="Debit Card" {% if payment.payment_method == "Debit Card" %}selected{% endif %}>Debit Card</option>
+            <option value="Credit Card" {% if payment.payment_method == "Credit Card" %}selected{% endif %}>Credit Card</option>
+            <option value="Cash" {% if payment.payment_method == "Cash" %}selected{% endif %}>Cash</option>
+            <option value="EFT" {% if payment.payment_method == "EFT" %}selected{% endif %}>EFT</option>
+            <option value="Other" {% if payment.payment_method == "Other" %}selected{% endif %}>Other</option>
+        </select>
+
+        <label for="bill_type">Bill type</label>
+        <select id="bill_type" name="bill_type" onchange="toggleBalanceFields(this.value)">
+            <option value="fixed" {% if payment.bill_type == "fixed" %}selected{% endif %}>Fixed monthly (e.g. Spotify, rent)</option>
+            <option value="loan"  {% if payment.bill_type == "loan"  %}selected{% endif %}>Loan (gets paid down over time)</option>
+            <option value="credit" {% if payment.bill_type == "credit"%}selected{% endif %}>Credit account (store account, credit card)</option>
+            <option value="once_off" {% if payment.bill_type == "once_off" %}selected{% endif %}>Once-off (single payment, doesn't repeat)</option>
+        </select>
+
+<div id="balance-fields" style="display:none">
+    <label for="total_value" id="total-label">Total loan amount ({{ current_user.currency }})</label>
+    <input type="number" id="total_value" name="total_value" step="0.01" min="0"
+           value="{{ payment.total_value or '' }}">
+    <label for="current_value" id="balance-label">Current balance owed ({{ current_user.currency }})</label>
+    <input type="number" id="current_value" name="current_balance" step="0.01" min="0"
+           value="{{ payment.current_balance or '' }}">
+    <label for="interest_rate" id="interest-label">Interest rate (%)</label>
+    <input type="number" id="interest_rate" name="interest_rate" step="0.01" min="0"
+           value="{{ payment.interest_rate or '' }}">
+
+    <div id="loan-only-fields" style="display:none">
+        <label for="months_remaining">Months remaining</label>
+        <input type="number" id="months_remaining" name="months_remaining" min="0"
+               value="{{ payment.months_remaining or '' }}">
+        <label for="loan_insurance">Monthly insurance/protection ({{ current_user.currency }})</label>
+        <input type="number" id="loan_insurance" name="loan_insurance" step="0.01" min="0"
+               value="{{ payment.loan_insurance or '' }}">
+        <label for="initiation_fee">Initiation fee ({{ current_user.currency }})</label>
+        <input type="number" id="initiation_fee" name="initiation_fee" step="0.01" min="0"
+               value="{{ payment.initiation_fee or '' }}">
+    </div>
+
+    <div id="credit-only-fields" style="display:none">
+        <label for="minimum_payment_percent">Minimum monthly payment (%)</label>
+        <input type="number" id="minimum_payment_percent" name="minimum_payment_percent"
+               step="0.01" min="0" max="100"
+               value="{{ payment.minimum_payment_percent or '' }}">
+    </div>
+</div>
+
+
+
+        <label for="amount">Monthly payment amount ({{ current_user.currency }})</label>
+        <input type="number" id="amount" name="amount" step="0.01" min="0"
+               value="{{ payment.amount }}" required>
+
+        <label for="due_day">Due day of the month</label>
+        <input type="number" id="due_day" name="due_day" min="1" max="31"
+               value="{{ payment.due_day }}" required>
+
+        <button type="submit" class="btn-primary btn-block">Save changes</button>
+    </form>
+
+    <a class="back-link" href="{{ url_for('dashboard') }}">&larr; Back to home</a>
+</section>
+
+<script>
+function toggleBalanceFields(type) {
+    const fields = document.getElementById('balance-fields');
+    const loanFields = document.getElementById('loan-only-fields');
+    const creditFields = document.getElementById('credit-only-fields');
+    const totalLabel = document.getElementById('total-label');
+    const balanceLabel = document.getElementById('balance-label');
+
+    if (type === 'fixed' || type === 'once_off') {
+        fields.style.display = 'none';
+        loanFields.style.display = 'none';
+        creditFields.style.display = 'none';
+    } else if (type === 'loan') {
+        fields.style.display = 'block';
+        loanFields.style.display = 'block';
+        creditFields.style.display = 'none';
+        totalLabel.textContent = 'Total loan amount ({{ current_user.currency }})';
+        balanceLabel.textContent = 'Current balance owed ({{ current_user.currency }})';
+    } else {
+        fields.style.display = 'block';
+        loanFields.style.display = 'none';
+        creditFields.style.display = 'block';
+        totalLabel.textContent = 'Credit limit ({{ current_user.currency }})';
+        balanceLabel.textContent = 'Current balance used ({{ current_user.currency }})';
+    }
+}
+
+toggleBalanceFields(document.getElementById('bill_type').value);
+</script>
+
+
+
+{% endblock %}

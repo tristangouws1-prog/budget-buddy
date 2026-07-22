@@ -22,7 +22,7 @@
     <!-- Load stylesheet. -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
+<body class="{{ 'theme-' + current_user.theme if current_user.is_authenticated else 'theme-pastel' }}">
     <!-- The navigation bar, shown at the top of every page. -->
     <header class="site-header">
         <a href="{{ url_for('dashboard') }}" class="logo">Budget Buddy</a>
@@ -30,6 +30,7 @@
             {% if current_user.is_authenticated %}
                 <a href="{{ url_for('dashboard') }}">Home</a>
                 <a href="{{ url_for('reminders') }}">Reminders</a>
+                <a href="{{ url_for('history') }}">History</a>
                 <a href="{{ url_for('settings') }}">Settings</a>
                 <a href="{{ url_for('logout') }}">Log out</a>
                 <a href="{{ url_for('add_payment') }}" class="btn-nav">+ Add a bill</a>
