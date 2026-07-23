@@ -1,5 +1,8 @@
 # Database - don't upload, it'll be empty/different on every PC
+# (also covers backups like budget.db.bak2, which hold real personal data)
 *.db
+*.db.*
+instance/
 
 # Python auto-generated folders and files
 __pycache__/
