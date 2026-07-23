@@ -460,6 +460,21 @@ h1, h2, h3, .logo, .hero-amount {
     box-shadow: 0 0 0 3px rgba(127,128,212,0.12);
 }
 .form-card input::placeholder { color: var(--muted); }
+
+/* a checkbox sitting inline with its label, instead of the usual stacked field */
+.form-card label.checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.form-card label.checkbox-row input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
 .back-link {
     display: inline-block;
     margin-top: 20px;

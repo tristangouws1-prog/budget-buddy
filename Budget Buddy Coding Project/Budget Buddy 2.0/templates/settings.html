@@ -21,6 +21,22 @@
             <option value="dark" {{ 'selected' if current_user.theme == 'dark' }}>Dark</option>
         </select>
 
+        <!--Email address + reminder emails-->
+        <label for="email">Email address</label>
+        <p class="form-hint">Where your bill reminders are sent.</p>
+        <input  type="email"
+                id="email"
+                name="email"
+                placeholder="you@example.com"
+                value="{{ current_user.email or '' }}"
+                required>
+
+        <label class="checkbox-row">
+            <input type="checkbox" name="email_reminders"
+                   {{ 'checked' if current_user.email_reminders }}>
+            Also send my reminders by email
+        </label>
+
         <!--Budget Limit-->
         <label for="budget_limit">Monthly Budget Limit</label>
         <p class="form-hint">Leave empty for no monthly budget limit</p>

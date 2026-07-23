@@ -27,6 +27,14 @@ What this app does
 """
 #imports
 import os
+import secrets
+
+import smtplib
+from email.message import EmailMessage
+
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
@@ -75,6 +83,12 @@ class User(db.Model, UserMixin):
 
     #current theme
     theme = db.Column(db.String(20), nullable=False, default="pastel")
+
+    #email reminder address (required - every account must have one)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+
+    #reminders are emailed by default; users can opt out in settings
+    email_reminders = db.Column(db.Boolean, default=True)
 
     budget_limit = db.Column(db.Float, nullable=True)
 
@@ -262,6 +276,23 @@ def days_until_due(due_day, is_paid=False):
         return days_left_this_month + due_day
 
 
+def due_date_for(payment):
+    """The calendar date a bill is next due.
+    Built from days_until_due() so the month-length and rollover rules
+    only live in one place. A negative number of days naturally gives the
+    date in the past for a bill that is already overdue."""
+    today = datetime.datetime.now()
+    return today + datetime.timedelta(days=days_until_due(payment.due_day, payment.is_paid))
+
+
+def due_date_text(payment):
+    """The due date written out in full, e.g. "Friday 25 July 2026".
+    Built piece by piece instead of one strftime so the day number is not
+    zero padded (we want "Friday 5 July", not "Friday 05 July")."""
+    due = due_date_for(payment)
+    return f"{due.strftime('%A')} {due.day} {due.strftime('%B %Y')}"
+
+
 def get_status(payment):
     """
     Return a status WORD for a bill
@@ -304,6 +335,56 @@ def log_payment(payment, amount):
     ))
 
 
+def send_email(to_address, subject, body):
+    """Send one plain-text email using Gmail's SMTP server.
+    The login details come from environment variables so that a real
+    password is never written into the code.
+    Any failure is caught so that a broken email can never crash the scheduler."""
+
+    sender = os.environ.get("EMAIL_ADDRESS")
+    password = os.environ.get("EMAIL_APP_PASSWORD")
+
+    #if email isn't set up, or the user has no address, quietly do nothing
+    if not sender or not password or not to_address:
+        return
+
+    #build the message: subject/from/to are headers, set_content is the body
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = sender
+    msg["To"] = to_address
+    msg.set_content(body)
+
+    try:
+        #465 is Gmail's SSL port, so the connection is encrypted from the start
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender, password)
+            server.send_message(msg)
+    except Exception as e:
+        #print instead of raising: the job must keep running for the other users
+        print(f"Email failed for {to_address}: {e}")
+
+
+def email_unread_reminders(user, subject):
+    """Gather a user's unread reminders and send them as one summary email.
+    Called AFTER the reminders have been committed, so they can be read back."""
+    if not user.email_reminders or not user.email:
+        return
+
+    lines = [
+        r.message for r in Reminder.query.filter_by(
+            user_id=user.id, is_read=False
+        ).order_by(Reminder.created_at.desc()).all()
+    ]
+    if not lines:
+        return
+
+    body = "Here are your Budget Buddy reminders:\n\n"
+    body += "\n".join(f"- {line}" for line in lines)
+    body += "\n\nOpen Budget Buddy to tick these off."
+    send_email(user.email, subject, body)
+
+
 #-----------------------------------------------------------------------------#
 #-----------------AUTH ROUTES - register, login, logout-----------------------#
 #-----------------------------------------------------------------------------#
@@ -317,12 +398,13 @@ def register():
 
     if request.method == "POST":
         username = request.form["username"].strip()
+        email = request.form["email"].strip()
         password = request.form["password"]
         confirm = request.form["confirm"]
 
         #simple checks before we create the account
-        if not username or not password:
-            flash("Please fill in both a username and a password.", "warning")
+        if not username or not password or not email:
+            flash("Please fill in a username, an email address and a password.", "warning")
             return redirect(url_for("register"))
 
         if password != confirm:
@@ -334,8 +416,13 @@ def register():
             flash("That username is already taken. Pick another.", "warning")
             return redirect(url_for("register"))
 
+        #is the email already used by another account
+        if User.query.filter_by(email=email).first():
+            flash("That email is already registered. Try logging in.", "warning")
+            return redirect(url_for("register"))
+
         #make the user, scramble the password, save user
-        user = User(username=username)
+        user = User(username=username, email=email)
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
@@ -630,6 +717,19 @@ def settings():
     if request.method == "POST":
         current_user.currency = request.form.get("currency", "R")
         current_user.theme = request.form.get("theme", "pastel")
+
+        #email is required, so only change it if something was actually typed
+        new_email = (request.form.get("email") or "").strip()
+        if new_email and new_email != current_user.email:
+            #don't let one account take an email another account already uses
+            if User.query.filter_by(email=new_email).first():
+                flash("That email is already used by another account.", "warning")
+                return redirect(url_for("settings"))
+            current_user.email = new_email
+
+        #an unticked checkbox sends nothing at all, which reads as False
+        current_user.email_reminders = bool(request.form.get("email_reminders"))
+
         raw_limit = request.form.get("budget_limit")
         current_user.budget_limit = float(raw_limit) if raw_limit else None
         db.session.commit()
@@ -813,6 +913,37 @@ def mark_reminder_read(reminder_id):
     return redirect(request.referrer or url_for("dashboard"))
 
 
+@app.route("/tasks/run-daily")
+def run_daily_tasks():
+    """Run whichever scheduled jobs are due today.
+    Called once a day by an outside scheduler (e.g. PythonAnywhere's Tasks tab),
+    because a BackgroundScheduler cannot survive on a host whose web worker
+    sleeps between visits.
+    Protected by a secret token so a stranger cannot trigger it."""
+
+    expected = os.environ.get("TASK_TOKEN")
+
+    #if no token is configured, refuse everyone rather than running unprotected.
+    #compare_digest always takes the same time, so it cannot leak the token
+    #one character at a time the way a normal == comparison would.
+    if not expected or not secrets.compare_digest(request.args.get("token", ""), expected):
+        return "Forbidden", 403
+
+    today = datetime.datetime.now()
+    ran = []
+
+    #weekday() is 0 for Monday, so the weekly job still only runs weekly
+    if today.weekday() == 0:
+        create_weekly_reminder()
+        ran.append("weekly")
+
+    #and the monthly job only on the 1st
+    if today.day == 1:
+        create_monthly_reminders()
+        ran.append("monthly")
+
+    return f"ran: {', '.join(ran) if ran else 'nothing due today'}", 200
+
 #---------------------------------------------------------#
 #------Scheduled reminder jobs(automated reminders)-------#
 #---------------------------------------------------------#
@@ -849,19 +980,29 @@ def create_weekly_reminder():
                 status = get_status(p)
                 if status == "overdue":
                     db.session.add(Reminder(
-                        message=f"'{p.name}' ({user.currency}{p.amount:.2f}) is overdue! Due on the {ordinal_day(p.due_day)}.",
+                        message=f"'{p.name}' ({user.currency}{p.amount:.2f}) is overdue! Was due on the {ordinal_day(p.due_day)}, {due_date_text(p)}",
                         category="overdue",
                         user_id=user.id,
                     ))
                 elif status == "soon":
                     days = days_until_due(p.due_day, p.is_paid)
+                    #"in 0 days" reads badly, so say "today" instead
+                    if days == 0:
+                        timing = "is due today"
+                    else:
+                        timing = f"is due in {days} day{'s' if days != 1 else ''}"
                     db.session.add(Reminder(
-                        message=f"'{p.name}' ({user.currency}{p.amount:.2f}) is due in {days} day{'s' if days != 1 else ''}.",
+                        message=f"'{p.name}' ({user.currency}{p.amount:.2f}) {timing}, {due_date_text(p)}",
                         category="soon",
                         user_id=user.id,
                     ))
 
         db.session.commit()
+
+        #email AFTER committing: the reminders above only exist in the database
+        #once committed, so reading them back has to happen in a second loop
+        for user in User.query.all():
+            email_unread_reminders(user, "Your Budget Buddy weekly reminders")
 
 
 def create_monthly_reminders():
@@ -888,7 +1029,7 @@ def create_monthly_reminders():
             # create a reminder for each bill
             for p in payments:
                 db.session.add(Reminder(
-                    message=(f"Monthly reminder: '{p.name}' ({user.currency}{p.amount:.2f}) is due on the {ordinal_day(p.due_day)} this month"),
+                    message=(f"Monthly reminder: '{p.name}' ({user.currency}{p.amount:.2f}) is due on the {ordinal_day(p.due_day)}, {due_date_text(p)}"),
                     category="monthly",
                     user_id=user.id,
                 ))
@@ -903,6 +1044,10 @@ def create_monthly_reminders():
                 ))
 
         db.session.commit()
+
+        #email AFTER committing, for the same reason as the weekly job
+        for user in User.query.all():
+            email_unread_reminders(user, "Your Budget Buddy monthly reminders")
 
 
 #-------------------------------------------------------------------#
@@ -936,14 +1081,14 @@ scheduler.add_job(
 
  
 #TESTING
-# The reminders above only fire on their REAL schedule, so you might wait days
-# to see one! To test quickly, temporarily replace a job's trigger with an
+# The reminders  only fire on their REAL schedule
+# To test quickly, temporarily replace a job's trigger with an
 # interval one, for example:
 #
 #     scheduler.add_job(func=create_weekly_reminder,
 #                       trigger="interval", seconds=15, id="weekly_reminder")
 #
-# That makes it run every 15 seconds. Change it back when you're done testing.
+# That makes it run every 15 seconds. Change it back when done testing.
 # ---------------------------------------------------------------------------
 
 

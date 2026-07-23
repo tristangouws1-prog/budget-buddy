@@ -32,6 +32,8 @@
 #32  TODO add email as a reminders mesage option
 #33! TODO spending history table
 #34! TODO spending history chart
+#35  TODO make sure the optional description part of the bill is also sent to the email
+#36  TODO have bbudget buddy be installable and run on any device as an .exe file, or a web link?
 
 
 #future TODO add a small pixel buddy that motivates the user
