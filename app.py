@@ -49,7 +49,12 @@ import calendar
 app = Flask(__name__)
 
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-fallback")
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///budget.db"
+
+#locally this keeps the database in the instance folder next to this file.
+#on a host like PythonAnywhere, set DATABASE_URL to an absolute path instead,
+#e.g. sqlite:////home/yourname/budget-buddy/instance/budget.db
+#(four slashes = absolute path, three = relative)
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///budget.db")
 
 db = SQLAlchemy(app)
 
