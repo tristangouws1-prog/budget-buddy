@@ -19,22 +19,22 @@ continuing to grow this project.
 ## 2.  App.py
 app.py is the main file. It is a Flask app that claude code helped with whenever I hit a brick wall. I asked claude to give me ideas, 
 help me understand concepts, look for bug fixes as well as teach me how to commit and push code to github. 
-All the code in the project was manually typed by me except for bug fixes and typos that claude helped with.
-app.py contains the database models(User, Payment, Income, Reminder), 
-all the routes(dashboard, add/edit/delete, login/register, settings), 
-helper functions(get_status() and ordinal_day()) 
+All the code in the CS50 submission was manually typed by me except for bug fixes and typos that claude helped with.
+After submitting I kept building the app, and the features added since then were written together with claude.
+app.py contains the database models(User, Payment, Income, Reminder, PaymentLog), 
+all the routes(dashboard, add/edit/delete, login/register, settings, payment history, 
+and a token protected task route used by the host's scheduler), 
+helper functions(get_status(), ordinal_day(), days_until_due(), due_date_text(), log_payment() and send_email()) 
 and the APScheduler that sends weekly and monthly reminders.
 
 
+
 ## 3. Style.css
-style.css is the file that determines the look, colour scheme, spacing etc. of all the .html files
-This page determines the colours like red for overdue and green for paid.
-Consistent use of rounded edges on the card layouts to ensure a calm layout.
-I chose a calm colour scheme because the app is supposed to be easy to use and ease stress. 
-The soft colour palettes are meant to be peaceful.
-The Stylesheet also includes a mobile friendly version.
-I used CSS variables to store the colour scheme in one place and then reuse those values
-accross the rest of the stylesheet to keep a consistant colour palette.
+Storing every colour as a variable in one place also made dark mode much easier to add later. The dark theme is just a
+"body.theme-dark" block that overrides those same variable names with darker values, so every card, badge, button and
+progress bar follows the new palette automatically without me rewriting any of the individual rules. The chosen theme is
+saved per user, and the body tag gets the matching class when the page loads.
+
 
 ## 4. Dashboard
 dashboard.html is the main page that is seen when a user logs in. 
@@ -67,6 +67,9 @@ is used across the entire app and each user has the option to customise their pr
 I am considering either adding more currency options, or adding a field where a custom currency can be typed in.
 The settings page also allows the user to set and update a custom budget limit.
 This is useful as the budget limit might be different from total income.
+The user can also pick a colour theme, either the original pastel one or a dark theme for working at night.
+Settings is also where the email address that reminders are sent to can be changed, and where email reminders
+can be switched off for a user who would rather only see reminders inside the app.
 
 
 ## 8. Reminders

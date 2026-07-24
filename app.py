@@ -1,16 +1,3 @@
-#For your final project (and your final project only!)
-# it is reasonable to use AI-based software other than CS50's own (e.g., ChatGPT, GitHub Copilot, Bing Chat, et al.),
-# but the essence of the work must still be your own.
-# You've learned enough to use such tools as helpers.
-# Treat such tools as amplifying, not supplanting, your productivity.
-
-#But you still must cite any use of such tools in the comments of your code.
-
-#claude code was used to help determine what the skeleton of the app would be.
-#determining what is necessary
-#claude code was also used to help add user accounts (login/register) to the app.
-#claude was used to help me restore much of my lost data when i misunderstood what i was doing and pressed overwrite save
-#claude helped determine what to import and also to look for and fix typos and syntax errors
 
 """
 #------------------------------------------------------------------------------#
@@ -24,7 +11,11 @@ What this app does
     - once a week sends a reminder about upcoming payments and overdue bills
     - once a month send a reminder of all the bills and reset the previous months budget sheet
     - which means that if a bill was marked as paid in june the new page saying july will mark everything as not paid
-"""
+    - keeps a permanent history of every payment, shown as a table and a six month spending chart
+    - lets each user pick a colour theme, including a dark mode
+    - sends the weekly and monthly reminders by email as well as showing them in the app
+    """
+
 #imports
 import os
 import secrets
