@@ -14,3 +14,7 @@ venv/
 
 # Environment variables / secrets
 .env
+
+# Editor / tool settings - personal to my machine, not part of the project
+.claude/
+.vscode/
