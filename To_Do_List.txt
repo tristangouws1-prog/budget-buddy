@@ -27,13 +27,16 @@
 #27! TODO 2 minute app walkthrough
 #28! TODO loan category: add fields for total months remaining, interest rate (%), loan initiation fee, and monthly insurance so that a truly accurate monthly cost and payoff timeline can be displayed
 #29! TODO store/credit account category: add fields for interest rate (%), minimum payment percentage, and credit limit so that the true minimum payment and interest charged can be calculated and displayed accurately
-#30  TODO deploy app online via PythonAnywhere (free tier) so it can be accessed from any device without VS Code — user accounts, bills, and income data all persist as normal with SQLite
+#30! TODO deploy app online via PythonAnywhere (free tier) so it can be accessed from any device without VS Code — user accounts, bills, and income data all persist as normal with SQLite
 #31! TODO test the reminder messages
-#32  TODO add email as a reminders mesage option
+#32! TODO add email as a reminders mesage option
 #33! TODO spending history table
 #34! TODO spending history chart
 #35  TODO make sure the optional description part of the bill is also sent to the email
 #36  TODO have bbudget buddy be installable and run on any device as an .exe file, or a web link?
+#37  TODO show password as it is typed
+#38  TODO implement a forgot password function
+#39  TODO implemenet a function that shows if a previous month's bill was paid or not, which shows a buildup of bills
 
 
 #future TODO add a small pixel buddy that motivates the user

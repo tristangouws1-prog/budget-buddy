@@ -123,7 +123,6 @@ class Payment(db.Model):
 #day of the month which the next payment is due
     due_day = db.Column(db.Integer, nullable=False)
 
-
 #true or false of whether payment has been made or not
     is_paid = db.Column(db.Boolean, default=False)
 
@@ -150,6 +149,9 @@ class Payment(db.Model):
 
 #for loan: once-off initiation fee
     initiation_fee = db.Column(db.Float, nullable=True)
+
+#for loans: monthly service/admin fee
+    service_fee = db.Column(db.Float, nullable=True)
 
 #for credit accounts: minimum % of balance due each month
     minimum_payment_percent = db.Column(db.Float, nullable=True)
@@ -561,6 +563,8 @@ def add_payment():
         raw_interest = request.form.get("interest_rate")
         raw_months = request.form.get("months_remaining")
         raw_insurance = request.form.get("loan_insurance")
+        raw_service = request.form.get("service_fee")
+        service_fee = float(raw_service) if raw_service else None
         raw_initiation = request.form.get("initiation_fee")
         interest_rate = float(raw_interest) if raw_interest else None
         months_remaining = int(raw_months) if raw_months else None
@@ -588,6 +592,7 @@ def add_payment():
             months_remaining=months_remaining,
             loan_insurance=loan_insurance,
             initiation_fee=initiation_fee,
+            service_fee=service_fee,
 
             minimum_payment_percent=minimum_payment_percent
         )
@@ -646,7 +651,8 @@ def edit_payment(payment_id):
         
         raw_total = request.form.get("total_value")
         raw_balance = request.form.get("current_balance")
-        
+        raw_service = request.form.get("service_fee")
+        payment.service_fee = float(raw_service) if raw_service else None
         payment.total_value = float(raw_total) if raw_total else None
         payment.current_balance = float(raw_balance) if raw_balance else None
         
