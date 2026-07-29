@@ -14,12 +14,25 @@
         <input type="password" id="password" name="password"
                placeholder="Your password" required>
 
+        <!-- tick to see the password instead of dots -->
+        <label class="checkbox-row">
+            <input type="checkbox" onclick="togglePasswords(this.checked)">
+            Show password
+        </label>
+
         <button type="submit" class="btn-primary btn-block">Log in</button>
     </form>
 
     <p class="auth-switch">
-        New here? <a href="{{ url_for('register') }}">Create an account</a>
+        New here? <a href="{{ url_for('register') }}">Create an account</a><br>
+        <a href="{{ url_for('forgot_password') }}">Forgot your password?</a>
     </p>
 </section>
+
+<script>
+function togglePasswords(show) {
+    document.getElementById('password').type = show ? 'text' : 'password';
+}
+</script>
 
 {% endblock %}

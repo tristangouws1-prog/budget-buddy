@@ -17,7 +17,13 @@
             <option value="variable" {{ 'selected' if income.income_type == 'variable' }}>Variable — changes month to month</option>
         </select>
 
-        <label for="amount">Expected monthly amount</label>
+        <label for="frequency">How often is it paid?</label>
+        <select id="frequency" name="frequency">
+            <option value="monthly" {{ 'selected' if income.frequency == 'monthly' }}>Monthly (e.g. a salary)</option>
+            <option value="weekly" {{ 'selected' if income.frequency == 'weekly' }}>Weekly (e.g. weekly wages)</option>
+        </select>
+
+        <label for="amount">Expected amount (per month, or per week if weekly)</label>
         <input type="number" id="amount" name="amount" step="0.01" min="0"
                value="{{ income.amount }}" required>
 

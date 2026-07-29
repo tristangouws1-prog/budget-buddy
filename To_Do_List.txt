@@ -32,11 +32,20 @@
 #32! TODO add email as a reminders mesage option
 #33! TODO spending history table
 #34! TODO spending history chart
-#35  TODO make sure the optional description part of the bill is also sent to the email
+#35! TODO make sure the optional description part of the bill is also sent to the email
 #36  TODO have bbudget buddy be installable and run on any device as an .exe file, or a web link?
-#37  TODO show password as it is typed
-#38  TODO implement a forgot password function
-#39  TODO implemenet a function that shows if a previous month's bill was paid or not, which shows a buildup of bills
+#37! TODO show password as it is typed
+#38! TODO implement a forgot password function
+#39! TODO implemenet a function that shows if a previous month's bill was paid or not, which shows a buildup of bills
+#40! TODO add variable bill type such as water and electricity
+#41! TODO add debit order as a payment type
+#42! TODO add a way to handle weekly debit orders, plus weekly income
+#44! TODO ensure the loan catagory automatically adds the loan % rent assurance and admin fee at the begginning of each month
+#45! TODO find out why it keeps saving numbbers wrongly
+#47! TODO mannually reorder drag and drop maybe? way to put certain bills next too each other
+#48! TODO Add service fee part to store accounts
+
+
 
 
 #future TODO add a small pixel buddy that motivates the user

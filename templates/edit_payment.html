@@ -19,6 +19,7 @@
             <option value="">- choose -</option>
             <option value="Airtime" {% if payment.payment_method == "Airtime" %}selected{% endif %}>Airtime</option>
             <option value="Debit Card" {% if payment.payment_method == "Debit Card" %}selected{% endif %}>Debit Card</option>
+            <option value="Debit Order" {% if payment.payment_method == "Debit Order" %}selected{% endif %}>Debit Order</option>
             <option value="Credit Card" {% if payment.payment_method == "Credit Card" %}selected{% endif %}>Credit Card</option>
             <option value="Cash" {% if payment.payment_method == "Cash" %}selected{% endif %}>Cash</option>
             <option value="EFT" {% if payment.payment_method == "EFT" %}selected{% endif %}>EFT</option>
@@ -28,9 +29,16 @@
         <label for="bill_type">Bill type</label>
         <select id="bill_type" name="bill_type" onchange="toggleBalanceFields(this.value)">
             <option value="fixed" {% if payment.bill_type == "fixed" %}selected{% endif %}>Fixed monthly (e.g. Spotify, rent)</option>
+            <option value="variable" {% if payment.bill_type == "variable" %}selected{% endif %}>Variable (amount changes, e.g. water, electricity)</option>
             <option value="loan"  {% if payment.bill_type == "loan"  %}selected{% endif %}>Loan (gets paid down over time)</option>
             <option value="credit" {% if payment.bill_type == "credit"%}selected{% endif %}>Credit account (store account, credit card)</option>
             <option value="once_off" {% if payment.bill_type == "once_off" %}selected{% endif %}>Once-off (single payment, doesn't repeat)</option>
+        </select>
+
+        <label for="frequency">How often?</label>
+        <select id="frequency" name="frequency" onchange="toggleDueField(this.value)">
+            <option value="monthly" {% if payment.frequency == "monthly" %}selected{% endif %}>Monthly</option>
+            <option value="weekly" {% if payment.frequency == "weekly" %}selected{% endif %}>Weekly (e.g. a weekly debit order)</option>
         </select>
 
 <div id="balance-fields" style="display:none">
@@ -44,6 +52,11 @@
     <input type="number" id="interest_rate" name="interest_rate" step="0.01" min="0"
            value="{{ payment.interest_rate or '' }}">
 
+    <!-- both loans AND store accounts can have a monthly admin fee -->
+    <label for="service_fee">Monthly service/admin fee ({{ current_user.currency }})</label>
+    <input type="number" id="service_fee" name="service_fee" step="0.01" min="0"
+           value="{{ payment.service_fee or '' }}">
+
     <div id="loan-only-fields" style="display:none">
         <label for="months_remaining">Months remaining</label>
         <input type="number" id="months_remaining" name="months_remaining" min="0"
@@ -51,9 +64,6 @@
         <label for="loan_insurance">Monthly insurance/protection ({{ current_user.currency }})</label>
         <input type="number" id="loan_insurance" name="loan_insurance" step="0.01" min="0"
                value="{{ payment.loan_insurance or '' }}">
-        <label for="service_fee">Monthly service/admin fee ({{ current_user.currency }})</label>
-        <input type="number" id="service_fee" name="service_fee" step="0.01" min="0"
-               value="{{ payment.service_fee or '' }}">
         <label for="initiation_fee">Initiation fee ({{ current_user.currency }})</label>
         <input type="number" id="initiation_fee" name="initiation_fee" step="0.01" min="0"
                value="{{ payment.initiation_fee or '' }}">
@@ -73,9 +83,25 @@
         <input type="number" id="amount" name="amount" step="0.01" min="0"
                value="{{ payment.amount }}" required>
 
-        <label for="due_day">Due day of the month</label>
-        <input type="number" id="due_day" name="due_day" min="1" max="31"
-               value="{{ payment.due_day }}" required>
+        <div id="monthly-due">
+            <label for="due_day">Due day of the month</label>
+            <input type="number" id="due_day" name="due_day" min="1" max="31"
+                   value="{{ payment.due_day if payment.frequency != 'weekly' else '' }}">
+        </div>
+
+        <!-- weekly bills pick a weekday instead; only one of the two inputs
+             is enabled at a time, so only one "due_day" value is submitted -->
+        <div id="weekly-due" style="display:none">
+            <label for="due_weekday">Due day of the week</label>
+            <select id="due_weekday" name="due_day" disabled>
+                {% for day_name in ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] %}
+                    <option value="{{ loop.index }}"
+                            {{ 'selected' if payment.frequency == 'weekly' and payment.due_day == loop.index }}>
+                        {{ day_name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
 
         <button type="submit" class="btn-primary btn-block">Save changes</button>
     </form>
@@ -91,7 +117,7 @@ function toggleBalanceFields(type) {
     const totalLabel = document.getElementById('total-label');
     const balanceLabel = document.getElementById('balance-label');
 
-    if (type === 'fixed' || type === 'once_off') {
+    if (type === 'fixed' || type === 'once_off' || type === 'variable') {
         fields.style.display = 'none';
         loanFields.style.display = 'none';
         creditFields.style.display = 'none';
@@ -110,7 +136,24 @@ function toggleBalanceFields(type) {
     }
 }
 
+function toggleDueField(frequency) {
+    //swap between "day of the month" and "day of the week".
+    //the hidden input is disabled so it doesn't also submit a due_day value
+    const monthly = document.getElementById('monthly-due');
+    const weekly = document.getElementById('weekly-due');
+    const dayInput = document.getElementById('due_day');
+    const weekdaySelect = document.getElementById('due_weekday');
+    const isWeekly = frequency === 'weekly';
+
+    monthly.style.display = isWeekly ? 'none' : 'block';
+    weekly.style.display = isWeekly ? 'block' : 'none';
+    dayInput.disabled = isWeekly;
+    dayInput.required = !isWeekly;
+    weekdaySelect.disabled = !isWeekly;
+}
+
 toggleBalanceFields(document.getElementById('bill_type').value);
+toggleDueField(document.getElementById('frequency').value);
 </script>
 
 

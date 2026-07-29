@@ -26,6 +26,10 @@ from email.message import EmailMessage
 from dotenv import load_dotenv
 load_dotenv()
 
+#itsdangerous makes signed, expiring tokens (used for password reset links).
+#it comes with Flask, so nothing new to install
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
@@ -156,6 +160,18 @@ class Payment(db.Model):
 #for credit accounts: minimum % of balance due each month
     minimum_payment_percent = db.Column(db.Float, nullable=True)
 
+#money still owed from earlier months/weeks - unpaid bills roll over into here
+    carried_over = db.Column(db.Float, nullable=True, default=0)
+
+#for variable bills (water, electricity): has this month's amount been checked yet?
+    is_confirmed = db.Column(db.Boolean, default=True)
+
+#"monthly" bills use a day of the month; "weekly" ones use a day of the week (1=Monday .. 7=Sunday)
+    frequency = db.Column(db.String(10), nullable=False, default="monthly")
+
+#custom drag-and-drop position on the dashboard
+    sort_order = db.Column(db.Integer, nullable=True)
+
 #captures exactly when a new bill or subscription was added
     date_added = db.Column(db.DateTime, default=datetime.datetime.now)
 
@@ -195,6 +211,9 @@ class Income(db.Model):
 
     # fixed amount for a stable income
     income_type = db.Column(db.String(20), nullable=False, default="fixed")
+
+    #"monthly" (salary) or "weekly" (weekly wages)
+    frequency = db.Column(db.String(10), nullable=False, default="monthly")
 
     #variable income, confirm if that months amount has been confirmed.
     #reset to False each month automatically
@@ -274,13 +293,42 @@ def days_until_due(due_day, is_paid=False):
         return days_left_this_month + due_day
 
 
+def days_until_due_weekly(due_weekday, is_paid=False):
+    """Weekly bills: days until the chosen weekday (1=Monday .. 7=Sunday).
+    Works like days_until_due but inside a week instead of a month:
+    negative = that day already passed this week and the bill isn't paid."""
+    today = datetime.datetime.now()
+    todays_weekday = today.weekday() + 1   #weekday() is 0-6, we use 1-7
+    diff = due_weekday - todays_weekday
+    if diff >= 0:
+        return diff
+    elif not is_paid:
+        return diff
+    else:
+        #already paid, so the next one is the same day next week
+        return diff + 7
+
+
+@app.template_filter("weekday_name")
+def weekday_name(day):
+    """Turn 1..7 into Monday..Sunday for weekly bills."""
+    return calendar.day_name[day - 1]
+
+
+def days_left_for(payment):
+    """How many days until this bill is due, whatever its frequency."""
+    if payment.frequency == "weekly":
+        return days_until_due_weekly(payment.due_day, payment.is_paid)
+    return days_until_due(payment.due_day, payment.is_paid)
+
+
 def due_date_for(payment):
     """The calendar date a bill is next due.
-    Built from days_until_due() so the month-length and rollover rules
+    Built from the days-left helpers so the month-length and rollover rules
     only live in one place. A negative number of days naturally gives the
     date in the past for a bill that is already overdue."""
     today = datetime.datetime.now()
-    return today + datetime.timedelta(days=days_until_due(payment.due_day, payment.is_paid))
+    return today + datetime.timedelta(days=days_left_for(payment))
 
 
 def due_date_text(payment):
@@ -289,6 +337,28 @@ def due_date_text(payment):
     zero padded (we want "Friday 5 July", not "Friday 05 July")."""
     due = due_date_for(payment)
     return f"{due.strftime('%A')} {due.day} {due.strftime('%B %Y')}"
+
+
+def description_note(payment):
+    """The bill's optional description as a short add-on for reminder
+    messages, so the extra detail also reaches the reminder emails."""
+    return f" — {payment.description}" if payment.description else ""
+
+
+def due_phrase(payment):
+    """How reminders describe when a bill is due:
+    monthly -> "the 5th, Sunday 5 July 2026", weekly -> "Friday"."""
+    if payment.frequency == "weekly":
+        return calendar.day_name[payment.due_day - 1]
+    return f"the {ordinal_day(payment.due_day)}, {due_date_text(payment)}"
+
+
+def monthly_equivalent(amount, frequency):
+    """A weekly amount expressed as a monthly one (52 weeks / 12 months),
+    so weekly bills and wages fit into the monthly totals."""
+    if frequency == "weekly":
+        return round(amount * 52 / 12, 2)
+    return amount
 
 
 def get_status(payment):
@@ -305,6 +375,15 @@ def get_status(payment):
     if payment.is_paid:
         return "paid"
 
+    #weekly bills live inside a week instead of a month
+    if payment.frequency == "weekly":
+        days = days_until_due_weekly(payment.due_day, payment.is_paid)
+        if days < 0:
+            return "overdue"
+        if days <= 2:
+            return "soon"
+        return "upcoming"
+
     today = datetime.datetime.now()
     days_in_month = calendar.monthrange(today.year, today.month)[1]
     due_day = min(payment.due_day, days_in_month)
@@ -318,6 +397,18 @@ def get_status(payment):
         return "soon"
 
     return "upcoming"
+
+def parse_money(raw):
+    """Turn a form value into a number rounded to 2 decimal places.
+    Returns None for an empty field.
+    Fixes numbers being saved wrongly in two ways:
+      - float maths can produce values like 149.99999999999997, so round them
+      - some phone keyboards type a comma decimal ("199,99"), so accept that too"""
+    if raw is None or str(raw).strip() == "":
+        return None
+    cleaned = str(raw).replace(" ", "").replace(",", ".")
+    return round(float(cleaned), 2)
+
 
 def log_payment(payment, amount):
     """Save one row of payment history.
@@ -466,6 +557,78 @@ def logout():
     return redirect(url_for("login"))
 
 
+def get_reset_serializer():
+    """Makes signed, expiring tokens for password reset links.
+    The token is signed with the SECRET_KEY so it can't be forged,
+    and nothing extra needs to be stored in the database."""
+    return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt="password-reset")
+
+
+@app.route("/forgot", methods=["GET", "POST"])
+def forgot_password():
+    """ Ask for an email address and send a password reset link to it """
+    if current_user.is_authenticated:
+        return redirect(url_for("dashboard"))
+
+    if request.method == "POST":
+        email = (request.form.get("email") or "").strip()
+        user = User.query.filter_by(email=email).first() if email else None
+        if user:
+            token = get_reset_serializer().dumps(user.id)
+            link = url_for("reset_password", token=token, _external=True)
+            send_email(
+                user.email,
+                "Reset your Budget Buddy password",
+                (f"Hi {user.username},\n\n"
+                 f"Click this link to choose a new password:\n{link}\n\n"
+                 "The link works for 1 hour. If you didn't ask for this, you can ignore it."),
+            )
+        #always show the same message, so this page can't be used
+        #to find out which email addresses have accounts
+        flash("If that email has an account, a reset link has been sent to it.", "success")
+        return redirect(url_for("login"))
+
+    return render_template("forgot_password.html")
+
+
+@app.route("/reset/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    """ Choose a new password using an emailed reset link """
+    if current_user.is_authenticated:
+        return redirect(url_for("dashboard"))
+
+    try:
+        #max_age is in seconds, so the link stops working after an hour
+        user_id = get_reset_serializer().loads(token, max_age=3600)
+    except SignatureExpired:
+        flash("That reset link has expired. Ask for a new one.", "warning")
+        return redirect(url_for("forgot_password"))
+    except BadSignature:
+        flash("That reset link is not valid.", "warning")
+        return redirect(url_for("forgot_password"))
+
+    user = db.session.get(User, user_id)
+    if user is None:
+        flash("That account no longer exists.", "warning")
+        return redirect(url_for("register"))
+
+    if request.method == "POST":
+        password = request.form["password"]
+        confirm = request.form["confirm"]
+        if not password:
+            flash("Please type a new password.", "warning")
+            return redirect(url_for("reset_password", token=token))
+        if password != confirm:
+            flash("Those passwords don't match. Try again.", "warning")
+            return redirect(url_for("reset_password", token=token))
+        user.set_password(password)
+        db.session.commit()
+        flash("Password changed. You can log in now.", "success")
+        return redirect(url_for("login"))
+
+    return render_template("reset_password.html", token=token)
+
+
 #-----------------------------------------------------------------------------#
 #-----------------ROUTES - each function references a web page----------------#
 #-----------------------------------------------------------------------------#
@@ -491,23 +654,32 @@ def dashboard():
         payments_with_status.append({
             "payment": p,
             "status": get_status(p),
-            "days_left": days_until_due(p.due_day, p.is_paid),
+            "days_left": days_left_for(p),
         })
 
     #filter
     if filter_status != "all":
         payments_with_status = [p for p in payments_with_status if p["status"] == filter_status]
-   
+
     #sort
     if sort_by == "amount":
         payments_with_status.sort(key=lambda p: p["payment"].amount, reverse=True)
     elif sort_by == "name":
         payments_with_status.sort(key=lambda p: p["payment"].name.lower())
+    elif sort_by == "custom":
+        #the user's own drag-and-drop order; bills never dragged go last
+        payments_with_status.sort(
+            key=lambda p: (p["payment"].sort_order is None, p["payment"].sort_order or 0)
+        )
 
-    # useful monthly totals
-    total_monthly = sum(p.amount for p in payments)
+    # useful monthly totals (weekly bills count as their monthly equivalent)
+    total_monthly = sum(monthly_equivalent(p.amount, p.frequency) for p in payments)
     unpaid = [p for p in payments if not p.is_paid]
-    total_unpaid = sum(p.amount - (p.amount_paid or 0) for p in unpaid)
+    #what's left = this month's unpaid bills PLUS anything carried over from before
+    total_unpaid = (
+        sum(p.amount - (p.amount_paid or 0) for p in unpaid)
+        + sum(p.carried_over or 0 for p in payments)
+    )
 
     #only this user's unread reminders
     unread_reminders = (
@@ -519,7 +691,8 @@ def dashboard():
     over_budget = (current_user.budget_limit is not None and total_monthly > current_user.budget_limit)
 
     income_sources = Income.query.filter_by(user_id=current_user.id).all()
-    total_income = sum(i.amount for i in income_sources)
+    #weekly wages count as their monthly equivalent
+    total_income = sum(monthly_equivalent(i.amount, i.frequency) for i in income_sources)
     money_remaining = total_income - total_monthly
 
     # render template loads dashboard.html
@@ -550,30 +723,22 @@ def add_payment():
 #description = more detailed e.g. "Spotify Premium Platinum Duo via Vodacom airtime deduction"
         name = request.form["name"]
         description = request.form["description"] or None
-        amount = float(request.form["amount"])
+        amount = parse_money(request.form["amount"])
         due_day = int(request.form["due_day"])
         payment_method = request.form.get("payment_method") or None
         bill_type = request.form.get("bill_type", "fixed")
-        raw_total = request.form.get("total_value")
-        raw_balance = request.form.get("current_balance")
-        total_value = float(raw_total) if raw_total else None
-        current_balance = float(raw_balance) if raw_balance else None
+        frequency = request.form.get("frequency", "monthly")
+        total_value = parse_money(request.form.get("total_value"))
+        current_balance = parse_money(request.form.get("current_balance"))
 
-        
-        raw_interest = request.form.get("interest_rate")
+        interest_rate = parse_money(request.form.get("interest_rate"))
         raw_months = request.form.get("months_remaining")
-        raw_insurance = request.form.get("loan_insurance")
-        raw_service = request.form.get("service_fee")
-        service_fee = float(raw_service) if raw_service else None
-        raw_initiation = request.form.get("initiation_fee")
-        interest_rate = float(raw_interest) if raw_interest else None
         months_remaining = int(raw_months) if raw_months else None
-        loan_insurance = float(raw_insurance) if raw_insurance else None
-        initiation_fee = float(raw_initiation) if raw_initiation else None
+        loan_insurance = parse_money(request.form.get("loan_insurance"))
+        service_fee = parse_money(request.form.get("service_fee"))
+        initiation_fee = parse_money(request.form.get("initiation_fee"))
 
-
-        raw_min_pay = request.form.get("minimum_payment_percent")
-        minimum_payment_percent = float(raw_min_pay) if raw_min_pay else None
+        minimum_payment_percent = parse_money(request.form.get("minimum_payment_percent"))
 
 
 #create a new payment, one row of information, owned by the logged-in user
@@ -584,6 +749,7 @@ def add_payment():
             due_day=due_day,
             payment_method=payment_method,
             bill_type=bill_type,
+            frequency=frequency,
             total_value=total_value,
             current_balance=current_balance,
             user_id=current_user.id,
@@ -617,13 +783,15 @@ def add_income():
     if request.method == "POST":
 
         name=request.form["name"]
-        amount=float(request.form["amount"])
+        amount=parse_money(request.form["amount"])
         income_type = request.form.get("income_type", "fixed")
+        frequency = request.form.get("frequency", "monthly")
 
         new_income = Income(
             name=name,
             amount=amount,
             income_type=income_type,
+            frequency=frequency,
             user_id=current_user.id,
         )
 
@@ -644,29 +812,22 @@ def edit_payment(payment_id):
         #overwrite the bill's fields with new values
         payment.name = request.form["name"]
         payment.description = request.form["description"] or None
-        payment.amount = float(request.form["amount"])
+        payment.amount = parse_money(request.form["amount"])
         payment.due_day = int(request.form["due_day"])
         payment.payment_method = request.form.get("payment_method") or None
         payment.bill_type = request.form.get("bill_type", "fixed")
-        
-        raw_total = request.form.get("total_value")
-        raw_balance = request.form.get("current_balance")
-        raw_service = request.form.get("service_fee")
-        payment.service_fee = float(raw_service) if raw_service else None
-        payment.total_value = float(raw_total) if raw_total else None
-        payment.current_balance = float(raw_balance) if raw_balance else None
-        
-        raw_interest = request.form.get("interest_rate")
-        raw_months = request.form.get("months_remaining")
-        raw_insurance = request.form.get("loan_insurance")
-        raw_initiation = request.form.get("initiation_fee")
+        payment.frequency = request.form.get("frequency", "monthly")
 
-        payment.interest_rate = float(raw_interest) if raw_interest else None
+        payment.total_value = parse_money(request.form.get("total_value"))
+        payment.current_balance = parse_money(request.form.get("current_balance"))
+        payment.service_fee = parse_money(request.form.get("service_fee"))
+
+        payment.interest_rate = parse_money(request.form.get("interest_rate"))
+        raw_months = request.form.get("months_remaining")
         payment.months_remaining = int(raw_months) if raw_months else None
-        payment.loan_insurance = float(raw_insurance) if raw_insurance else None
-        payment.initiation_fee = float(raw_initiation) if raw_initiation else None
-        raw_min_pay = request.form.get("minimum_payment_percent")
-        payment.minimum_payment_percent = float(raw_min_pay) if raw_min_pay else None
+        payment.loan_insurance = parse_money(request.form.get("loan_insurance"))
+        payment.initiation_fee = parse_money(request.form.get("initiation_fee"))
+        payment.minimum_payment_percent = parse_money(request.form.get("minimum_payment_percent"))
 
         db.session.commit()
         flash(f"Updated '{payment.name}' successfully", "success")
@@ -682,8 +843,9 @@ def edit_income(income_id):
     income = get_owned_income_or_404(income_id)
     if request.method == "POST":
         income.name = request.form["name"]
-        income.amount = float(request.form["amount"])
+        income.amount = parse_money(request.form["amount"])
         income.income_type = request.form.get("income_type", "fixed")
+        income.frequency = request.form.get("frequency", "monthly")
         db.session.commit()
         flash(f"Updated '{income.name}' successfully", "success")
         return redirect(url_for("dashboard"))
@@ -700,7 +862,7 @@ def partial_pay(payment_id):
     if raw:
         #remember what was already paid so only the NEW part is logged
         old_paid = payment.amount_paid or 0
-        payment.amount_paid = float(raw)
+        payment.amount_paid = parse_money(raw)
         if payment.amount_paid >= payment.amount:
             payment.is_paid = True
             payment.amount_paid = payment.amount
@@ -710,6 +872,51 @@ def partial_pay(payment_id):
     db.session.commit()
     flash(f"Payment recorded for '{payment.name}'.","success")
     return redirect(url_for("dashboard"))
+
+
+@app.route("/carryover_paid/<int:payment_id>", methods=["POST"])
+@login_required
+def clear_carryover(payment_id):
+    """ Mark the rolled-over debt on a bill as paid off """
+    payment = get_owned_payment_or_404(payment_id)
+    if payment.carried_over:
+        #it was real money paid, so it belongs in the payment history
+        log_payment(payment, payment.carried_over)
+        payment.carried_over = 0
+    db.session.commit()
+    flash(f"Cleared the carried-over amount for '{payment.name}'.", "success")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/bill/confirm/<int:payment_id>", methods=["POST"])
+@login_required
+def confirm_bill(payment_id):
+    """ Confirm (and maybe update) this month's amount for a variable bill.
+    Leaving the amount box empty means "same as last month"."""
+    payment = get_owned_payment_or_404(payment_id)
+    new_amount = parse_money(request.form.get("new_amount"))
+    if new_amount is not None:
+        payment.amount = new_amount
+    payment.is_confirmed = True
+    db.session.commit()
+    flash(f"Amount confirmed for '{payment.name}'.", "success")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/reorder", methods=["POST"])
+@login_required
+def reorder_bills():
+    """ Save the custom drag-and-drop order of the bills.
+    The page sends a JSON list of bill ids in their new order. """
+    ids = request.get_json(silent=True)
+    if not isinstance(ids, list):
+        return {"ok": False}, 400
+    for position, payment_id in enumerate(ids):
+        payment = Payment.query.filter_by(id=payment_id, user_id=current_user.id).first()
+        if payment:
+            payment.sort_order = position
+    db.session.commit()
+    return {"ok": True}
 
 
 
@@ -732,8 +939,7 @@ def settings():
         #an unticked checkbox sends nothing at all, which reads as False
         current_user.email_reminders = bool(request.form.get("email_reminders"))
 
-        raw_limit = request.form.get("budget_limit")
-        current_user.budget_limit = float(raw_limit) if raw_limit else None
+        current_user.budget_limit = parse_money(request.form.get("budget_limit"))
         db.session.commit()
         flash("Settings saved", "success")
         return redirect(url_for("settings"))
@@ -816,7 +1022,7 @@ def confirm_income(income_id):
     income = get_owned_income_or_404(income_id)
     raw = request.form.get("new_amount")
     if raw:
-        income.amount = float(raw)
+        income.amount = parse_money(raw)
     income.is_confirmed = True
     db.session.commit()
     flash(f"Income '{income.name}' confirmed.", "success")
@@ -827,7 +1033,7 @@ def confirm_income(income_id):
 def update_balance(payment_id):
     """ Update the current balance for a loan or credit account bill """
     payment = get_owned_payment_or_404(payment_id)
-    payment.current_balance = float(request.form["new_balance"])
+    payment.current_balance = parse_money(request.form["new_balance"])
     db.session.commit()
     flash(f"Balance updated for '{payment.name}'.", "success")
     return redirect(url_for("dashboard"))
@@ -976,13 +1182,35 @@ def create_weekly_reminder():
                     category="weekly",
                     user_id=user.id,
                 ))
-            #remind about overdue and upcoming bills
             user_payments = Payment.query.filter_by(user_id=user.id).all()
+
+            #WEEKLY bills start a fresh week every Monday.
+            #whatever wasn't paid rolls over into carried_over first (#39)
+            for p in user_payments:
+                if p.frequency == "weekly":
+                    shortfall = round(p.amount - (p.amount_paid or 0), 2)
+                    if not p.is_paid and shortfall > 0:
+                        p.carried_over = round((p.carried_over or 0) + shortfall, 2)
+                    p.is_paid = False
+                    p.amount_paid = 0
+
+            #variable bills (water, electricity): nag until this month's
+            #amount has been confirmed - this lands in the reminder email too
+            for p in user_payments:
+                if p.bill_type == "variable" and not p.is_confirmed:
+                    db.session.add(Reminder(
+                        message=(f"Has the amount for '{p.name}' been updated this month? "
+                                 f"It's currently {user.currency}{p.amount:.2f} - confirm it on the dashboard."),
+                        category="weekly",
+                        user_id=user.id,
+                    ))
+
+            #remind about overdue and upcoming bills
             for p in user_payments:
                 status = get_status(p)
                 if status == "overdue":
                     db.session.add(Reminder(
-                        message=f"'{p.name}' ({user.currency}{p.amount:.2f}) is overdue! Was due on the {ordinal_day(p.due_day)}, {due_date_text(p)}",
+                        message=f"'{p.name}' ({user.currency}{p.amount:.2f}) is overdue! Was due on {due_phrase(p)}{description_note(p)}",
                         category="overdue",
                         user_id=user.id,
                     ))
@@ -994,7 +1222,7 @@ def create_weekly_reminder():
                     else:
                         timing = f"is due in {days} day{'s' if days != 1 else ''}"
                     db.session.add(Reminder(
-                        message=f"'{p.name}' ({user.currency}{p.amount:.2f}) {timing}, {due_date_text(p)}",
+                        message=f"'{p.name}' ({user.currency}{p.amount:.2f}) {timing}, {due_date_text(p)}{description_note(p)}",
                         category="soon",
                         user_id=user.id,
                     ))
@@ -1016,9 +1244,45 @@ def create_monthly_reminders():
 
             # new month so reset all of this user's payments
             for p in payments:
+                #weekly bills reset on Mondays in the weekly job, not here
+                if p.frequency == "weekly":
+                    continue
                 if p.bill_type != "once_off" or not p.is_paid:
+                    #whatever wasn't paid rolls over instead of being forgotten (#39)
+                    shortfall = round(p.amount - (p.amount_paid or 0), 2)
+                    if not p.is_paid and shortfall > 0:
+                        p.carried_over = round((p.carried_over or 0) + shortfall, 2)
                     p.is_paid = False
                     p.amount_paid = 0
+                #variable bills need their new month's amount checked (#40)
+                if p.bill_type == "variable":
+                    p.is_confirmed = False
+
+            #LOANS & STORE ACCOUNTS: a new month means the bank adds its
+            #charges, so grow the balance by interest + insurance + service
+            #fee, then ask the user to check it against their real statement
+            for p in payments:
+                if p.bill_type in ("loan", "credit") and p.current_balance:
+                    charges = []
+                    increase = 0
+                    if p.interest_rate:
+                        interest = round(p.current_balance * (p.interest_rate / 100 / 12), 2)
+                        increase += interest
+                        charges.append(f"{user.currency}{interest:.2f} interest")
+                    if p.loan_insurance:
+                        increase += p.loan_insurance
+                        charges.append(f"{user.currency}{p.loan_insurance:.2f} insurance")
+                    if p.service_fee:
+                        increase += p.service_fee
+                        charges.append(f"{user.currency}{p.service_fee:.2f} service fee")
+                    if increase:
+                        p.current_balance = round(p.current_balance + increase, 2)
+                        db.session.add(Reminder(
+                            message=(f"'{p.name}': added {', '.join(charges)} to the balance for the new month "
+                                     f"(now {user.currency}{p.current_balance:.2f}). Please make sure this matches your statement."),
+                            category="monthly",
+                            user_id=user.id,
+                        ))
 
             #variable income reminder(monthly)
             variable_incomes = Income.query.filter_by(
@@ -1031,14 +1295,14 @@ def create_monthly_reminders():
             # create a reminder for each bill
             for p in payments:
                 db.session.add(Reminder(
-                    message=(f"Monthly reminder: '{p.name}' ({user.currency}{p.amount:.2f}) is due on the {ordinal_day(p.due_day)}, {due_date_text(p)}"),
+                    message=(f"Monthly reminder: '{p.name}' ({user.currency}{p.amount:.2f}) is due on {due_phrase(p)}{description_note(p)}"),
                     category="monthly",
                     user_id=user.id,
                 ))
 
             #add a reminder that gives a summary of the monthly bills (if there are bills)
             if payments:
-                total = sum(p.amount for p in payments)
+                total = sum(monthly_equivalent(p.amount, p.frequency) for p in payments)
                 db.session.add(Reminder(
                     message=(f"New month! You have {len(payments)} bills totalling {user.currency}{total:.2f} to stay on top of. You've got this!"),
                     category="monthly",

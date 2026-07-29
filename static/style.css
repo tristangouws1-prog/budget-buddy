@@ -362,6 +362,28 @@ h1, h2, h3, .logo, .hero-amount {
 .bill-progress-credit { background: var(--soon-text); }
 .bill-progress-partial { background: var(--soon-text); }
 
+/* ── Carried-over debt from previous months/weeks (#39) ── */
+.carryover-block {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 8px;
+    padding: 7px 12px;
+    background: var(--overdue-bg);
+    border: 1px solid var(--overdue-border);
+    border-left: 4px solid var(--overdue-text);   /* the dark divider */
+    border-radius: var(--radius-sm);
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--overdue-text);
+}
+.carryover-block form { margin: 0; }
+
+/* ── Drag-and-drop reordering (#47) ── */
+.bill[draggable="true"] { cursor: grab; }
+.bill.dragging { opacity: 0.5; cursor: grabbing; }
+
 .update-balance-form {
     display: flex;
     gap: 6px;

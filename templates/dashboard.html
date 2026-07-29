@@ -9,8 +9,10 @@
     <p class="hero-label">Left to pay this month</p>
     <p class="hero-amount">{{ current_user.currency }}{{ "%.2f"|format(total_unpaid) }}</p>
     <p class="hero-sub">
-        {% if unpaid_count == 0 %}
+        {% if unpaid_count == 0 and total_unpaid <= 0 %}
             Everything's paid. Amazing work!
+        {% elif unpaid_count == 0 %}
+            This month's bills are paid &mdash; {{ current_user.currency }}{{ "%.2f"|format(total_unpaid) }} carried over from before still to clear
         {% else %}
             {{ unpaid_count }} bill{{ 's' if unpaid_count != 1 else '' }} still to pay &middot;
             {{ current_user.currency }}{{ "%.2f"|format(total_monthly) }} total this month
@@ -74,6 +76,9 @@
                     <div class="bill-main">
                         <span class="bill-name">{{ income.name }}</span>
                         <span class="method-badge">{{ income.income_type }}</span>
+                        {% if income.frequency == 'weekly' %}
+                            <span class="method-badge">weekly</span>
+                        {% endif %}
                         {% if income.income_type == 'variable' and not income.is_confirmed %}
                             <span class="status-badge badge-soon">Unconfirmed</span>
                             <form method="POST" action="{{ url_for('confirm_income', income_id=income.id)}}" class="update-balance-form">
@@ -136,7 +141,12 @@
         <a href="{{ url_for('dashboard', filter=filter_status, sort='due_day') }}" class="{{ 'filter-active' if sort_by == 'due_day' }}">Due date</a>
         <a href="{{ url_for('dashboard', filter=filter_status, sort='amount') }}"  class="{{ 'filter-active' if sort_by == 'amount' }}">Amount</a>
         <a href="{{ url_for('dashboard', filter=filter_status, sort='name') }}"    class="{{ 'filter-active' if sort_by == 'name' }}">Name</a>
+        <a href="{{ url_for('dashboard', filter=filter_status, sort='custom') }}"  class="{{ 'filter-active' if sort_by == 'custom' }}">My order</a>
     </div>
+
+    {% if sort_by == 'custom' %}
+        <p class="form-hint">Drag bills up or down to arrange them your way — the order saves automatically.</p>
+    {% endif %}
 
 
 
@@ -146,9 +156,10 @@
     </div>
 
     {% if payments_with_status %}
-        <div class="bill-list">
+        <div class="bill-list" id="bills-list">
             {% for item in payments_with_status %}
-                <div class="bill bill-{{ item.status }}">
+                <div class="bill bill-{{ item.status }}" data-id="{{ item.payment.id }}"
+                     {% if sort_by == 'custom' %}draggable="true"{% endif %}>
                     <div class="bill-main">
                         <span class="bill-name">{{ item.payment.name }}</span>
                         {% if item.payment.description %}
@@ -160,12 +171,26 @@
                         {% if item.payment.bill_type == 'once_off' %}
                             <span class="method-badge">Once-off</span>
                         {% endif %}
+                        {% if item.payment.frequency == 'weekly' %}
+                            <span class="method-badge">Weekly</span>
+                        {% endif %}
+                        {% if item.payment.bill_type == 'variable' %}
+                            <span class="method-badge">Variable</span>
+                            {% if not item.payment.is_confirmed %}
+                                <span class="status-badge badge-soon">Amount unconfirmed</span>
+                                <form method="POST" action="{{ url_for('confirm_bill', payment_id=item.payment.id) }}" class="update-balance-form">
+                                    <input type="number" name="new_amount" step="0.01" min="0"
+                                           placeholder="This month's amount ({{ current_user.currency }})">
+                                    <button type="submit" class="btn-small btn-update">Confirm</button>
+                                </form>
+                            {% endif %}
+                        {% endif %}
 
                         <span class="bill-meta">
                             <span class="status-badge badge-{{ item.status }}">
                                 {{ item.status }}
                             </span>
-                            Due {{ item.payment.due_day | ordinal }} &middot;
+                            {% if item.payment.frequency == 'weekly' %}Due every {{ item.payment.due_day | weekday_name }}{% else %}Due {{ item.payment.due_day | ordinal }}{% endif %} &middot;
                             {% if item.status == 'paid' %}
                                 Paid this month
                             {% elif item.status == 'overdue' %}
@@ -178,6 +203,17 @@
                                 Due in {{ item.days_left }} days
                             {% endif %}
                         </span>
+
+                        {% if item.payment.carried_over %}
+                            <!-- #39: money rolled over from earlier months/weeks that was never paid -->
+                            <div class="carryover-block">
+                                <span>{{ current_user.currency }}{{ "%.2f"|format(item.payment.carried_over) }} still owed from previous {{ 'weeks' if item.payment.frequency == 'weekly' else 'months' }}</span>
+                                <form method="POST" action="{{ url_for('clear_carryover', payment_id=item.payment.id) }}"
+                                      onsubmit="return confirm('Mark the carried-over amount as paid off?');">
+                                    <button type="submit" class="btn-small btn-update">Paid off</button>
+                                </form>
+                            </div>
+                        {% endif %}
 
                         {% if item.payment.bill_type in ('loan', 'credit') and item.payment.total_value %}
                             {% set bill_balance = item.payment.current_balance or 0 %}
@@ -211,6 +247,9 @@
                                         {% set monthly_interest = item.payment.current_balance * (item.payment.interest_rate / 100 / 12) %}
                                         <span class="bill-balance-label">Est. monthly interest: {{ current_user.currency }}{{ "%.2f"|format(monthly_interest) }}</span>
                                     {% endif %}
+                                {% endif %}
+                                {% if item.payment.service_fee %}
+                                    <span class="bill-balance-label">Monthly service fee: {{ current_user.currency }}{{ "%.2f"|format(item.payment.service_fee) }}</span>
                                 {% endif %}
 
                             
@@ -273,5 +312,42 @@
         </div>
     {% endif %}
 </section>
+
+{% if sort_by == 'custom' and payments_with_status %}
+<script>
+//drag-and-drop reordering (#47): pick a bill card up, drop it in its new
+//spot, and the new order is saved to the server straight away
+const billsList = document.getElementById('bills-list');
+let dragged = null;
+
+billsList.querySelectorAll('.bill').forEach(bill => {
+    bill.addEventListener('dragstart', () => {
+        dragged = bill;
+        bill.classList.add('dragging');
+    });
+    bill.addEventListener('dragend', async () => {
+        bill.classList.remove('dragging');
+        //read the cards top-to-bottom and send that order to be saved
+        const ids = [...billsList.querySelectorAll('.bill')].map(b => Number(b.dataset.id));
+        await fetch('{{ url_for("reorder_bills") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(ids),
+        });
+    });
+});
+
+billsList.addEventListener('dragover', event => {
+    event.preventDefault();  //needed, or the browser refuses the drop
+    //slot the dragged card in front of whichever card the pointer is above
+    const target = [...billsList.querySelectorAll('.bill:not(.dragging)')].find(b => {
+        const box = b.getBoundingClientRect();
+        return event.clientY < box.top + box.height / 2;
+    });
+    if (target) billsList.insertBefore(dragged, target);
+    else billsList.appendChild(dragged);
+});
+</script>
+{% endif %}
 
 {% endblock %}

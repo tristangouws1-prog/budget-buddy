@@ -23,6 +23,12 @@
         <input type="password" id="confirm" name="confirm"
                placeholder="Type it again" required>
 
+        <!-- tick to see both passwords instead of dots -->
+        <label class="checkbox-row">
+            <input type="checkbox" onclick="togglePasswords(this.checked)">
+            Show password
+        </label>
+
         <button type="submit" class="btn-primary btn-block">Create account</button>
     </form>
 
@@ -30,5 +36,13 @@
         Already have an account? <a href="{{ url_for('login') }}">Log in</a>
     </p>
 </section>
+
+<script>
+function togglePasswords(show) {
+    for (const id of ['password', 'confirm']) {
+        document.getElementById(id).type = show ? 'text' : 'password';
+    }
+}
+</script>
 
 {% endblock %}
