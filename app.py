@@ -23,8 +23,14 @@ import secrets
 import smtplib
 from email.message import EmailMessage
 
+from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv()
+
+#load .env from THIS file's own folder rather than from wherever the app
+#happened to be started. a web server can start the app from any directory,
+#and a plain load_dotenv() would then quietly find nothing - leaving the
+#app with no email login, no task token and a fallback secret key.
+load_dotenv(Path(__file__).with_name(".env"))
 
 #itsdangerous makes signed, expiring tokens (used for password reset links).
 #it comes with Flask, so nothing new to install
@@ -72,8 +78,8 @@ class User(db.Model, UserMixin):
 
     id = db.Column(db.Integer, primary_key=True)
 
-#the username, must be unique
-    username = db.Column(db.String(80), unique=True, nullable=False)
+#the username
+    username = db.Column(db.String(80), unique=False, nullable=False)
 
 #NEVER stores the real password
     password_hash = db.Column(db.String(255), nullable=False)
@@ -215,7 +221,7 @@ class Income(db.Model):
     #"monthly" (salary) or "weekly" (weekly wages)
     frequency = db.Column(db.String(10), nullable=False, default="monthly")
 
-    #variable income, confirm if that months amount has been confirmed.
+    #variable income, confirm if that months' amount has been confirmed.
     #reset to False each month automatically
     is_confirmed = db.Column(db.Boolean, default=True)
 
@@ -231,7 +237,6 @@ class PaymentLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
 #name of the bill at the time it was paid
-#(saved as plain text so the history still makes sense if the bill is deleted later)
     bill_name = db.Column(db.String(100), nullable=False)
 
 #how much money was paid in this specific payment (not the running total)
@@ -305,7 +310,7 @@ def days_until_due_weekly(due_weekday, is_paid=False):
     elif not is_paid:
         return diff
     else:
-        #already paid, so the next one is the same day next week
+        #already paid, so next one is the same day next week
         return diff + 7
 
 
@@ -375,7 +380,7 @@ def get_status(payment):
     if payment.is_paid:
         return "paid"
 
-    #weekly bills live inside a week instead of a month
+    #weekly bills 
     if payment.frequency == "weekly":
         days = days_until_due_weekly(payment.due_day, payment.is_paid)
         if days < 0:
@@ -388,11 +393,11 @@ def get_status(payment):
     days_in_month = calendar.monthrange(today.year, today.month)[1]
     due_day = min(payment.due_day, days_in_month)
 
-    #if today is past due day and bill is not paid -> overdue
+    #if today is past due day and bill is not paid = overdue
     if today.day > due_day:
         return "overdue"
 
-    #if due within 5 days -> "soon"
+    #if due within 5 days = "soon"
     if days_until_due(payment.due_day, payment.is_paid) <= 5:
         return "soon"
 
@@ -583,8 +588,7 @@ def forgot_password():
                  f"Click this link to choose a new password:\n{link}\n\n"
                  "The link works for 1 hour. If you didn't ask for this, you can ignore it."),
             )
-        #always show the same message, so this page can't be used
-        #to find out which email addresses have accounts
+
         flash("If that email has an account, a reset link has been sent to it.", "success")
         return redirect(url_for("login"))
 
@@ -672,7 +676,7 @@ def dashboard():
             key=lambda p: (p["payment"].sort_order is None, p["payment"].sort_order or 0)
         )
 
-    # useful monthly totals (weekly bills count as their monthly equivalent)
+    # useful monthly totals
     total_monthly = sum(monthly_equivalent(p.amount, p.frequency) for p in payments)
     unpaid = [p for p in payments if not p.is_paid]
     #what's left = this month's unpaid bills PLUS anything carried over from before
