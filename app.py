@@ -430,13 +430,21 @@ def log_payment(payment, amount):
 
 
 def send_email(to_address, subject, body):
-    """Send one plain-text email using Gmail's SMTP server.
+    """Send one plain-text email through an SMTP server (Gmail by default).
     The login details come from environment variables so that a real
     password is never written into the code.
     Any failure is caught so that a broken email can never crash the scheduler."""
 
     sender = os.environ.get("EMAIL_ADDRESS")
     password = os.environ.get("EMAIL_APP_PASSWORD")
+
+    #the mail server to send through. defaults to Gmail, but can be pointed at
+    #another provider from .env without touching this code
+    host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+    port = int(os.environ.get("SMTP_PORT", 465))
+
+    #the name people see in their inbox, instead of the raw address
+    from_name = os.environ.get("EMAIL_FROM_NAME", "Budget Buddy")
 
     #if email isn't set up, or the user has no address, quietly do nothing
     if not sender or not password or not to_address:
@@ -445,15 +453,23 @@ def send_email(to_address, subject, body):
     #build the message: subject/from/to are headers, set_content is the body
     msg = EmailMessage()
     msg["Subject"] = subject
-    msg["From"] = sender
+    #"Display Name <address>" is the standard way to show a friendly sender
+    msg["From"] = f"{from_name} <{sender}>"
     msg["To"] = to_address
     msg.set_content(body)
 
     try:
-        #465 is Gmail's SSL port, so the connection is encrypted from the start
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(sender, password)
-            server.send_message(msg)
+        #port 465 means the connection is encrypted from the start (SSL).
+        #port 587 is the other common one, which starts plain and upgrades
+        if port == 587:
+            with smtplib.SMTP(host, port) as server:
+                server.starttls()
+                server.login(sender, password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP_SSL(host, port) as server:
+                server.login(sender, password)
+                server.send_message(msg)
     except Exception as e:
         #print instead of raising: the job must keep running for the other users
         print(f"Email failed for {to_address}: {e}")
