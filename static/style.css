@@ -652,3 +652,130 @@ h1, h2, h3, .logo, .hero-amount {
     .bill-right { width: 100%; justify-content: space-between; margin-top: 8px; }
     .form-card { padding: 22px 18px; }
 }
+
+/* ── The Buddy ── */
+.buddy-dock {
+    /* sprite palette - scoped here so the blob recolours per theme */
+    --buddy-body: #c9aee6;
+    --buddy-ink: #4a3a68;
+    --buddy-cheek: #f0a8c0;
+
+    position: fixed;
+    left: 18px;
+    bottom: 18px;
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    width: 170px;
+}
+body.theme-dark .buddy-dock {
+    --buddy-body: #8f74bf;
+    --buddy-ink: #221a38;
+    --buddy-cheek: #c887a2;
+}
+
+.buddy-bubble {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--ink);
+    position: relative;
+    animation: buddy-pop 0.25s ease both;
+}
+/* the little tail pointing down at the sprite */
+.buddy-bubble::after {
+    content: '';
+    position: absolute;
+    left: 24px;
+    bottom: -7px;
+    width: 11px;
+    height: 11px;
+    background: var(--surface);
+    border-right: 1.5px solid var(--border);
+    border-bottom: 1.5px solid var(--border);
+    transform: rotate(45deg);
+}
+
+.buddy-sprite {
+    width: 72px;
+    height: 72px;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+}
+.buddy-sprite svg {
+    width: 100%;
+    height: 100%;
+    animation: buddy-bob 3s ease-in-out infinite;
+}
+.buddy-mood-worried .buddy-sprite svg { animation-duration: 1.2s; }
+
+.buddy-fill rect       { fill: var(--buddy-body); }
+.buddy-ink-fill rect   { fill: var(--buddy-ink); }
+.buddy-cheek-fill rect { fill: var(--buddy-cheek); }
+
+/* mood switching - the dock's buddy-mood-* class picks the face */
+.buddy-eyes-happy, .buddy-brows,
+.buddy-mouth-happy, .buddy-mouth-worried { display: none; }
+.buddy-mood-happy .buddy-eyes-happy     { display: block; }
+.buddy-mood-happy .buddy-eyes-open      { display: none; }
+.buddy-mood-happy .buddy-mouth-happy    { display: block; }
+.buddy-mood-happy .buddy-mouth-neutral  { display: none; }
+.buddy-mood-worried .buddy-brows        { display: block; }
+.buddy-mood-worried .buddy-mouth-worried { display: block; }
+.buddy-mood-worried .buddy-mouth-neutral { display: none; }
+
+/* blink every few seconds (open eyes only) */
+.buddy-eyes-open {
+    animation: buddy-blink 4.5s linear infinite;
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+.buddy-name {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--muted);
+    background: var(--pill-bg);
+    border: 1px solid var(--border);
+    padding: 2px 12px;
+    border-radius: 999px;
+    margin-left: 16px;
+}
+
+/* clicking the sprite dismisses the bubble on desktop... */
+.buddy-dock.buddy-open .buddy-bubble { display: none; }
+
+/* ...and reveals it on mobile, where it starts hidden */
+@media (max-width: 720px) {
+    .buddy-dock { width: auto; }
+    .buddy-bubble, .buddy-name { display: none; }
+    .buddy-sprite { width: 52px; height: 52px; }
+    .buddy-dock.buddy-open .buddy-bubble {
+        display: block;
+        position: absolute;
+        bottom: 62px;
+        left: 0;
+        width: 190px;
+    }
+}
+
+@keyframes buddy-bob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-3px); }
+}
+@keyframes buddy-blink {
+    0%, 93%, 100% { transform: scaleY(1); }
+    95%, 97%      { transform: scaleY(0.12); }
+}
+@keyframes buddy-pop {
+    from { opacity: 0; transform: translateY(5px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}

@@ -46,6 +46,9 @@
         {% block content %}{% endblock %}
     </main>
 
+    <!-- The pixel buddy - renders nothing until app.py supplies it -->
+    {% include "_buddy.html" %}
+
     <footer class="site-footer">
         <p>Staying on top of your money, one small step at a time.</p>
     </footer>

@@ -46,6 +46,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from apscheduler.schedulers.background import BackgroundScheduler
 import datetime
 import calendar
+import random
 
 app = Flask(__name__)
 
@@ -252,6 +253,30 @@ class PaymentLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
 
+class Buddy(db.Model):
+    """The user's pixel companion. One per user (for now)."""
+
+    id = db.Column(db.Integer, primary_key=True)
+
+#what the user calls their buddy
+    name = db.Column(db.String(50), nullable=False, default="Buddy")
+
+#which sprite family the buddy belongs to (only "blobcat" exists so far)
+    species = db.Column(db.String(30), nullable=False, default="blobcat")
+
+#"egg" or "hatched" - everyone is born hatched until Phase B3
+    stage = db.Column(db.String(10), nullable=False, default="hatched")
+
+#lifetime experience points - levels will be derived from this in Phase B2
+    xp = db.Column(db.Integer, nullable=False, default=0)
+
+#when the buddy was created
+    created_at = db.Column(db.DateTime, default=datetime.datetime.now)
+
+#who the buddy belongs to
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, unique=True)
+
+
 @login_manager.user_loader
 def load_user(user_id):
     #Flask-Login
@@ -402,6 +427,43 @@ def get_status(payment):
         return "soon"
 
     return "upcoming"
+
+#what the buddy says, per mood
+BUDDY_MESSAGES = {
+    "happy": [
+        "Everything's paid - you're amazing!",
+        "All clear! Treat yourself (a little).",
+        "Look at that dashboard. Spotless!",
+    ],
+    "neutral": [
+        "We've got this. One bill at a time.",
+        "Hellooooo!",
+        "I'm keeping an eye on things with you.",
+    ],
+    "worried": [
+        "Eek - '{bill}' is overdue!",
+        "Um... '{bill}' needs some attention.",
+        "Don't forget '{bill}'! I believe in you!",
+    ],
+}
+
+
+def buddy_mood(user):
+    """How the buddy feels about the user's bills right now.
+    Returns (mood, message)."""
+    payments = Payment.query.filter_by(user_id=user.id).all()
+    overdue = [p for p in payments if get_status(p) == "overdue"]
+    if overdue:
+        mood = "worried"
+        message = random.choice(BUDDY_MESSAGES["worried"]).format(bill=overdue[0].name)
+    elif payments and all(p.is_paid for p in payments):
+        mood = "happy"
+        message = random.choice(BUDDY_MESSAGES["happy"])
+    else:
+        mood = "neutral"
+        message = random.choice(BUDDY_MESSAGES["neutral"])
+    return mood, message
+
 
 def parse_money(raw):
     """Turn a form value into a number rounded to 2 decimal places.
@@ -647,6 +709,21 @@ def reset_password(token):
         return redirect(url_for("login"))
 
     return render_template("reset_password.html", token=token)
+
+
+@app.context_processor
+def inject_buddy():
+    """Give every template the buddy - base.html includes it on all pages.
+    Lazily creates a buddy the first time a user (old or new) loads a page."""
+    if not current_user.is_authenticated:
+        return {}
+    buddy = Buddy.query.filter_by(user_id=current_user.id).first()
+    if buddy is None:
+        buddy = Buddy(user_id=current_user.id)
+        db.session.add(buddy)
+        db.session.commit()
+    mood, message = buddy_mood(current_user)
+    return {"buddy": buddy, "buddy_mood": mood, "buddy_message": message}
 
 
 #-----------------------------------------------------------------------------#

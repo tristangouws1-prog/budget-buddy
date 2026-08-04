@@ -13,7 +13,7 @@
             {% for month in chart_months %}
                 <div class="chart-col">
                     <div class="chart-bar-area">
-                        <!-- the inline height is the bar's size as a % of the tallest month -->
+                        <!-- inline height is the bar's size as a % of the tallest month -->
                         <div class="chart-bar {{ 'chart-bar-current' if loop.last }}"
                              style="height: {{ month.height }}%">
                             <span class="chart-value">{{ current_user.currency }}{{ "%.0f"|format(month.total) }}</span>
@@ -36,7 +36,7 @@
             <table class="history-table">
                 <thead>
                     <tr>
-                        <!-- date and time in separate columns -->
+                        <!-- date and time -->
                         <th>Date</th>
                         <th>Time</th>
                         <th>Bill</th>

@@ -45,6 +45,7 @@
 #47! TODO mannually reorder drag and drop maybe? way to put certain bills next too each other
 #48! TODO Add service fee part to store accounts
 
+
 #49  TODO Allow for multiple of the same "Username" but only one profile per email account, 
 make sure each username is linked to that corresponding email it was registereed to with a "hash'? or "pointer"?
 or give each username a unique suffix that can be seen in the settings Tab, that way the username may look the same e.g. 
@@ -52,10 +53,9 @@ or give each username a unique suffix that can be seen in the settings Tab, that
 have suffixes be incrementel when each new user makes a profile,
 
 #50  TODO make that one time paymennts dont reset monthly and stay on until you have markedd them as paid, and then they can be "Archived"
-
-
-
-
+#51  TODO undo button for paid bills, that also subtracts the buddy xp gained for it
+#52  TODO Make that when a check is clicked the whole page doesnt reloadd each time,  
+#53  TODO Update that when a payment is made, all reminders related to it are "checked"
 
 
 #future TODO add a small pixel buddy that motivates the user
@@ -66,6 +66,12 @@ have suffixes be incrementel when each new user makes a profile,
 #no need to worry about even more money problems
 #can make a house for buddy that can be decorated
 #buddy will appear and live on left side of screen
+
+
+
+webpage that is house holds all currently hatched buddies , cute poses on furniture, and there the displayed buddy can be chosen
+that is dosplayed on the other pages
+
 
 
 
