@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% macro shop_card(key, item) %}
+{% set mine = owned.get(key) %}
+<div class="shop-item{% if mine %} shop-owned{% endif %}">
+    <span class="shop-icon">{{ item.icon }}</span>
+    <span class="shop-name">{{ item.name }}</span>
+    <span class="shop-slot">{{ item.slot }}</span>
+
+    {% if mine %}
+        <form action="{{ url_for('equip_cosmetic', item_key=key) }}" method="POST">
+            <button class="btn-primary btn-shop" type="submit">
+                {{ "Put away" if mine.equipped else "Use" }}
+            </button>
+        </form>
+    {% elif buddy_level is defined and buddy_level < item.min_level %}
+        <span class="shop-locked">Unlocks at Lv {{ item.min_level }}</span>
+    {% else %}
+        <form action="{{ url_for('buy_cosmetic', item_key=key) }}" method="POST">
+            <button class="btn-primary btn-shop" type="submit"
+                    {% if buddy.coins < item.price %}disabled{% endif %}>
+                Buy · 🪙 {{ item.price }}
+            </button>
+        </form>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% block content %}
+
+<!--The buddy at home: room, name, level, coins-->
+<section class="buddy-card">
+    {% include "_buddy_room.html" %}
+
+    <div class="buddy-info">
+        {% if buddy.stage == "egg" %}
+            <h2>???</h2>
+            <p class="form-hint">Still an egg! It hatches once it has soaked up 100 XP.</p>
+        {% else %}
+            <h2>{{ buddy.name }} <span class="buddy-species-tag">the {{ buddy.species }}</span></h2>
+            <form action="{{ url_for('rename_buddy') }}" method="POST" class="buddy-rename">
+                <input type="text" name="name" maxlength="50" placeholder="New name" required>
+                <button class="btn-primary" type="submit">Rename</button>
+            </form>
+        {% endif %}
+
+        <div class="buddy-stats">
+            <span class="buddy-level">{{ "Egg" if buddy.stage == "egg" else "Lv " ~ buddy_level }}</span>
+            <span class="buddy-coins">🪙 {{ buddy.coins }}</span>
+            <span class="buddy-xp-total">{{ buddy.xp }} XP</span>
+        </div>
+        {% if buddy_xp_pct is defined %}
+        <div class="buddy-xpbar buddy-xpbar-wide">
+            <div class="buddy-xpfill" style="width: {{ buddy_xp_pct }}%"></div>
+        </div>
+        {% endif %}
+        <p class="form-hint">Earn XP and coins by adding bills, paying them on time,
+        clearing old debt and checking in every day.</p>
+    </div>
+</section>
+
+<!--The shop-->
+{% set wear_slots = ("hat", "accessory") %}
+
+<h2 class="shop-heading">Wardrobe</h2>
+<div class="shop-grid">
+    {% for key, item in shop.items() if item.slot in wear_slots %}
+        {{ shop_card(key, item) }}
+    {% endfor %}
+</div>
+
+<h2 class="shop-heading">For the room</h2>
+<div class="shop-grid">
+    {% for key, item in shop.items() if item.slot not in wear_slots %}
+        {{ shop_card(key, item) }}
+    {% endfor %}
+</div>
+
+<a class="back-link" href="{{ url_for('dashboard') }}">&larr; Back to home</a>
+
+{% endblock %}

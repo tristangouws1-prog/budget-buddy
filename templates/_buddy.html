@@ -1,83 +1,70 @@
 {# The pixel buddy - included on every page from base.html.
    Renders nothing until app.py supplies `buddy`, `buddy_mood` and
-   `buddy_message` through the context processor (see Buddy_Plan.md, Phase B1). #}
+   `buddy_message` through the context processor (see Buddy_Plan.md).
+   While buddy.stage is "egg" an egg is drawn instead of the cat, its
+   crack spreading as hatching XP builds up. #}
 {% if current_user.is_authenticated and buddy is defined and buddy %}
-<div class="buddy-dock buddy-mood-{{ buddy_mood }}" id="buddy-dock">
+{% set is_egg = buddy.stage == "egg" %}
+<div class="buddy-dock buddy-mood-{{ buddy_mood }} buddy-species-{{ buddy.species }}{% if is_egg %} buddy-egg buddy-crack-{{ 3 if buddy_xp_pct >= 75 else (2 if buddy_xp_pct >= 50 else (1 if buddy_xp_pct >= 25 else 0)) }}{% endif %}{% if buddy_just_hatched is defined and buddy_just_hatched %} buddy-hatching{% endif %}"
+     id="buddy-dock">
 
     <div class="buddy-bubble">{{ buddy_message }}</div>
 
-    <button class="buddy-sprite" type="button" title="{{ buddy.name }}"
-            aria-label="Toggle {{ buddy.name }}'s message"
+    <button class="buddy-sprite" type="button" title="{{ '???' if is_egg else buddy.name }}"
+            aria-label="Toggle the buddy's message"
             onclick="document.getElementById('buddy-dock').classList.toggle('buddy-open')">
+        {% if is_egg %}
         <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true">
-            <!-- ears -->
-            <g class="buddy-fill">
-                <rect x="3" y="1" width="1" height="2"/>
-                <rect x="4" y="2" width="1" height="1"/>
-                <rect x="12" y="1" width="1" height="2"/>
-                <rect x="11" y="2" width="1" height="1"/>
+            <!-- the egg -->
+            <g class="buddy-egg-fill">
+                <rect x="6" y="2" width="4" height="1"/>
+                <rect x="5" y="3" width="6" height="1"/>
+                <rect x="4" y="4" width="8" height="1"/>
+                <rect x="3" y="5" width="10" height="6"/>
+                <rect x="4" y="11" width="8" height="1"/>
+                <rect x="5" y="12" width="6" height="1"/>
+                <rect x="6" y="13" width="4" height="1"/>
             </g>
-            <g class="buddy-cheek-fill">
-                <rect x="3" y="2" width="1" height="1"/>
-                <rect x="12" y="2" width="1" height="1"/>
+            <g class="buddy-egg-spot-fill">
+                <rect x="6" y="5" width="1" height="1"/>
+                <rect x="10" y="4" width="1" height="1"/>
+                <rect x="9" y="8" width="1" height="1"/>
+                <rect x="5" y="9" width="1" height="1"/>
             </g>
-
-            <!-- body blob -->
-            <g class="buddy-fill">
-                <rect x="4" y="3" width="8" height="1"/>
-                <rect x="3" y="4" width="10" height="1"/>
-                <rect x="2" y="5" width="12" height="8"/>
-                <rect x="3" y="13" width="10" height="1"/>
-                <rect x="4" y="14" width="8" height="1"/>
-            </g>
-
-            <!-- eyes: which set shows is decided by the mood class in CSS -->
-            <g class="buddy-eyes buddy-ink-fill">
-                <g class="buddy-eyes-open">
-                    <rect x="5" y="7" width="1" height="2"/>
-                    <rect x="10" y="7" width="1" height="2"/>
-                </g>
-                <g class="buddy-eyes-happy">
-                    <rect x="4" y="7" width="1" height="1"/>
-                    <rect x="5" y="6" width="1" height="1"/>
-                    <rect x="6" y="7" width="1" height="1"/>
-                    <rect x="9" y="7" width="1" height="1"/>
-                    <rect x="10" y="6" width="1" height="1"/>
-                    <rect x="11" y="7" width="1" height="1"/>
-                </g>
-            </g>
-
-            <!-- eyebrows, only when worried -->
-            <g class="buddy-brows buddy-ink-fill">
-                <rect x="4" y="5" width="2" height="1"/>
-                <rect x="10" y="5" width="2" height="1"/>
-            </g>
-
-            <!-- rosy cheeks -->
-            <g class="buddy-cheek-fill">
-                <rect x="3" y="9" width="1" height="1"/>
-                <rect x="12" y="9" width="1" height="1"/>
-            </g>
-
-            <!-- mouths: one per mood -->
+            <!-- the crack spreads at 25% / 50% / 75% hatching progress -->
             <g class="buddy-ink-fill">
-                <g class="buddy-mouth-happy">
-                    <rect x="6" y="10" width="1" height="1"/>
-                    <rect x="7" y="11" width="2" height="1"/>
-                    <rect x="9" y="10" width="1" height="1"/>
+                <g class="buddy-crack-a">
+                    <rect x="8" y="3" width="1" height="1"/>
+                    <rect x="7" y="4" width="1" height="1"/>
                 </g>
-                <g class="buddy-mouth-neutral">
-                    <rect x="7" y="11" width="2" height="1"/>
+                <g class="buddy-crack-b">
+                    <rect x="8" y="5" width="1" height="1"/>
+                    <rect x="9" y="6" width="1" height="1"/>
                 </g>
-                <g class="buddy-mouth-worried">
-                    <rect x="7" y="10" width="2" height="1"/>
-                    <rect x="6" y="11" width="1" height="1"/>
-                    <rect x="9" y="11" width="1" height="1"/>
+                <g class="buddy-crack-c">
+                    <rect x="8" y="7" width="1" height="1"/>
+                    <rect x="7" y="8" width="1" height="1"/>
+                    <rect x="8" y="9" width="1" height="1"/>
                 </g>
             </g>
         </svg>
+        {% else %}
+        {% include "_buddy_sprite.html" %}
+        {% endif %}
     </button>
 
-    <span class="buddy-name">{{ buddy.name }}</span>
+    <div class="buddy-meta">
+        <span class="buddy-name">{{ "???" if is_egg else buddy.name }}</span>
+        {% if is_egg %}
+        <span class="buddy-level">Egg</span>
+        {% elif buddy_level is defined %}
+        <span class="buddy-level">Lv {{ buddy_level }}</span>
+        {% endif %}
+    </div>
+    {% if buddy_xp_pct is defined %}
+    <div class="buddy-xpbar" title="{{ buddy.xp }} XP">
+        <div class="buddy-xpfill" style="width: {{ buddy_xp_pct }}%"></div>
+    </div>
+    {% endif %}
 </div>
 {% endif %}

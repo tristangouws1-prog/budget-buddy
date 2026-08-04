@@ -36,7 +36,7 @@ load_dotenv(Path(__file__).with_name(".env"))
 #it comes with Flask, so nothing new to install
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
     LoginManager, UserMixin, login_user, logout_user,
@@ -270,11 +270,57 @@ class Buddy(db.Model):
 #lifetime experience points - levels will be derived from this in Phase B2
     xp = db.Column(db.Integer, nullable=False, default=0)
 
+#spendable coins, earned 1:1 with XP - XP is forever, coins get spent in the shop
+    coins = db.Column(db.Integer, nullable=False, default=0)
+
 #when the buddy was created
     created_at = db.Column(db.DateTime, default=datetime.datetime.now)
 
 #who the buddy belongs to
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, unique=True)
+
+
+class XpEvent(db.Model):
+    """One XP award for a good money habit.
+    The unique rule on (user, kind, ref_key) means repeating the same action
+    (like un-paying and re-paying a bill) can never earn XP twice."""
+
+    id = db.Column(db.Integer, primary_key=True)
+
+#what earned the XP: "register_bill", "pay_bill", "check_in", "clear_carryover"
+    kind = db.Column(db.String(30), nullable=False)
+
+#exactly which action, e.g. "pay:14:2026-08" - one award per key, ever
+    ref_key = db.Column(db.String(60), nullable=False)
+
+#how much XP it earned
+    amount = db.Column(db.Integer, nullable=False)
+
+#when it was earned
+    created_at = db.Column(db.DateTime, default=datetime.datetime.now)
+
+#who earned it
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+    __table_args__ = (db.UniqueConstraint("user_id", "kind", "ref_key"),)
+
+
+class OwnedCosmetic(db.Model):
+    """One shop item a user has bought for their buddy.
+    The catalogue itself lives in BUDDY_SHOP (plain Python, not the database)."""
+
+    id = db.Column(db.Integer, primary_key=True)
+
+#which BUDDY_SHOP item this is, e.g. "party_hat"
+    item_key = db.Column(db.String(30), nullable=False)
+
+#is the buddy wearing it right now? (one equipped item per slot)
+    equipped = db.Column(db.Boolean, default=False)
+
+#who bought it
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+    __table_args__ = (db.UniqueConstraint("user_id", "item_key"),)
 
 
 @login_manager.user_loader
@@ -447,6 +493,37 @@ BUDDY_MESSAGES = {
     ],
 }
 
+#an egg hatches once it has soaked up this much XP
+HATCH_XP = 100
+
+#the sprite families an egg can hatch into - all CSS recolours of the blob-cat
+BUDDY_SPECIES = ["blobcat", "mintcat", "peachcat"]
+
+#what the egg "says" at each stage of hatching progress (percent thresholds)
+EGG_MESSAGES = [
+    (0, "An egg! Keeping your budget tidy might warm it up..."),
+    (25, "The egg twitched! Paying bills seems to help."),
+    (50, "A crack! Whatever's inside likes good budgeting."),
+    (75, "It's nearly hatching! Just a little more XP!"),
+]
+
+#everything the buddy shop sells. One item per slot can be worn at a time.
+#the drawings themselves live in templates/_buddy_sprite.html
+BUDDY_SHOP = {
+    "party_hat":  {"name": "Party hat",  "icon": "🎉", "price": 60,  "slot": "hat",       "min_level": 1},
+    "flower":     {"name": "Flower",     "icon": "🌸", "price": 80,  "slot": "hat",       "min_level": 1},
+    "top_hat":    {"name": "Top hat",    "icon": "🎩", "price": 150, "slot": "hat",       "min_level": 3},
+    "bow_tie":    {"name": "Bow tie",    "icon": "🎀", "price": 50,  "slot": "accessory", "min_level": 1},
+    "sunglasses": {"name": "Sunglasses", "icon": "🕶️", "price": 100, "slot": "accessory", "min_level": 2},
+    "scarf":      {"name": "Scarf",      "icon": "🧣", "price": 120, "slot": "accessory", "min_level": 2},
+    #decor for the buddy's room on the /buddy page (Phase B5)
+    "poster":     {"name": "Poster",     "icon": "🖼️", "price": 90,  "slot": "wall",      "min_level": 1},
+    "window":     {"name": "Window",     "icon": "🪟", "price": 140, "slot": "wall",      "min_level": 2},
+    "rug":        {"name": "Cosy rug",   "icon": "🧶", "price": 100, "slot": "floor",     "min_level": 1},
+    "plant":      {"name": "Pot plant",  "icon": "🪴", "price": 80,  "slot": "furniture", "min_level": 1},
+    "lamp":       {"name": "Lamp",       "icon": "💡", "price": 120, "slot": "furniture", "min_level": 2},
+}
+
 
 def buddy_mood(user):
     """How the buddy feels about the user's bills right now.
@@ -463,6 +540,57 @@ def buddy_mood(user):
         mood = "neutral"
         message = random.choice(BUDDY_MESSAGES["neutral"])
     return mood, message
+
+
+def buddy_level(xp):
+    """Level from lifetime XP: level 2 at 50, level 3 at 200, level 4 at 450..."""
+    return int((xp / 50) ** 0.5) + 1
+
+
+def xp_for_level(level):
+    """Total XP needed to reach a level (the reverse of buddy_level)."""
+    return 50 * (level - 1) ** 2
+
+
+def pay_period_key(payment):
+    """The one-award-per-period key for paying a bill:
+    once per month for monthly bills, once per ISO week for weekly ones."""
+    today = datetime.date.today()
+    if payment.frequency == "weekly":
+        year, week, _ = today.isocalendar()
+        return f"pay:{payment.id}:{year}-W{week:02d}"
+    return f"pay:{payment.id}:{today.strftime('%Y-%m')}"
+
+
+def award_xp(user, kind, ref_key, amount):
+    """Give the user's buddy XP - but only once per (kind, ref_key).
+    Returns True if the XP was actually awarded."""
+    if XpEvent.query.filter_by(user_id=user.id, kind=kind, ref_key=ref_key).first():
+        return False
+    buddy = Buddy.query.filter_by(user_id=user.id).first()
+    if buddy is None:
+        buddy = Buddy(user_id=user.id)
+        db.session.add(buddy)
+    level_before = buddy_level(buddy.xp)
+    db.session.add(XpEvent(user_id=user.id, kind=kind, ref_key=ref_key, amount=amount))
+    buddy.xp += amount
+    buddy.coins += amount   #coins arrive alongside XP, and get spent in the shop
+
+    #enough XP hatches an egg - the species is a surprise until this moment
+    just_hatched = False
+    if buddy.stage == "egg" and buddy.xp >= HATCH_XP:
+        buddy.stage = "hatched"
+        buddy.species = random.choice(BUDDY_SPECIES)
+        just_hatched = True
+    db.session.commit()
+
+    if just_hatched:
+        #tells the next page render to play the hatch animation, exactly once
+        session["buddy_hatched"] = True
+        flash(f"The egg hatched! Say hello to {buddy.name}!", "success")
+    elif buddy.stage == "hatched" and buddy_level(buddy.xp) > level_before:
+        flash(f"{buddy.name} reached level {buddy_level(buddy.xp)}!", "success")
+    return True
 
 
 def parse_money(raw):
@@ -599,6 +727,11 @@ def register():
         db.session.add(user)
         db.session.commit()
 
+        #every new account starts with a mystery egg (older accounts
+        #get a ready-hatched buddy from the context processor instead)
+        db.session.add(Buddy(user_id=user.id, stage="egg"))
+        db.session.commit()
+
         #log them straight in after registering
         login_user(user)
         flash(f"Welcome to Budget Buddy, {username}!", "welcome")
@@ -722,8 +855,38 @@ def inject_buddy():
         buddy = Buddy(user_id=current_user.id)
         db.session.add(buddy)
         db.session.commit()
-    mood, message = buddy_mood(current_user)
-    return {"buddy": buddy, "buddy_mood": mood, "buddy_message": message}
+
+    #showing up counts: the daily check-in, once per calendar day
+    award_xp(current_user, "check_in", f"day:{datetime.date.today().isoformat()}", 5)
+
+    #did that XP just hatch the egg? (set by award_xp, played exactly once)
+    just_hatched = session.pop("buddy_hatched", False)
+
+    #what the buddy is wearing - drawn as extra layers on the sprite
+    equipped = [c.item_key for c in OwnedCosmetic.query.filter_by(
+        user_id=current_user.id, equipped=True).all()]
+
+    ctx = {"buddy": buddy, "buddy_just_hatched": just_hatched,
+           "buddy_equipped": equipped}
+
+    if buddy.stage == "egg":
+        #eggs don't have moods - their messages track hatching progress
+        pct = min(100, round(buddy.xp / HATCH_XP * 100))
+        message = EGG_MESSAGES[0][1]
+        for threshold, text in EGG_MESSAGES:
+            if pct >= threshold:
+                message = text
+        ctx.update({"buddy_mood": "neutral", "buddy_message": message,
+                    "buddy_xp_pct": pct})
+    else:
+        mood, message = buddy_mood(current_user)
+        level = buddy_level(buddy.xp)
+        base = xp_for_level(level)
+        nxt = xp_for_level(level + 1)
+        ctx.update({"buddy_mood": mood, "buddy_message": message,
+                    "buddy_level": level,
+                    "buddy_xp_pct": round((buddy.xp - base) / (nxt - base) * 100)})
+    return ctx
 
 
 #-----------------------------------------------------------------------------#
@@ -864,6 +1027,9 @@ def add_payment():
         db.session.add(new_payment)
         db.session.commit()
 
+        #registering a bill earns the buddy XP (once per bill, ever)
+        award_xp(current_user, "register_bill", f"bill:{new_payment.id}", 10)
+
 #show a message after commit to show it was added successfully
         flash(f"Added '{name}' successfully to your bills.", "success")
         return redirect(url_for("dashboard"))
@@ -967,6 +1133,9 @@ def partial_pay(payment_id):
             payment.is_paid = False
         log_payment(payment, payment.amount_paid - old_paid)
     db.session.commit()
+    #finishing off the whole bill earns the same XP as "Mark paid"
+    if payment.is_paid:
+        award_xp(current_user, "pay_bill", pay_period_key(payment), 15)
     flash(f"Payment recorded for '{payment.name}'.","success")
     return redirect(url_for("dashboard"))
 
@@ -976,11 +1145,17 @@ def partial_pay(payment_id):
 def clear_carryover(payment_id):
     """ Mark the rolled-over debt on a bill as paid off """
     payment = get_owned_payment_or_404(payment_id)
+    cleared_something = False
     if payment.carried_over:
         #it was real money paid, so it belongs in the payment history
         log_payment(payment, payment.carried_over)
         payment.carried_over = 0
+        cleared_something = True
     db.session.commit()
+    if cleared_something:
+        #catching up on old debt deserves extra XP - once per bill per month
+        month = datetime.date.today().strftime("%Y-%m")
+        award_xp(current_user, "clear_carryover", f"carry:{payment.id}:{month}", 20)
     flash(f"Cleared the carried-over amount for '{payment.name}'.", "success")
     return redirect(url_for("dashboard"))
 
@@ -1067,6 +1242,8 @@ def mark_paid(payment_id):
     payment.is_paid = True      #turns status to paid
     payment.amount_paid = payment.amount
     db.session.commit()         #saves the status change
+    #paying a bill earns XP - once per bill per month (or week)
+    award_xp(current_user, "pay_bill", pay_period_key(payment), 15)
     flash(f"'{payment.name}' is paid.", "success") # green
     return redirect(url_for("dashboard"))
 
@@ -1216,6 +1393,82 @@ def mark_reminder_read(reminder_id):
     reminder.is_read = True
     db.session.commit()
     return redirect(request.referrer or url_for("dashboard"))
+
+
+@app.route("/buddy")
+@login_required
+def buddy_page():
+    """The buddy's own page - rename it, buy cosmetics, dress it up."""
+    owned = {c.item_key: c for c in
+             OwnedCosmetic.query.filter_by(user_id=current_user.id).all()}
+    return render_template("buddy.html", shop=BUDDY_SHOP, owned=owned)
+
+
+@app.route("/buddy/name", methods=["POST"])
+@login_required
+def rename_buddy():
+    """ Give the buddy a new name """
+    buddy = Buddy.query.filter_by(user_id=current_user.id).first()
+    new_name = request.form.get("name", "").strip()
+    if buddy and new_name:
+        buddy.name = new_name[:50]
+        db.session.commit()
+        flash(f"Your buddy is now called {buddy.name}!", "success")
+    return redirect(url_for("buddy_page"))
+
+
+@app.route("/buddy/buy/<item_key>", methods=["POST"])
+@login_required
+def buy_cosmetic(item_key):
+    """ Buy a shop item with coins. The new item is worn straight away. """
+    item = BUDDY_SHOP.get(item_key)
+    buddy = Buddy.query.filter_by(user_id=current_user.id).first()
+    if item is None or buddy is None:
+        flash("That item doesn't exist.", "warning")
+        return redirect(url_for("buddy_page"))
+    if buddy.stage == "egg":
+        flash("Hatch your egg first!", "warning")
+        return redirect(url_for("buddy_page"))
+    if OwnedCosmetic.query.filter_by(user_id=current_user.id, item_key=item_key).first():
+        flash("You already own that.", "warning")
+        return redirect(url_for("buddy_page"))
+    if buddy_level(buddy.xp) < item["min_level"]:
+        flash(f"{item['name']} unlocks at level {item['min_level']}.", "warning")
+        return redirect(url_for("buddy_page"))
+    if buddy.coins < item["price"]:
+        flash(f"Not enough coins - {item['name']} costs {item['price']}.", "warning")
+        return redirect(url_for("buddy_page"))
+
+    buddy.coins -= item["price"]
+    #wearing the new item bumps whatever was in the same slot
+    for other in OwnedCosmetic.query.filter_by(user_id=current_user.id, equipped=True).all():
+        if BUDDY_SHOP.get(other.item_key, {}).get("slot") == item["slot"]:
+            other.equipped = False
+    db.session.add(OwnedCosmetic(user_id=current_user.id, item_key=item_key, equipped=True))
+    db.session.commit()
+    flash(f"Bought the {item['name']}! {buddy.name} is wearing it.", "success")
+    return redirect(url_for("buddy_page"))
+
+
+@app.route("/buddy/equip/<item_key>", methods=["POST"])
+@login_required
+def equip_cosmetic(item_key):
+    """ Put an owned item on (bumping the same slot) or take it off """
+    item = BUDDY_SHOP.get(item_key)
+    owned = OwnedCosmetic.query.filter_by(user_id=current_user.id, item_key=item_key).first()
+    if item is None or owned is None:
+        flash("You don't own that item.", "warning")
+        return redirect(url_for("buddy_page"))
+    if owned.equipped:
+        owned.equipped = False
+    else:
+        #only one item per slot may be worn at a time
+        for other in OwnedCosmetic.query.filter_by(user_id=current_user.id, equipped=True).all():
+            if BUDDY_SHOP.get(other.item_key, {}).get("slot") == item["slot"]:
+                other.equipped = False
+        owned.equipped = True
+    db.session.commit()
+    return redirect(url_for("buddy_page"))
 
 
 @app.route("/tasks/run-daily")
