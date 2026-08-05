@@ -59,6 +59,34 @@
     </div>
 </section>
 
+<!--The housemates: every buddy lives here; pick who's out front-->
+{% if buddies is defined and buddies|length > 1 %}
+<h2 class="shop-heading">Housemates</h2>
+<div class="shop-grid">
+    {% for b in buddies %}
+    <div class="shop-item{% if b.is_active %} shop-owned{% endif %}">
+        <span class="shop-icon">
+            {%- if b.stage == "egg" %}🥚
+            {%- elif b.species in ("frog", "purplefrog") %}🐸
+            {%- elif b.species == "blackcat" %}🐈‍⬛
+            {%- else %}🐱{% endif -%}
+        </span>
+        <span class="shop-name">{{ "???" if b.stage == "egg" else b.name }}</span>
+        <span class="shop-slot">
+            {{ "mystery egg" if b.stage == "egg" else b.species ~ " · Lv " ~ levels[b.id] }}
+        </span>
+        {% if b.is_active %}
+            <span class="shop-locked">Out front</span>
+        {% else %}
+            <form action="{{ url_for('activate_buddy', buddy_id=b.id) }}" method="POST">
+                <button class="btn-primary btn-shop" type="submit">Bring out</button>
+            </form>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 <!--The shop-->
 {% set wear_slots = ("hat", "accessory") %}
 

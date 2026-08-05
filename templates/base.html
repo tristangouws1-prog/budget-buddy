@@ -53,5 +53,41 @@
     <footer class="site-footer">
         <p>Staying on top of your money, one small step at a time.</p>
     </footer>
+
+    <script>
+    //#52: "Mark paid", "Undo", "Got it" and "Archive" work without a full
+    //page reload. The action is fetched in the background and the page
+    //content is swapped in place, so the scroll position survives.
+    document.addEventListener("click", async event => {
+        const link = event.target.closest("a.btn-pay, a.btn-undo, a.reminder-done");
+        if (!link || event.defaultPrevented) return;
+        event.preventDefault();
+        softRefresh(await fetch(link.href));
+    });
+    document.addEventListener("submit", async event => {
+        const form = event.target.closest("form.soft-form");
+        if (!form || event.defaultPrevented) return;
+        event.preventDefault();
+        softRefresh(await fetch(form.action, {method: "POST", body: new FormData(form)}));
+    });
+    async function softRefresh(response) {
+        const doc = new DOMParser().parseFromString(await response.text(), "text/html");
+        const main = document.querySelector("main.container");
+        const newMain = doc.querySelector("main.container");
+        if (!newMain) { window.location.reload(); return; }
+        main.innerHTML = newMain.innerHTML;
+        //scripts inside the swapped content (like drag-to-reorder) don't run
+        //via innerHTML, so re-create them in their own scope
+        main.querySelectorAll("script").forEach(old => {
+            const s = document.createElement("script");
+            s.textContent = "(function(){\n" + old.textContent + "\n})();";
+            old.replaceWith(s);
+        });
+        //the buddy dock reacts to payments too (mood, message, XP bar)
+        const dock = document.getElementById("buddy-dock");
+        const newDock = doc.getElementById("buddy-dock");
+        if (dock && newDock) dock.outerHTML = newDock.outerHTML;
+    }
+    </script>
 </body>
 </html>

@@ -179,6 +179,9 @@ class Payment(db.Model):
 #custom drag-and-drop position on the dashboard
     sort_order = db.Column(db.Integer, nullable=True)
 
+#for once-off bills: paid and tucked away, off the dashboard for good (#50)
+    is_archived = db.Column(db.Boolean, default=False)
+
 #captures exactly when a new bill or subscription was added
     date_added = db.Column(db.DateTime, default=datetime.datetime.now)
 
@@ -201,6 +204,10 @@ class Reminder(db.Model):
 
 #snap of when reminder was created
     created_at = db.Column(db.DateTime, default=datetime.datetime.now)
+
+#which bill this reminder is about, when it is about one (#53) -
+#lets paying a bill automatically tick off its reminders
+    payment_id = db.Column(db.Integer, db.ForeignKey("payment.id"), nullable=True)
 
 #which user this reminder is for
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
@@ -276,8 +283,11 @@ class Buddy(db.Model):
 #when the buddy was created
     created_at = db.Column(db.DateTime, default=datetime.datetime.now)
 
-#who the buddy belongs to
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, unique=True)
+#is this the buddy shown on screen? (one active buddy per user)
+    is_active = db.Column(db.Boolean, default=False)
+
+#who the buddy belongs to - users can have several buddies (the house)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
 
 class XpEvent(db.Model):
@@ -496,8 +506,12 @@ BUDDY_MESSAGES = {
 #an egg hatches once it has soaked up this much XP
 HATCH_XP = 100
 
-#the sprite families an egg can hatch into - all CSS recolours of the blob-cat
-BUDDY_SPECIES = ["blobcat", "mintcat", "peachcat"]
+#the sprite families an egg can hatch into - the cats are CSS recolours of
+#the blob-cat; the frogs share their own drawing in _buddy_sprite.html
+BUDDY_SPECIES = ["blobcat", "mintcat", "peachcat", "blackcat", "frog", "purplefrog"]
+
+#which species use the frog drawing instead of the cat one
+FROG_SPECIES = ("frog", "purplefrog")
 
 #what the egg "says" at each stage of hatching progress (percent thresholds)
 EGG_MESSAGES = [
@@ -507,6 +521,10 @@ EGG_MESSAGES = [
     (75, "It's nearly hatching! Just a little more XP!"),
 ]
 
+#reaching these levels rewards a brand-new egg for the house (up to the cap)
+EGG_LEVELS = (3, 5, 7, 10)
+MAX_BUDDIES = 4
+
 #everything the buddy shop sells. One item per slot can be worn at a time.
 #the drawings themselves live in templates/_buddy_sprite.html
 BUDDY_SHOP = {
@@ -514,6 +532,7 @@ BUDDY_SHOP = {
     "flower":     {"name": "Flower",     "icon": "🌸", "price": 80,  "slot": "hat",       "min_level": 1},
     "top_hat":    {"name": "Top hat",    "icon": "🎩", "price": 150, "slot": "hat",       "min_level": 3},
     "bow_tie":    {"name": "Bow tie",    "icon": "🎀", "price": 50,  "slot": "accessory", "min_level": 1},
+    "witch_hat":  {"name": "Witch hat",  "icon": "🧙", "price": 130, "slot": "hat",       "min_level": 2},
     "sunglasses": {"name": "Sunglasses", "icon": "🕶️", "price": 100, "slot": "accessory", "min_level": 2},
     "scarf":      {"name": "Scarf",      "icon": "🧣", "price": 120, "slot": "accessory", "min_level": 2},
     #decor for the buddy's room on the /buddy page (Phase B5)
@@ -562,15 +581,28 @@ def pay_period_key(payment):
     return f"pay:{payment.id}:{today.strftime('%Y-%m')}"
 
 
+def get_active_buddy(user):
+    """The buddy currently shown on screen. Accounts from before the house
+    existed get their first buddy promoted; brand-new lazy accounts get a
+    ready-hatched one created on the spot."""
+    buddy = Buddy.query.filter_by(user_id=user.id, is_active=True).first()
+    if buddy is None:
+        buddy = Buddy.query.filter_by(user_id=user.id).first()
+        if buddy is None:
+            buddy = Buddy(user_id=user.id, is_active=True)
+        else:
+            buddy.is_active = True
+        db.session.add(buddy)
+        db.session.commit()
+    return buddy
+
+
 def award_xp(user, kind, ref_key, amount):
-    """Give the user's buddy XP - but only once per (kind, ref_key).
+    """Give the user's active buddy XP - but only once per (kind, ref_key).
     Returns True if the XP was actually awarded."""
     if XpEvent.query.filter_by(user_id=user.id, kind=kind, ref_key=ref_key).first():
         return False
-    buddy = Buddy.query.filter_by(user_id=user.id).first()
-    if buddy is None:
-        buddy = Buddy(user_id=user.id)
-        db.session.add(buddy)
+    buddy = get_active_buddy(user)
     level_before = buddy_level(buddy.xp)
     db.session.add(XpEvent(user_id=user.id, kind=kind, ref_key=ref_key, amount=amount))
     buddy.xp += amount
@@ -589,8 +621,26 @@ def award_xp(user, kind, ref_key, amount):
         session["buddy_hatched"] = True
         flash(f"The egg hatched! Say hello to {buddy.name}!", "success")
     elif buddy.stage == "hatched" and buddy_level(buddy.xp) > level_before:
-        flash(f"{buddy.name} reached level {buddy_level(buddy.xp)}!", "success")
+        new_level = buddy_level(buddy.xp)
+        flash(f"{buddy.name} reached level {new_level}!", "success")
+        #milestone levels reward a brand-new egg for the house
+        if (new_level in EGG_LEVELS
+                and Buddy.query.filter_by(user_id=user.id).count() < MAX_BUDDIES):
+            db.session.add(Buddy(user_id=user.id, stage="egg", is_active=False))
+            db.session.commit()
+            flash("You found a new egg! It's waiting in the house.", "success")
     return True
+
+
+def mark_bill_reminders_read(payment):
+    """When a bill gets paid, tick off its unread reminders (#53).
+    New reminders carry the bill's id; older rows from before the link
+    existed fall back to matching the quoted bill name in the message."""
+    unread = Reminder.query.filter_by(user_id=payment.user_id, is_read=False).all()
+    for r in unread:
+        if r.payment_id == payment.id or (
+                r.payment_id is None and f"'{payment.name}'" in r.message):
+            r.is_read = True
 
 
 def parse_money(raw):
@@ -729,7 +779,7 @@ def register():
 
         #every new account starts with a mystery egg (older accounts
         #get a ready-hatched buddy from the context processor instead)
-        db.session.add(Buddy(user_id=user.id, stage="egg"))
+        db.session.add(Buddy(user_id=user.id, stage="egg", is_active=True))
         db.session.commit()
 
         #log them straight in after registering
@@ -846,15 +896,11 @@ def reset_password(token):
 
 @app.context_processor
 def inject_buddy():
-    """Give every template the buddy - base.html includes it on all pages.
-    Lazily creates a buddy the first time a user (old or new) loads a page."""
+    """Give every template the active buddy - base.html includes it on all
+    pages. Lazily creates one the first time a user (old or new) loads a page."""
     if not current_user.is_authenticated:
         return {}
-    buddy = Buddy.query.filter_by(user_id=current_user.id).first()
-    if buddy is None:
-        buddy = Buddy(user_id=current_user.id)
-        db.session.add(buddy)
-        db.session.commit()
+    buddy = get_active_buddy(current_user)
 
     #showing up counts: the daily check-in, once per calendar day
     award_xp(current_user, "check_in", f"day:{datetime.date.today().isoformat()}", 5)
@@ -902,8 +948,10 @@ def dashboard():
     sort_by = request.args.get("sort", "due_day")
 
     #get only this user's payments, sorted by due day first
+    #archived once-off bills (#50) stay out of sight for good
     payments = (
         Payment.query.filter_by(user_id=current_user.id)
+        .filter(Payment.is_archived != True)
         .order_by(Payment.due_day)
         .all()
     )
@@ -1132,6 +1180,9 @@ def partial_pay(payment_id):
         else:
             payment.is_paid = False
         log_payment(payment, payment.amount_paid - old_paid)
+        #finishing the bill also ticks off its reminders (#53)
+        if payment.is_paid:
+            mark_bill_reminders_read(payment)
     db.session.commit()
     #finishing off the whole bill earns the same XP as "Mark paid"
     if payment.is_paid:
@@ -1241,11 +1292,28 @@ def mark_paid(payment_id):
     log_payment(payment, payment.amount - (payment.amount_paid or 0))
     payment.is_paid = True      #turns status to paid
     payment.amount_paid = payment.amount
+    #paying also ticks off this bill's reminders (#53)
+    mark_bill_reminders_read(payment)
     db.session.commit()         #saves the status change
     #paying a bill earns XP - once per bill per month (or week)
     award_xp(current_user, "pay_bill", pay_period_key(payment), 15)
     flash(f"'{payment.name}' is paid.", "success") # green
     return redirect(url_for("dashboard"))
+
+@app.route("/archive/<int:payment_id>", methods=["POST"])
+@login_required
+def archive_payment(payment_id):
+    """Tuck a paid once-off bill away for good (#50). It stays in the
+    payment history but disappears from the dashboard."""
+    payment = get_owned_payment_or_404(payment_id)
+    if payment.bill_type == "once_off" and payment.is_paid:
+        payment.is_archived = True
+        db.session.commit()
+        flash(f"'{payment.name}' is done and archived.", "success")
+    else:
+        flash("Only paid once-off bills can be archived.", "warning")
+    return redirect(url_for("dashboard"))
+
 
 @app.route("/unpaid/<int:payment_id>")
 @login_required
@@ -1263,6 +1331,16 @@ def mark_unpaid(payment_id):
         PaymentLog.user_id == current_user.id,
         PaymentLog.paid_at >= month_start,
     ).delete()
+    #undoing also takes back the XP and coins the payment earned (#51),
+    #and re-opens the key so an honest re-pay can earn it again
+    event = XpEvent.query.filter_by(
+        user_id=current_user.id, kind="pay_bill",
+        ref_key=pay_period_key(payment)).first()
+    if event:
+        buddy = get_active_buddy(current_user)
+        buddy.xp = max(0, buddy.xp - event.amount)
+        buddy.coins = max(0, buddy.coins - event.amount)
+        db.session.delete(event)
     db.session.commit()
     flash(f"'{payment.name}' has not been paid yet.", "warning") # yellow
     return redirect(url_for("dashboard"))
@@ -1398,17 +1476,34 @@ def mark_reminder_read(reminder_id):
 @app.route("/buddy")
 @login_required
 def buddy_page():
-    """The buddy's own page - rename it, buy cosmetics, dress it up."""
+    """The buddy's house - rename, shop, dress up, and pick who's out front."""
     owned = {c.item_key: c for c in
              OwnedCosmetic.query.filter_by(user_id=current_user.id).all()}
-    return render_template("buddy.html", shop=BUDDY_SHOP, owned=owned)
+    buddies = (Buddy.query.filter_by(user_id=current_user.id)
+               .order_by(Buddy.created_at).all())
+    levels = {b.id: buddy_level(b.xp) for b in buddies}
+    return render_template("buddy.html", shop=BUDDY_SHOP, owned=owned,
+                           buddies=buddies, levels=levels)
+
+
+@app.route("/buddy/activate/<int:buddy_id>", methods=["POST"])
+@login_required
+def activate_buddy(buddy_id):
+    """Choose which buddy (or egg) is displayed on every page."""
+    target = Buddy.query.filter_by(id=buddy_id, user_id=current_user.id).first_or_404()
+    for b in Buddy.query.filter_by(user_id=current_user.id).all():
+        b.is_active = (b.id == target.id)
+    db.session.commit()
+    who = "The egg" if target.stage == "egg" else target.name
+    flash(f"{who} is now out front!", "success")
+    return redirect(url_for("buddy_page"))
 
 
 @app.route("/buddy/name", methods=["POST"])
 @login_required
 def rename_buddy():
-    """ Give the buddy a new name """
-    buddy = Buddy.query.filter_by(user_id=current_user.id).first()
+    """ Give the active buddy a new name """
+    buddy = get_active_buddy(current_user)
     new_name = request.form.get("name", "").strip()
     if buddy and new_name:
         buddy.name = new_name[:50]
@@ -1422,8 +1517,8 @@ def rename_buddy():
 def buy_cosmetic(item_key):
     """ Buy a shop item with coins. The new item is worn straight away. """
     item = BUDDY_SHOP.get(item_key)
-    buddy = Buddy.query.filter_by(user_id=current_user.id).first()
-    if item is None or buddy is None:
+    buddy = get_active_buddy(current_user)
+    if item is None:
         flash("That item doesn't exist.", "warning")
         return redirect(url_for("buddy_page"))
     if buddy.stage == "egg":
@@ -1532,7 +1627,9 @@ def create_weekly_reminder():
                     category="weekly",
                     user_id=user.id,
                 ))
-            user_payments = Payment.query.filter_by(user_id=user.id).all()
+            #archived once-off bills are done - no reminders for them (#50)
+            user_payments = (Payment.query.filter_by(user_id=user.id)
+                             .filter(Payment.is_archived != True).all())
 
             #WEEKLY bills start a fresh week every Monday.
             #whatever wasn't paid rolls over into carried_over first (#39)
@@ -1552,6 +1649,7 @@ def create_weekly_reminder():
                         message=(f"Has the amount for '{p.name}' been updated this month? "
                                  f"It's currently {user.currency}{p.amount:.2f} - confirm it on the dashboard."),
                         category="weekly",
+                        payment_id=p.id,
                         user_id=user.id,
                     ))
 
@@ -1562,6 +1660,7 @@ def create_weekly_reminder():
                     db.session.add(Reminder(
                         message=f"'{p.name}' ({user.currency}{p.amount:.2f}) is overdue! Was due on {due_phrase(p)}{description_note(p)}",
                         category="overdue",
+                        payment_id=p.id,
                         user_id=user.id,
                     ))
                 elif status == "soon":
@@ -1574,6 +1673,7 @@ def create_weekly_reminder():
                     db.session.add(Reminder(
                         message=f"'{p.name}' ({user.currency}{p.amount:.2f}) {timing}, {due_date_text(p)}{description_note(p)}",
                         category="soon",
+                        payment_id=p.id,
                         user_id=user.id,
                     ))
 
@@ -1590,20 +1690,25 @@ def create_monthly_reminders():
 
     with app.app_context():
         for user in User.query.all():
-            payments = Payment.query.filter_by(user_id=user.id).all()
+            #archived once-off bills are done - leave them out entirely (#50)
+            payments = (Payment.query.filter_by(user_id=user.id)
+                        .filter(Payment.is_archived != True).all())
 
             # new month so reset all of this user's payments
             for p in payments:
                 #weekly bills reset on Mondays in the weekly job, not here
                 if p.frequency == "weekly":
                     continue
-                if p.bill_type != "once_off" or not p.is_paid:
-                    #whatever wasn't paid rolls over instead of being forgotten (#39)
-                    shortfall = round(p.amount - (p.amount_paid or 0), 2)
-                    if not p.is_paid and shortfall > 0:
-                        p.carried_over = round((p.carried_over or 0) + shortfall, 2)
-                    p.is_paid = False
-                    p.amount_paid = 0
+                #once-off bills never reset or roll over - they simply stay
+                #on the dashboard until paid, then get archived (#50)
+                if p.bill_type == "once_off":
+                    continue
+                #whatever wasn't paid rolls over instead of being forgotten (#39)
+                shortfall = round(p.amount - (p.amount_paid or 0), 2)
+                if not p.is_paid and shortfall > 0:
+                    p.carried_over = round((p.carried_over or 0) + shortfall, 2)
+                p.is_paid = False
+                p.amount_paid = 0
                 #variable bills need their new month's amount checked (#40)
                 if p.bill_type == "variable":
                     p.is_confirmed = False
@@ -1631,6 +1736,7 @@ def create_monthly_reminders():
                             message=(f"'{p.name}': added {', '.join(charges)} to the balance for the new month "
                                      f"(now {user.currency}{p.current_balance:.2f}). Please make sure this matches your statement."),
                             category="monthly",
+                            payment_id=p.id,
                             user_id=user.id,
                         ))
 
@@ -1647,6 +1753,7 @@ def create_monthly_reminders():
                 db.session.add(Reminder(
                     message=(f"Monthly reminder: '{p.name}' ({user.currency}{p.amount:.2f}) is due on {due_phrase(p)}{description_note(p)}"),
                     category="monthly",
+                    payment_id=p.id,
                     user_id=user.id,
                 ))
 

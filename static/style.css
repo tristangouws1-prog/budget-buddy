@@ -659,6 +659,8 @@ h1, h2, h3, .logo, .hero-amount {
     --buddy-body: #c9aee6;
     --buddy-ink: #4a3a68;
     --buddy-cheek: #f0a8c0;
+    --buddy-eye: #f7f4fb;      /* white of a frog's bulging eye */
+    --buddy-belly: #dcc8f0;    /* frog belly patch */
 }
 .buddy-dock {
     position: fixed;
@@ -675,6 +677,8 @@ body.theme-dark .buddy-dock, body.theme-dark .buddy-room {
     --buddy-body: #8f74bf;
     --buddy-ink: #221a38;
     --buddy-cheek: #c887a2;
+    --buddy-eye: #ded8ea;
+    --buddy-belly: #a98cd0;
 }
 
 .buddy-bubble {
@@ -721,13 +725,47 @@ body.theme-dark .buddy-dock, body.theme-dark .buddy-room {
 .buddy-fill rect       { fill: var(--buddy-body); }
 .buddy-ink-fill rect   { fill: var(--buddy-ink); }
 .buddy-cheek-fill rect { fill: var(--buddy-cheek); }
+.buddy-eye-fill rect   { fill: var(--buddy-eye); }
+.buddy-belly-fill rect { fill: var(--buddy-belly); }
 .buddy-whisker rect    { fill: var(--buddy-ink); opacity: 0.5; }
 
 /* species recolours - which one hatches from the egg is a surprise */
-.buddy-species-mintcat  { --buddy-body: #a9dcc3; --buddy-ink: #2e5c46; --buddy-cheek: #f2c48f; }
-.buddy-species-peachcat { --buddy-body: #f4c7a5; --buddy-ink: #77452b; --buddy-cheek: #ee9f9f; }
-body.theme-dark .buddy-species-mintcat  { --buddy-body: #6fa98a; --buddy-ink: #163526; --buddy-cheek: #c79a6a; }
-body.theme-dark .buddy-species-peachcat { --buddy-body: #c29676; --buddy-ink: #3f2416; --buddy-cheek: #b87878; }
+.buddy-species-mintcat {
+    --buddy-body: #a9dcc3; --buddy-ink: #2e5c46; --buddy-cheek: #f2c48f;
+}
+.buddy-species-peachcat {
+    --buddy-body: #f4c7a5; --buddy-ink: #77452b; --buddy-cheek: #ee9f9f;
+}
+/* the black cat's ink has to READ on a near-black body, so its eyes,
+   mouth and whiskers glow gold instead of going darker */
+.buddy-species-blackcat {
+    --buddy-body: #3d3745; --buddy-ink: #f0d878; --buddy-cheek: #7a6280;
+}
+.buddy-species-frog {
+    --buddy-body: #86c661; --buddy-ink: #2c4a1a; --buddy-cheek: #f2a891;
+    --buddy-eye: #ffffff;  --buddy-belly: #c2e3a2;
+}
+.buddy-species-purplefrog {
+    --buddy-body: #b48ae0; --buddy-ink: #3a2158; --buddy-cheek: #f0a8c0;
+    --buddy-eye: #ffffff;  --buddy-belly: #dcc0f2;
+}
+body.theme-dark .buddy-species-mintcat {
+    --buddy-body: #6fa98a; --buddy-ink: #163526; --buddy-cheek: #c79a6a;
+}
+body.theme-dark .buddy-species-peachcat {
+    --buddy-body: #c29676; --buddy-ink: #3f2416; --buddy-cheek: #b87878;
+}
+body.theme-dark .buddy-species-blackcat {
+    --buddy-body: #2b2733; --buddy-ink: #dcc45e; --buddy-cheek: #5c4a63;
+}
+body.theme-dark .buddy-species-frog {
+    --buddy-body: #629a44; --buddy-ink: #142807; --buddy-cheek: #c48472;
+    --buddy-eye: #ece9e0;  --buddy-belly: #8cbb6c;
+}
+body.theme-dark .buddy-species-purplefrog {
+    --buddy-body: #8f68bd; --buddy-ink: #251140; --buddy-cheek: #c17f9a;
+    --buddy-eye: #e6e0ee;  --buddy-belly: #ab86cf;
+}
 
 /* the egg */
 .buddy-egg-fill rect      { fill: #f5eede; }
@@ -883,6 +921,14 @@ body.theme-dark .buddy-egg-spot-fill rect { fill: #8f7fb0; }
     transform: translateX(-50%);
     font-size: 3rem;
 }
+/* housemates lounging around the room (buddy page only) */
+.room-mate { position: absolute; width: 54px; height: 54px; }
+.room-mate svg { width: 100%; height: 100%; }
+.room-mate-1 { bottom: 10px; left: 18px; transform: scaleX(-1); }
+.room-mate-2 { bottom: 10px; right: 20px; }
+.room-mate-3 { bottom: 8px; left: 78px; width: 44px; height: 44px; }
+.mate-egg { font-size: 1.9rem; }
+
 .room-window { position: absolute; top: 16px; left: 16px; width: 54px; }
 .room-poster { position: absolute; top: 24px; right: 20px; width: 40px; }
 .room-rug    { position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); width: 136px; }

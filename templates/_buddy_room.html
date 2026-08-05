@@ -82,6 +82,21 @@
 
     {% endif %}
 
+    {# housemates: the other buddies lounging around (buddy page only) #}
+    {% if buddies is defined %}
+    {% for mate in buddies if not mate.is_active %}
+    {% if loop.index <= 3 %}
+    <div class="room-mate room-mate-{{ loop.index }} buddy-species-{{ mate.species }} buddy-mood-happy">
+        {% if mate.stage == "egg" %}
+        <span class="mate-egg">🥚</span>
+        {% else %}
+        {% with buddy_equipped = [], sprite_species = mate.species %}{% include "_buddy_sprite.html" %}{% endwith %}
+        {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+
     {% if buddy.stage == "egg" %}
     <span class="room-egg">🥚</span>
     {% else %}

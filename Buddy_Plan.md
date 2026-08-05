@@ -33,6 +33,7 @@ habits, hatches from eggs, and can be dressed up and housed.
 | B2 — XP + levels | **Code complete** (2026-08-04). `XpEvent` model (unique constraint lives in the model — the table is new, so no post-hoc index was needed), `buddy_level()`, `xp_for_level()`, `pay_period_key()`, `award_xp()`; hooks in `add_payment`, `mark_paid`, `partial_pay` (completion only, shares the pay key), `clear_carryover`; daily check-in in the context processor; level pill + XP bar in `_buddy.html`. Sprite also reworked: pointed triangular ears + whiskers. All B1+B2 tests pass. **Remaining:** local run (`python app.py` creates the `xp_event` table), visual check, commit/push + server deploy (git pull, create_all, Reload). |
 | B3 — eggs | **Code complete** (2026-08-04). No new columns/migration — reuses `stage` + `species`. New registrations create `Buddy(stage="egg")`; the lazy context-processor path still makes hatched blobcats for pre-buddy accounts. `HATCH_XP=100`, `BUDDY_SPECIES` (blobcat/mintcat/peachcat recolours), `EGG_MESSAGES` by progress. Hatch happens inside `award_xp` (random species, flash, one-shot `session["buddy_hatched"]` flag → `buddy-hatching` CSS animation). Egg SVG with crack stages at 25/50/75%, wobble speeds up as it nears hatching; egg suppresses moods, level pill and level-up flashes, name shows "???". All B1+B2+B3 tests pass (B1/B2 scripts updated for egg-first accounts). **Remaining:** local visual check, commit/push + server deploy. Deferred to a later phase: multiple buddies / `is_active` / eggs at level milestones. |
 | B4 — cosmetics | **Code complete** (2026-08-04). `buddy.coins` column (earned 1:1 with XP in `award_xp`; local DB already migrated + backfilled coins=xp via ALTER — the server never needs this ALTER because create_all builds the table with the column). `OwnedCosmetic` table (unique user+item). `BUDDY_SHOP` catalog dict (6 items, 2 slots, level locks). Routes: `/buddy` page, `/buddy/name`, `/buddy/buy/<key>`, `/buddy/equip/<key>` (slot-exclusive, egg-blocked, level/coins guards). Sprite extracted to `templates/_buddy_sprite.html` shared by dock + page, cosmetics as SVG layers. New `templates/buddy.html` (portrait, rename, stats, shop grid), nav link "Buddy", page CSS. All B1–B4 suites pass. **Remaining:** local visual check, commit/push + server deploy (git pull, create_all makes buddy/xp_event/owned_cosmetic, Reload). |
+| B6 — the full house (added 2026-08-04) | **Code complete.** Multiple buddies per user: `buddy.user_id` UNIQUE dropped + `is_active` added (table rebuild — done locally and scripted in `migrate_2026_08.py` for the server). `get_active_buddy()` used everywhere; XP/coins feed the active buddy only. Milestone levels `EGG_LEVELS=(3,5,7,10)` grant a new inactive egg, capped at `MAX_BUDDIES=4`. `/buddy/activate/<id>` picks who's out front; Housemates roster on the buddy page; inactive buddies lounge in the room as `room-mate` mini sprites (eggs as 🥚). Same batch also shipped TODO #50 (once-off archive + `payment.is_archived`), #51 (undo subtracts XP/coins, deletes the XpEvent), #52 (soft-reload fetch script in base.html), #53 (`reminder.payment_id` + `mark_bill_reminders_read`). **Server deploy now = git pull, `python3 migrate_2026_08.py`, Reload.** |
 | B5 — house | **Code complete** (2026-08-04). The `/buddy` portrait became a room (`templates/_buddy_room.html`): CSS wall/floor (theme variables, dark-mode aware), buddy at bottom centre, decor as positioned pixel SVGs. Five decor items added to `BUDDY_SHOP` in three new slots — poster/window (wall), rug (floor), plant/lamp (furniture) — reusing the B4 buy/equip system unchanged (slot-exclusive, level locks). Shop page split into "Wardrobe" and "For the room" via a Jinja macro; equip buttons renamed Use/Put away. Decor renders only in the room, never on the dock. Face redrawn per user request (2026-08-04): ear bases sit flush on a widened head top row (x3..12 at y3, body x2..13 from y4), three whiskers per side drawn over the face (x2-4/x11-13 at rows 7, 9, 11), cheeks tucked between the whisker rows at (4,10)/(11,10). **All five suites pass. The buddy feature is fully built** — remaining: local visual check, commit/push, server deploy (git pull, create_all, Reload). |
 
 ---
@@ -129,6 +130,17 @@ day, level formula boundaries.
   the whole B4 system, so this phase is mostly art and CSS.
 
 ---
+
+## Later additions (2026-08-04)
+
+- **Frog species**: `BUDDY_SPECIES` includes "frog" — it has its own drawing in
+  `_buddy_sprite.html` (eye bumps, wide mouth, nostrils, splayed feet, no
+  whiskers), selected by a `sp` species branch. Housemates pass
+  `sprite_species` into the partial so they keep their own shape; the cats
+  remain CSS recolours of the blob-cat. Frog palette in CSS (light + dark),
+  roster shows 🐸.
+- **Witch hat**: `witch_hat` in `BUDDY_SHOP` (hat slot, 130 coins, Lv 2) —
+  black cone/brim (#2e2638) with a purple band (#8a5fc0) and gold buckle.
 
 ## Decisions already made with the user
 

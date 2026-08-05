@@ -291,6 +291,13 @@
                             {% if item.payment.is_paid %}
                                 <a class="btn-small btn-undo"
                                    href="{{ url_for('mark_unpaid', payment_id=item.payment.id) }}">Undo</a>
+                                {% if item.payment.bill_type == 'once_off' %}
+                                    <!-- #50: a paid once-off is finished - tuck it away for good -->
+                                    <form method="POST" class="soft-form"
+                                          action="{{ url_for('archive_payment', payment_id=item.payment.id) }}">
+                                        <button type="submit" class="btn-small btn-update">Archive</button>
+                                    </form>
+                                {% endif %}
                             {% else %}
                                 <a class="btn-small btn-pay"
                                    href="{{ url_for('mark_paid', payment_id=item.payment.id) }}">Mark paid</a>
