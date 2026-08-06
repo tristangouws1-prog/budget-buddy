@@ -5,7 +5,7 @@
 <div class="shop-item{% if mine %} shop-owned{% endif %}">
     <span class="shop-icon">{{ item.icon }}</span>
     <span class="shop-name">{{ item.name }}</span>
-    <span class="shop-slot">{{ item.slot }}</span>
+    <span class="shop-slot">{{ slot_labels.get(item.slot, item.slot) }}</span>
 
     {% if mine %}
         <form action="{{ url_for('equip_cosmetic', item_key=key) }}" method="POST">
@@ -88,8 +88,6 @@
 {% endif %}
 
 <!--The shop-->
-{% set wear_slots = ("hat", "accessory") %}
-
 <h2 class="shop-heading">Wardrobe</h2>
 <div class="shop-grid">
     {% for key, item in shop.items() if item.slot in wear_slots %}
@@ -98,6 +96,8 @@
 </div>
 
 <h2 class="shop-heading">For the room</h2>
+<p class="form-hint">Each corner of the room is its own spot, so all four can be
+filled at once.</p>
 <div class="shop-grid">
     {% for key, item in shop.items() if item.slot not in wear_slots %}
         {{ shop_card(key, item) }}

@@ -8,7 +8,9 @@
 {% set sp = sprite_species if sprite_species is defined else (buddy.species if buddy is defined else "blobcat") %}
 {% set is_frog = sp in ("frog", "purplefrog") %}
 
-<svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true">
+{# the view starts one row ABOVE the sprite so tall hats have somewhere to
+   go; nothing is drawn below row 15, so the square shape is unchanged #}
+<svg viewBox="0 -1 16 16" shape-rendering="crispEdges" aria-hidden="true">
     {% if is_frog %}
     <!-- ═══ the frog ═══ -->
     <!-- two eye bumps standing above a wide squat body, webbed feet below.
@@ -205,12 +207,13 @@
     </g>
     {% endif %}
     {% if "witch_hat" in buddy_equipped %}
+    <!-- sits one row higher than the other hats, up in the spare row -->
     <g class="cos-witch-hat">
-        <rect x="7" y="0" width="1" height="1" fill="#2e2638"/>
-        <rect x="6" y="1" width="3" height="1" fill="#2e2638"/>
-        <rect x="5" y="2" width="5" height="1" fill="#8a5fc0"/>
-        <rect x="7" y="2" width="1" height="1" fill="#f2c14e"/>
-        <rect x="3" y="3" width="10" height="1" fill="#2e2638"/>
+        <rect x="7" y="-1" width="1" height="1" fill="#2e2638"/>
+        <rect x="6" y="0" width="3" height="1" fill="#2e2638"/>
+        <rect x="5" y="1" width="5" height="1" fill="#8a5fc0"/>
+        <rect x="7" y="1" width="1" height="1" fill="#f2c14e"/>
+        <rect x="3" y="2" width="10" height="1" fill="#2e2638"/>
     </g>
     {% endif %}
     {% if "bow_tie" in buddy_equipped %}

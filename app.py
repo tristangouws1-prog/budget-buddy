@@ -440,11 +440,80 @@ def due_phrase(payment):
 
 
 def monthly_equivalent(amount, frequency):
-    """A weekly amount expressed as a monthly one (52 weeks / 12 months),
-    so weekly bills and wages fit into the monthly totals."""
+    """A weekly amount expressed as a monthly one (52 weeks / 12 months).
+    Used for INCOME, which has no per-week paid/unpaid state.
+    Bills use month_obligation() instead, which counts the real weeks."""
     if frequency == "weekly":
         return round(amount * 52 / 12, 2)
     return amount
+
+
+def previous_month(today=None):
+    """The (year, month) before the given date - used when the monthly job
+    closes off the month that has just ended."""
+    today = today or datetime.date.today()
+    if today.month == 1:
+        return today.year - 1, 12
+    return today.year, today.month - 1
+
+
+def weeks_in_month(payment, year=None, month=None):
+    """How many times a weekly bill actually falls due in a calendar month.
+    Really 4 or 5 - more honest than the 52/12 average of 4.33."""
+    today = datetime.date.today()
+    year = year or today.year
+    month = month or today.month
+    days = calendar.monthrange(year, month)[1]
+    #due_day is 1=Monday..7=Sunday, but date.weekday() is 0=Monday..6=Sunday
+    wanted = payment.due_day - 1
+    return sum(1 for d in range(1, days + 1)
+               if datetime.date(year, month, d).weekday() == wanted)
+
+
+def month_obligation(payment, year=None, month=None):
+    """What a bill really costs over one calendar month (#54).
+    A weekly bill costs its amount once for every due-weekday in the month,
+    so marking one week paid clears exactly one week of the monthly total."""
+    if payment.frequency == "weekly":
+        return round(payment.amount * weeks_in_month(payment, year, month), 2)
+    return payment.amount
+
+
+def paid_in_month(payment, year=None, month=None):
+    """How much has actually been paid towards a bill in a calendar month,
+    read back from the permanent payment history so that every weekly
+    payment counts, not just the most recent one."""
+    today = datetime.date.today()
+    year = year or today.year
+    month = month or today.month
+    start = datetime.datetime(year, month, 1)
+    if month == 12:
+        end = datetime.datetime(year + 1, 1, 1)
+    else:
+        end = datetime.datetime(year, month + 1, 1)
+    total = db.session.query(db.func.sum(PaymentLog.amount_paid)).filter(
+        PaymentLog.payment_id == payment.id,
+        PaymentLog.paid_at >= start,
+        PaymentLog.paid_at < end,
+    ).scalar()
+    return round(total or 0, 2)
+
+
+def remaining_this_month(payment):
+    """What is still owed on a bill for THIS month, ignoring anything
+    carried over from earlier months (that is added separately)."""
+    if payment.frequency == "weekly":
+        return max(0.0, round(month_obligation(payment) - paid_in_month(payment), 2))
+    if payment.is_paid:
+        return 0.0
+    return round(payment.amount - (payment.amount_paid or 0), 2)
+
+
+def weeks_paid_this_month(payment):
+    """How many of this month's weeks have been paid off so far."""
+    if payment.frequency != "weekly" or not payment.amount:
+        return 0
+    return int(paid_in_month(payment) // payment.amount)
 
 
 def get_status(payment):
@@ -535,13 +604,30 @@ BUDDY_SHOP = {
     "witch_hat":  {"name": "Witch hat",  "icon": "🧙", "price": 130, "slot": "hat",       "min_level": 2},
     "sunglasses": {"name": "Sunglasses", "icon": "🕶️", "price": 100, "slot": "accessory", "min_level": 2},
     "scarf":      {"name": "Scarf",      "icon": "🧣", "price": 120, "slot": "accessory", "min_level": 2},
-    #decor for the buddy's room on the /buddy page (Phase B5)
-    "poster":     {"name": "Poster",     "icon": "🖼️", "price": 90,  "slot": "wall",      "min_level": 1},
-    "window":     {"name": "Window",     "icon": "🪟", "price": 140, "slot": "wall",      "min_level": 2},
-    "rug":        {"name": "Cosy rug",   "icon": "🧶", "price": 100, "slot": "floor",     "min_level": 1},
-    "plant":      {"name": "Pot plant",  "icon": "🪴", "price": 80,  "slot": "furniture", "min_level": 1},
-    "lamp":       {"name": "Lamp",       "icon": "💡", "price": 120, "slot": "furniture", "min_level": 2},
+    #decor for the buddy's room on the /buddy page (Phase B5).
+    #The room is divided into four corners plus the floor in the middle,
+    #so a window in the top left and a poster in the top right can hang at
+    #the same time - each corner is its own slot.
+    "window":     {"name": "Window",     "icon": "🪟", "price": 140, "slot": "wall_left",   "min_level": 2},
+    "poster":     {"name": "Poster",     "icon": "🖼️", "price": 90,  "slot": "wall_right",  "min_level": 1},
+    "plant":      {"name": "Pot plant",  "icon": "🪴", "price": 80,  "slot": "floor_left",  "min_level": 1},
+    "lamp":       {"name": "Lamp",       "icon": "💡", "price": 120, "slot": "floor_right", "min_level": 2},
+    "rug":        {"name": "Cosy rug",   "icon": "🧶", "price": 100, "slot": "floor",       "min_level": 1},
 }
+
+#what each slot is called on screen - "wall_left" reads badly in a shop
+SLOT_LABELS = {
+    "hat": "hat",
+    "accessory": "accessory",
+    "wall_left": "top left",
+    "wall_right": "top right",
+    "floor_left": "bottom left",
+    "floor_right": "bottom right",
+    "floor": "floor",
+}
+
+#the two slots worn ON the buddy; everything else furnishes the room
+WEARABLE_SLOTS = ("hat", "accessory")
 
 
 def buddy_mood(user):
@@ -963,6 +1049,12 @@ def dashboard():
             "payment": p,
             "status": get_status(p),
             "days_left": days_left_for(p),
+            #what this bill costs over the whole month, and how far through
+            #it the user is - weekly bills tick off a week at a time (#54)
+            "month_cost": month_obligation(p),
+            "month_paid": paid_in_month(p) if p.frequency == "weekly" else None,
+            "weeks_total": weeks_in_month(p) if p.frequency == "weekly" else None,
+            "weeks_paid": weeks_paid_this_month(p),
         })
 
     #filter
@@ -980,14 +1072,18 @@ def dashboard():
             key=lambda p: (p["payment"].sort_order is None, p["payment"].sort_order or 0)
         )
 
-    # useful monthly totals
-    total_monthly = sum(monthly_equivalent(p.amount, p.frequency) for p in payments)
-    unpaid = [p for p in payments if not p.is_paid]
-    #what's left = this month's unpaid bills PLUS anything carried over from before
+    # useful monthly totals - a weekly bill counts every week of the month,
+    # and each week marked paid subtracts from what's left (#54)
+    total_monthly = sum(month_obligation(p) for p in payments)
+    #what's left = this month's outstanding PLUS anything carried over from before
+    still_owed = {p.id: remaining_this_month(p) for p in payments}
     total_unpaid = (
-        sum(p.amount - (p.amount_paid or 0) for p in unpaid)
+        sum(still_owed.values())
         + sum(p.carried_over or 0 for p in payments)
     )
+    #a weekly bill stays "still to pay" until every week of the month is done
+    unpaid = [p for p in payments
+              if still_owed[p.id] > 0 or (p.carried_over or 0) > 0]
 
     #only this user's unread reminders
     unread_reminders = (
@@ -1319,17 +1415,22 @@ def archive_payment(payment_id):
 @login_required
 def mark_unpaid(payment_id):
     """ mark a bill as unpaid (the Undo button).
-    Also removes this month's history rows for the bill,
-    so a mistaken 'Mark paid' doesn't stay in the payment history."""
+    Also removes the history rows for the period being undone, so a
+    mistaken 'Mark paid' doesn't stay in the payment history."""
     payment = get_owned_payment_or_404(payment_id)
     payment.is_paid = False
     payment.amount_paid = 0
-    today = datetime.datetime.now()
-    month_start = datetime.datetime(today.year, today.month, 1)
+    today = datetime.date.today()
+    if payment.frequency == "weekly":
+        #only undo THIS week - earlier weeks of the month were really paid (#54)
+        period_start = datetime.datetime.combine(
+            today - datetime.timedelta(days=today.weekday()), datetime.time.min)
+    else:
+        period_start = datetime.datetime(today.year, today.month, 1)
     PaymentLog.query.filter(
         PaymentLog.payment_id == payment.id,
         PaymentLog.user_id == current_user.id,
-        PaymentLog.paid_at >= month_start,
+        PaymentLog.paid_at >= period_start,
     ).delete()
     #undoing also takes back the XP and coins the payment earned (#51),
     #and re-opens the key so an honest re-pay can earn it again
@@ -1483,7 +1584,8 @@ def buddy_page():
                .order_by(Buddy.created_at).all())
     levels = {b.id: buddy_level(b.xp) for b in buddies}
     return render_template("buddy.html", shop=BUDDY_SHOP, owned=owned,
-                           buddies=buddies, levels=levels)
+                           buddies=buddies, levels=levels,
+                           slot_labels=SLOT_LABELS, wear_slots=WEARABLE_SLOTS)
 
 
 @app.route("/buddy/activate/<int:buddy_id>", methods=["POST"])
@@ -1631,13 +1733,12 @@ def create_weekly_reminder():
             user_payments = (Payment.query.filter_by(user_id=user.id)
                              .filter(Payment.is_archived != True).all())
 
-            #WEEKLY bills start a fresh week every Monday.
-            #whatever wasn't paid rolls over into carried_over first (#39)
+            #WEEKLY bills start a fresh week every Monday so they can be
+            #ticked off again. Nothing rolls over here: a missed week simply
+            #stays inside this month's outstanding total, and the monthly
+            #job carries over whatever is still short at month end (#54)
             for p in user_payments:
                 if p.frequency == "weekly":
-                    shortfall = round(p.amount - (p.amount_paid or 0), 2)
-                    if not p.is_paid and shortfall > 0:
-                        p.carried_over = round((p.carried_over or 0) + shortfall, 2)
                     p.is_paid = False
                     p.amount_paid = 0
 
@@ -1695,9 +1796,17 @@ def create_monthly_reminders():
                         .filter(Payment.is_archived != True).all())
 
             # new month so reset all of this user's payments
+            last_year, last_month = previous_month()
             for p in payments:
-                #weekly bills reset on Mondays in the weekly job, not here
+                #WEEKLY bills: close off the month that just ended. Whatever
+                #of its weeks went unpaid rolls over now, so the new month
+                #starts clean (#54). The week itself resets on Mondays.
                 if p.frequency == "weekly":
+                    shortfall = round(
+                        month_obligation(p, last_year, last_month)
+                        - paid_in_month(p, last_year, last_month), 2)
+                    if shortfall > 0:
+                        p.carried_over = round((p.carried_over or 0) + shortfall, 2)
                     continue
                 #once-off bills never reset or roll over - they simply stay
                 #on the dashboard until paid, then get archived (#50)
@@ -1759,7 +1868,7 @@ def create_monthly_reminders():
 
             #add a reminder that gives a summary of the monthly bills (if there are bills)
             if payments:
-                total = sum(monthly_equivalent(p.amount, p.frequency) for p in payments)
+                total = sum(month_obligation(p) for p in payments)
                 db.session.add(Reminder(
                     message=(f"New month! You have {len(payments)} bills totalling {user.currency}{total:.2f} to stay on top of. You've got this!"),
                     category="monthly",
@@ -1820,10 +1929,46 @@ scheduler.add_job(
 #--------------------------Start Everything-------------------------#
 #-------------------------------------------------------------------#
 
+def seed_dev_admin():
+    """Create (or refresh) the account used for local testing in VS Code.
+
+    The live database lives on PythonAnywhere and can't be opened from a
+    laptop, so local runs need their own login. This resets the password
+    every time the app starts locally, so the account always lets you in
+    even months later when you've long forgotten what you set.
+
+    Two separate things keep it off the live site:
+      1. it only runs under __main__, and PythonAnywhere serves the app
+         through WSGI, so this function is never reached there (the same
+         reason the BackgroundScheduler above never starts in production)
+      2. it does nothing at all unless DEV_ADMIN_PASSWORD is set, and that
+         variable lives only in the local .env
+
+    The login route itself is untouched - there is deliberately no
+    "accept any password" branch anywhere in the app."""
+    password = os.environ.get("DEV_ADMIN_PASSWORD")
+    if not password:
+        return
+    email = os.environ.get("DEV_ADMIN_EMAIL", "budgetbuddysite@gmail.com")
+    username = os.environ.get("DEV_ADMIN_USER", "Buddy")
+
+    user = User.query.filter_by(email=email).first()
+    action = "password reset for"
+    if user is None:
+        user = User(username=username, email=email)
+        db.session.add(user)
+        action = "created"
+    user.set_password(password)
+    db.session.commit()
+    print(f"[dev] local test account {action}: log in as '{user.username}'")
+
+
 if __name__ == "__main__":
     #create database tables if they dont exist yet
     with app.app_context():
         db.create_all()
+        #local testing login - does nothing unless DEV_ADMIN_PASSWORD is set
+        seed_dev_admin()
 
     #start the scheduler
     scheduler.start()

@@ -204,6 +204,20 @@
                             {% endif %}
                         </span>
 
+                        {% if item.payment.frequency == 'weekly' %}
+                            <!-- #54: a weekly bill is ticked off a week at a time,
+                                 and each week clears part of the monthly total -->
+                            {% set week_percent = [(item.month_paid / item.month_cost * 100)|round|int, 100]|min if item.month_cost else 0 %}
+                            <span class="bill-balance-label">
+                                {{ current_user.currency }}{{ "%.2f"|format(item.month_paid) }} paid of
+                                {{ current_user.currency }}{{ "%.2f"|format(item.month_cost) }} this month
+                                &middot; {{ item.weeks_paid }} of {{ item.weeks_total }} weeks
+                            </span>
+                            <div class="bill-progress-bar">
+                                <div class="bill-progress-fill bill-progress-partial" style="width: {{ week_percent }}%"></div>
+                            </div>
+                        {% endif %}
+
                         {% if item.payment.carried_over %}
                             <!-- #39: money rolled over from earlier months/weeks that was never paid -->
                             <div class="carryover-block">

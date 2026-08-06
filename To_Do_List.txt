@@ -57,6 +57,8 @@ have suffixes be incrementel when each new user makes a profile,
 #52! TODO Make that when a check is clicked the whole page doesnt reloadd each time,
 #53! TODO Update that when a payment is made, all reminders related to it are "checked"
 
+#54! TODO weekly payment optionn that subtracts from monthly total
+#55  TODO make sure "left to pay" at top of header updates when payments are done
 
 #future TODO add a small pixel buddy that motivates the user
 # to keep up to date with their budget info
