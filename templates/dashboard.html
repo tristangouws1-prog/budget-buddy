@@ -205,8 +205,8 @@
                         </span>
 
                         {% if item.payment.frequency == 'weekly' %}
-                            <!-- #54: a weekly bill is ticked off a week at a time,
-                                 and each week clears part of the monthly total -->
+                            <!-- weekly bills tick off a week at a time,
+                                 each one clearing part of the monthly total -->
                             {% set week_percent = [(item.month_paid / item.month_cost * 100)|round|int, 100]|min if item.month_cost else 0 %}
                             <span class="bill-balance-label">
                                 {{ current_user.currency }}{{ "%.2f"|format(item.month_paid) }} paid of
@@ -219,7 +219,7 @@
                         {% endif %}
 
                         {% if item.payment.carried_over %}
-                            <!-- #39: money rolled over from earlier months/weeks that was never paid -->
+                            <!-- money from earlier months that was never paid -->
                             <div class="carryover-block">
                                 <span>{{ current_user.currency }}{{ "%.2f"|format(item.payment.carried_over) }} still owed from previous {{ 'weeks' if item.payment.frequency == 'weekly' else 'months' }}</span>
                                 <form method="POST" action="{{ url_for('clear_carryover', payment_id=item.payment.id) }}"
@@ -306,7 +306,7 @@
                                 <a class="btn-small btn-undo"
                                    href="{{ url_for('mark_unpaid', payment_id=item.payment.id) }}">Undo</a>
                                 {% if item.payment.bill_type == 'once_off' %}
-                                    <!-- #50: a paid once-off is finished - tuck it away for good -->
+                                    <!-- a paid once-off is finished, tuck it away -->
                                     <form method="POST" class="soft-form"
                                           action="{{ url_for('archive_payment', payment_id=item.payment.id) }}">
                                         <button type="submit" class="btn-small btn-update">Archive</button>
@@ -336,8 +336,8 @@
 
 {% if sort_by == 'custom' and payments_with_status %}
 <script>
-//drag-and-drop reordering (#47): pick a bill card up, drop it in its new
-//spot, and the new order is saved to the server straight away
+//drag and drop reordering: pick a bill up, drop it somewhere new,
+//and the order is saved straight away
 const billsList = document.getElementById('bills-list');
 let dragged = null;
 

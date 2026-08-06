@@ -47,7 +47,7 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- The pixel buddy - renders nothing until app.py supplies it -->
+    <!-- the pixel buddy in the corner -->
     {% include "_buddy.html" %}
 
     <footer class="site-footer">
@@ -55,35 +55,42 @@
     </footer>
 
     <script>
-    //#52: "Mark paid", "Undo", "Got it" and "Archive" work without a full
-    //page reload. The action is fetched in the background and the page
-    //content is swapped in place, so the scroll position survives.
+    //"Mark paid", "Undo", "Got it" and "Archive" without a full page reload.
+    //the action runs in the background, then the page is read again and
+    //swapped in place, so the scroll position survives
     document.addEventListener("click", async event => {
         const link = event.target.closest("a.btn-pay, a.btn-undo, a.reminder-done");
         if (!link || event.defaultPrevented) return;
         event.preventDefault();
-        softRefresh(await fetch(link.href));
+        await fetch(link.href, {cache: "no-store"});
+        softRefresh();
     });
     document.addEventListener("submit", async event => {
         const form = event.target.closest("form.soft-form");
         if (!form || event.defaultPrevented) return;
         event.preventDefault();
-        softRefresh(await fetch(form.action, {method: "POST", body: new FormData(form)}));
+        await fetch(form.action, {method: "POST", body: new FormData(form),
+                                  cache: "no-store"});
+        softRefresh();
     });
-    async function softRefresh(response) {
+    //re-read THIS page rather than wherever the action redirected to, so the
+    //totals at the top are fresh and any filter or sort is kept. no-store
+    //matters: without it the browser can hand back the old page
+    async function softRefresh() {
+        const response = await fetch(window.location.href, {cache: "no-store"});
         const doc = new DOMParser().parseFromString(await response.text(), "text/html");
         const main = document.querySelector("main.container");
         const newMain = doc.querySelector("main.container");
         if (!newMain) { window.location.reload(); return; }
         main.innerHTML = newMain.innerHTML;
-        //scripts inside the swapped content (like drag-to-reorder) don't run
-        //via innerHTML, so re-create them in their own scope
+        //scripts in the swapped content don't run via innerHTML,
+        //so re-make them in their own scope
         main.querySelectorAll("script").forEach(old => {
             const s = document.createElement("script");
             s.textContent = "(function(){\n" + old.textContent + "\n})();";
             old.replaceWith(s);
         });
-        //the buddy dock reacts to payments too (mood, message, XP bar)
+        //the buddy reacts to payments too: mood, message, xp bar
         const dock = document.getElementById("buddy-dock");
         const newDock = doc.getElementById("buddy-dock");
         if (dock && newDock) dock.outerHTML = newDock.outerHTML;

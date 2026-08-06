@@ -1,8 +1,5 @@
-{# The pixel buddy - included on every page from base.html.
-   Renders nothing until app.py supplies `buddy`, `buddy_mood` and
-   `buddy_message` through the context processor (see Buddy_Plan.md).
-   While buddy.stage is "egg" an egg is drawn instead of the cat, its
-   crack spreading as hatching XP builds up. #}
+{# The pixel buddy in the corner, shown on every page from base.html.
+   An egg is drawn instead while stage is "egg", cracking as xp builds up #}
 {% if current_user.is_authenticated and buddy is defined and buddy %}
 {% set is_egg = buddy.stage == "egg" %}
 <div class="buddy-dock buddy-mood-{{ buddy_mood }} buddy-species-{{ buddy.species }}{% if is_egg %} buddy-egg buddy-crack-{{ 3 if buddy_xp_pct >= 75 else (2 if buddy_xp_pct >= 50 else (1 if buddy_xp_pct >= 25 else 0)) }}{% endif %}{% if buddy_just_hatched is defined and buddy_just_hatched %} buddy-hatching{% endif %}"

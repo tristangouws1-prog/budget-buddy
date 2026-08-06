@@ -1,20 +1,18 @@
-{# The hatched buddy drawing, shared by the dock (_buddy.html) and the
-   buddy page (buddy.html). Mood faces are switched by the buddy-mood-*
-   class on a parent element; species recolours by buddy-species-*.
-   The frog has its own shape; the cats share the blob-cat drawing.
-   Housemates pass `sprite_species` so they keep their own shape even
-   though `buddy` is the active one. Cosmetics from BUDDY_SHOP render as
-   extra layers when their key is in `buddy_equipped`. #}
+{# The hatched buddy, shared by the dock and the buddy page.
+   The mood face is switched by the buddy-mood-* class on a parent, and the
+   colours by buddy-species-*. Cats share one drawing, frogs another.
+   Housemates pass sprite_species so they keep their own shape even though
+   `buddy` is the active one. Cosmetics layer on top when worn #}
 {% set sp = sprite_species if sprite_species is defined else (buddy.species if buddy is defined else "blobcat") %}
 {% set is_frog = sp in ("frog", "purplefrog") %}
 
-{# the view starts one row ABOVE the sprite so tall hats have somewhere to
-   go; nothing is drawn below row 15, so the square shape is unchanged #}
+{# the view starts one row ABOVE the sprite so tall hats have room.
+   nothing is drawn below row 15, so it stays square #}
 <svg viewBox="0 -1 16 16" shape-rendering="crispEdges" aria-hidden="true">
     {% if is_frog %}
     <!-- ═══ the frog ═══ -->
-    <!-- two eye bumps standing above a wide squat body, webbed feet below.
-         The bumps are kept narrow (x3-4 / x11-12) so hats clear them. -->
+    <!-- eye bumps above a wide squat body, webbed feet below.
+         the bumps stay narrow (x3-4 / x11-12) so hats clear them -->
     <g class="buddy-fill">
         <rect x="3" y="0" width="2" height="3"/>
         <rect x="11" y="0" width="2" height="3"/>
@@ -30,7 +28,7 @@
         <rect x="5" y="10" width="6" height="3"/>
     </g>
 
-    <!-- bulging eyes: white all over the bump with a pupil looking inward -->
+    <!-- bulging eyes, white with a pupil looking inward -->
     <g class="buddy-eyes">
         <g class="buddy-eyes-open">
             <g class="buddy-eye-fill">
@@ -43,7 +41,7 @@
             </g>
         </g>
         <g class="buddy-eyes-happy">
-            <!-- a glint tucked into the inner corner of each closed eye -->
+            <!-- a glint in the inner corner of each closed eye -->
             <g class="buddy-eye-fill">
                 <rect x="4" y="2" width="1" height="1"/>
                 <rect x="11" y="2" width="1" height="1"/>
@@ -116,7 +114,7 @@
         <rect x="4" y="14" width="8" height="1"/>
     </g>
 
-    <!-- eyes: which set shows is decided by the mood class in CSS -->
+    <!-- eyes, the mood class in CSS picks which set shows -->
     <g class="buddy-eyes buddy-ink-fill">
         <g class="buddy-eyes-open">
             <rect x="5" y="7" width="1" height="2"/>

@@ -1,15 +1,15 @@
-"""One-off migration for the August 2026 batch (#50, #53, buddy house).
-Safe to run twice - every step checks before changing anything.
+"""
+One-off migration for the August 2026 batch.
+Safe to run twice, every step checks before changing anything.
 
     python migrate_2026_08.py
 
-What it does:
-  - reminder.payment_id  (new nullable column, #53)
-  - payment.is_archived  (new column, default 0, #50)
-  - buddy table rebuild: drops the one-buddy-per-user UNIQUE rule and adds
-    is_active (the house needs several buddies; SQLite can't drop a
-    constraint in place, so the table is copied and swapped)
-  - db.create_all() for any tables that don't exist yet
+What it does
+    - adds reminder.payment_id, so paying a bill can tick off its reminders
+    - adds payment.is_archived, for finished once-off bills
+    - rebuilds the buddy table to allow several buddies per user and add
+      is_active (SQLite can't drop a UNIQUE rule, so the table is copied)
+    - creates any tables that don't exist yet
 """
 import sqlalchemy as sa
 
@@ -21,7 +21,7 @@ with app.app_context():
     tables = inspector.get_table_names()
 
     with engine.begin() as con:
-        # ---- reminder.payment_id (#53) ----
+        #paying a bill ticks off its reminders
         if "reminder" in tables:
             cols = [c["name"] for c in inspector.get_columns("reminder")]
             if "payment_id" not in cols:
@@ -30,7 +30,7 @@ with app.app_context():
             else:
                 print("reminder.payment_id already there")
 
-        # ---- payment.is_archived (#50) ----
+        #finished once-off bills get tucked away
         if "payment" in tables:
             cols = [c["name"] for c in inspector.get_columns("payment")]
             if "is_archived" not in cols:
@@ -40,7 +40,7 @@ with app.app_context():
             else:
                 print("payment.is_archived already there")
 
-        # ---- buddy: drop UNIQUE(user_id), add is_active ----
+        #buddy: drop the one-per-user rule and add is_active
         if "buddy" in tables:
             cols = [c["name"] for c in inspector.get_columns("buddy")]
             if "is_active" not in cols:
@@ -57,7 +57,7 @@ with app.app_context():
                         user_id INTEGER NOT NULL,
                         FOREIGN KEY(user_id) REFERENCES user (id)
                     )""")
-                #every existing buddy was that user's only one, so it stays active
+                #every existing buddy was the only one, so it stays active
                 con.exec_driver_sql("""
                     INSERT INTO buddy_new
                         (id, name, species, stage, xp, coins, created_at, is_active, user_id)
@@ -69,7 +69,7 @@ with app.app_context():
             else:
                 print("buddy.is_active already there")
 
-    #any brand-new tables (first deploy of the buddy feature creates them all)
+    #any new tables, the first buddy deploy creates them all
     db.create_all()
     print("create_all done")
 

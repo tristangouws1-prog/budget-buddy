@@ -362,7 +362,7 @@ h1, h2, h3, .logo, .hero-amount {
 .bill-progress-credit { background: var(--soon-text); }
 .bill-progress-partial { background: var(--soon-text); }
 
-/* ── Carried-over debt from previous months/weeks (#39) ── */
+/* ── Carried-over debt from previous months ── */
 .carryover-block {
     display: flex;
     align-items: center;
@@ -483,7 +483,7 @@ h1, h2, h3, .logo, .hero-amount {
 }
 .form-card input::placeholder { color: var(--muted); }
 
-/* a checkbox sitting inline with its label, instead of the usual stacked field */
+/* a checkbox inline with its label, instead of stacked */
 .form-card label.checkbox-row {
     display: flex;
     align-items: center;
@@ -565,8 +565,8 @@ h1, h2, h3, .logo, .hero-amount {
 }
 .chart-col { flex: 1; min-width: 0; text-align: center; }
 .chart-bar-area {
-    /* fixed height so the bars' percentage heights have something to resolve against.
-       padding-top leaves headroom so a 100% bar's value label stays inside the card */
+    /* fixed height so the bars' percentages have something to measure against,
+       padding-top keeps a full bar's label inside the card */
     height: 160px;
     padding-top: 24px;
     display: flex;
@@ -592,8 +592,8 @@ h1, h2, h3, .logo, .hero-amount {
     transform: translateX(-50%);
     font-size: 0.75rem;
     font-weight: 700;
-    /* full-contrast ink, not muted: this is the actual data value, not decorative axis text.
-       it also acts as the accessible "relief" for the bar fill, which sits below WCAG contrast on its own */
+    /* full ink, not muted - it's the real number, and it makes the bar
+       readable for anyone who can't pick out the fill colour */
     color: var(--ink);
     white-space: nowrap;
 }
@@ -655,7 +655,7 @@ h1, h2, h3, .logo, .hero-amount {
 
 /* ── The Buddy ── */
 .buddy-dock, .buddy-room {
-    /* sprite palette - scoped here so the blob recolours per theme */
+    /* sprite palette, scoped here so it recolours per theme */
     --buddy-body: #c9aee6;
     --buddy-ink: #4a3a68;
     --buddy-cheek: #f0a8c0;
@@ -729,15 +729,15 @@ body.theme-dark .buddy-dock, body.theme-dark .buddy-room {
 .buddy-belly-fill rect { fill: var(--buddy-belly); }
 .buddy-whisker rect    { fill: var(--buddy-ink); opacity: 0.5; }
 
-/* species recolours - which one hatches from the egg is a surprise */
+/* species recolours, which one hatches is a surprise */
 .buddy-species-mintcat {
     --buddy-body: #a9dcc3; --buddy-ink: #2e5c46; --buddy-cheek: #f2c48f;
 }
 .buddy-species-peachcat {
     --buddy-body: #f4c7a5; --buddy-ink: #77452b; --buddy-cheek: #ee9f9f;
 }
-/* the black cat's ink has to READ on a near-black body, so its eyes,
-   mouth and whiskers glow gold instead of going darker */
+/* the black cat's ink has to show on a near-black body, so its eyes,
+   mouth and whiskers are gold instead of dark */
 .buddy-species-blackcat {
     --buddy-body: #3d3745; --buddy-ink: #f0d878; --buddy-cheek: #7a6280;
 }
@@ -780,7 +780,7 @@ body.theme-dark .buddy-egg-spot-fill rect { fill: #8f7fb0; }
 .buddy-crack-3 .buddy-crack-a, .buddy-crack-3 .buddy-crack-b,
 .buddy-crack-3 .buddy-crack-c { display: block; }
 
-/* the egg wobbles instead of bobbing, faster the closer it is to hatching */
+/* the egg wobbles instead of bobs, faster as it nears hatching */
 .buddy-egg .buddy-sprite svg {
     animation: buddy-wobble 3s ease-in-out infinite;
     transform-origin: 50% 88%;
@@ -794,7 +794,7 @@ body.theme-dark .buddy-egg-spot-fill rect { fill: #8f7fb0; }
     transform-origin: 50% 88%;
 }
 
-/* mood switching - the dock's buddy-mood-* class picks the face */
+/* the buddy-mood-* class on the parent picks the face */
 .buddy-eyes-happy, .buddy-brows,
 .buddy-mouth-happy, .buddy-mouth-worried { display: none; }
 .buddy-mood-happy .buddy-eyes-happy     { display: block; }
@@ -893,25 +893,27 @@ body.theme-dark .buddy-egg-spot-fill rect { fill: #8f7fb0; }
     margin-bottom: 28px;
     animation: rise 0.3s ease both;
 }
-/* the room: wall on top, floor below, decor absolutely positioned */
+/* the room: wall on top, floor below, decor placed in the corners.
+   big enough for the whole household to stand around in */
 .buddy-room {
     position: relative;
     flex-shrink: 0;
-    width: 240px;
-    height: 185px;
+    width: 330px;
+    height: 240px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     overflow: hidden;
     background: linear-gradient(to bottom,
-        var(--welcome-bg) 0 68%, var(--neutral-bg) 68% 100%);
+        var(--welcome-bg) 0 60%, var(--neutral-bg) 60% 100%);
 }
+/* the active buddy, front and centre */
 .room-sprite {
     position: absolute;
-    bottom: 8px;
+    bottom: 6px;
     left: 50%;
     transform: translateX(-50%);
-    width: 94px;
-    height: 94px;
+    width: 100px;
+    height: 100px;
 }
 .room-sprite svg { width: 100%; height: 100%; animation: buddy-bob 3s ease-in-out infinite; }
 .room-egg {
@@ -919,21 +921,23 @@ body.theme-dark .buddy-egg-spot-fill rect { fill: #8f7fb0; }
     bottom: 16px;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 3rem;
+    font-size: 3.2rem;
 }
-/* housemates lounging around the room (buddy page only) */
-.room-mate { position: absolute; width: 54px; height: 54px; }
+/* the others lounging around. 3 and 4 stand further back, so they
+   are smaller and higher up the floor */
+.room-mate { position: absolute; width: 62px; height: 62px; }
 .room-mate svg { width: 100%; height: 100%; }
-.room-mate-1 { bottom: 10px; left: 18px; transform: scaleX(-1); }
-.room-mate-2 { bottom: 10px; right: 20px; }
-.room-mate-3 { bottom: 8px; left: 78px; width: 44px; height: 44px; }
-.mate-egg { font-size: 1.9rem; }
+.room-mate-1 { bottom: 8px;  left: 60px;  transform: scaleX(-1); }
+.room-mate-2 { bottom: 8px;  right: 62px; }
+.room-mate-3 { bottom: 54px; left: 104px; width: 48px; height: 48px; transform: scaleX(-1); }
+.room-mate-4 { bottom: 54px; right: 106px; width: 48px; height: 48px; }
+.mate-egg { font-size: 2rem; }
 
-.room-window { position: absolute; top: 16px; left: 16px; width: 54px; }
-.room-poster { position: absolute; top: 24px; right: 20px; width: 40px; }
-.room-rug    { position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); width: 136px; }
-.room-plant  { position: absolute; bottom: 12px; left: 14px; width: 34px; }
-.room-lamp   { position: absolute; bottom: 12px; right: 16px; width: 34px; }
+.room-window { position: absolute; top: 18px; left: 20px; width: 62px; }
+.room-poster { position: absolute; top: 26px; right: 24px; width: 46px; }
+.room-rug    { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); width: 180px; }
+.room-plant  { position: absolute; bottom: 14px; left: 14px; width: 38px; }
+.room-lamp   { position: absolute; bottom: 14px; right: 16px; width: 38px; }
 .buddy-info { flex: 1; min-width: 0; }
 .buddy-info h2 { margin-bottom: 8px; }
 .buddy-species-tag { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
@@ -998,6 +1002,8 @@ body.theme-dark .buddy-egg-spot-fill rect { fill: #8f7fb0; }
 @media (max-width: 600px) {
     .buddy-card { flex-direction: column; align-items: center; text-align: center; }
     .buddy-stats { justify-content: center; }
+    /* the room shrinks to fit the phone, everything inside scales with it */
+    .buddy-room { width: 100%; max-width: 330px; height: auto; aspect-ratio: 11 / 8; }
 }
 
 @keyframes buddy-wobble {

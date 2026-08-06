@@ -1,6 +1,5 @@
-{# The buddy's room on the /buddy page (Phase B5). The wall and floor are
-   CSS; decorations from BUDDY_SHOP render when their key is in
-   `buddy_equipped`. The buddy stands at the bottom centre. #}
+{# The buddy's room on the /buddy page. Wall and floor are CSS, decor is
+   drawn when its key is in buddy_equipped. The buddy stands bottom centre #}
 <div class="buddy-room buddy-mood-{{ buddy_mood }} buddy-species-{{ buddy.species }}">
     {% if buddy_equipped is defined %}
 
@@ -82,10 +81,10 @@
 
     {% endif %}
 
-    {# housemates: the other buddies lounging around (buddy page only) #}
+    {# the other buddies lounging around #}
     {% if buddies is defined %}
     {% for mate in buddies if not mate.is_active %}
-    {% if loop.index <= 3 %}
+    {% if loop.index <= 4 %}
     <div class="room-mate room-mate-{{ loop.index }} buddy-species-{{ mate.species }} buddy-mood-happy">
         {% if mate.stage == "egg" %}
         <span class="mate-egg">🥚</span>

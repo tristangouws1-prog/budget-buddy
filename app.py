@@ -26,14 +26,11 @@ from email.message import EmailMessage
 from pathlib import Path
 from dotenv import load_dotenv
 
-#load .env from THIS file's own folder rather than from wherever the app
-#happened to be started. a web server can start the app from any directory,
-#and a plain load_dotenv() would then quietly find nothing - leaving the
-#app with no email login, no task token and a fallback secret key.
+#load .env from THIS file's folder, not the folder the app was started from
+#(a web server can start it anywhere, and then .env is silently never found)
 load_dotenv(Path(__file__).with_name(".env"))
 
-#itsdangerous makes signed, expiring tokens (used for password reset links).
-#it comes with Flask, so nothing new to install
+#signed expiring tokens for the password reset links, comes with Flask
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 from flask import Flask, render_template, request, redirect, url_for, flash, session
@@ -52,10 +49,8 @@ app = Flask(__name__)
 
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-fallback")
 
-#locally this keeps the database in the instance folder next to this file.
-#on a host like PythonAnywhere, set DATABASE_URL to an absolute path instead,
-#e.g. sqlite:////home/yourname/budget-buddy/instance/budget.db
-#(four slashes = absolute path, three = relative)
+#locally the database sits in the instance folder. on a host set DATABASE_URL
+#to an absolute path (4 slashes = absolute, 3 = relative)
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///budget.db")
 
 db = SQLAlchemy(app)
@@ -238,9 +233,8 @@ class Income(db.Model):
 
 
 class PaymentLog(db.Model):
-    """One record of money actually being paid towards a bill.
-    These rows are never reset by the monthly rollover,
-    so they slowly build up a permanent payment history."""
+    """ One payment made towards a bill.
+    Never reset by the monthly rollover, so it builds a permanent history """
 
     id = db.Column(db.Integer, primary_key=True)
 
@@ -261,49 +255,48 @@ class PaymentLog(db.Model):
 
 
 class Buddy(db.Model):
-    """The user's pixel companion. One per user (for now)."""
+    """ A pixel companion. A user can own several, one shown at a time """
 
     id = db.Column(db.Integer, primary_key=True)
 
 #what the user calls their buddy
     name = db.Column(db.String(50), nullable=False, default="Buddy")
 
-#which sprite family the buddy belongs to (only "blobcat" exists so far)
+#which sprite it uses, one of BUDDY_SPECIES
     species = db.Column(db.String(30), nullable=False, default="blobcat")
 
-#"egg" or "hatched" - everyone is born hatched until Phase B3
+#"egg" until it has soaked up HATCH_XP, then "hatched"
     stage = db.Column(db.String(10), nullable=False, default="hatched")
 
-#lifetime experience points - levels will be derived from this in Phase B2
+#lifetime experience, never spent - the level is worked out from it
     xp = db.Column(db.Integer, nullable=False, default=0)
 
-#spendable coins, earned 1:1 with XP - XP is forever, coins get spent in the shop
+#spendable coins, earned alongside xp and spent in the shop
     coins = db.Column(db.Integer, nullable=False, default=0)
 
 #when the buddy was created
     created_at = db.Column(db.DateTime, default=datetime.datetime.now)
 
-#is this the buddy shown on screen? (one active buddy per user)
+#is this the one shown on screen? only one per user
     is_active = db.Column(db.Boolean, default=False)
 
-#who the buddy belongs to - users can have several buddies (the house)
+#who the buddy belongs to
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
 
 class XpEvent(db.Model):
-    """One XP award for a good money habit.
-    The unique rule on (user, kind, ref_key) means repeating the same action
-    (like un-paying and re-paying a bill) can never earn XP twice."""
+    """ One xp award. The unique rule stops the same action paying twice,
+    e.g. un-paying and re-paying a bill over and over """
 
     id = db.Column(db.Integer, primary_key=True)
 
-#what earned the XP: "register_bill", "pay_bill", "check_in", "clear_carryover"
+#what earned it: "register_bill", "pay_bill", "check_in", "clear_carryover"
     kind = db.Column(db.String(30), nullable=False)
 
-#exactly which action, e.g. "pay:14:2026-08" - one award per key, ever
+#which exact action, e.g. "pay:14:2026-08" - one award per key, ever
     ref_key = db.Column(db.String(60), nullable=False)
 
-#how much XP it earned
+#how much xp it earned
     amount = db.Column(db.Integer, nullable=False)
 
 #when it was earned
@@ -316,15 +309,14 @@ class XpEvent(db.Model):
 
 
 class OwnedCosmetic(db.Model):
-    """One shop item a user has bought for their buddy.
-    The catalogue itself lives in BUDDY_SHOP (plain Python, not the database)."""
+    """ A shop item a user has bought. The catalogue itself is BUDDY_SHOP """
 
     id = db.Column(db.Integer, primary_key=True)
 
-#which BUDDY_SHOP item this is, e.g. "party_hat"
+#which BUDDY_SHOP item, e.g. "party_hat"
     item_key = db.Column(db.String(30), nullable=False)
 
-#is the buddy wearing it right now? (one equipped item per slot)
+#worn/placed right now? one per slot
     equipped = db.Column(db.Boolean, default=False)
 
 #who bought it
@@ -380,9 +372,8 @@ def days_until_due(due_day, is_paid=False):
 
 
 def days_until_due_weekly(due_weekday, is_paid=False):
-    """Weekly bills: days until the chosen weekday (1=Monday .. 7=Sunday).
-    Works like days_until_due but inside a week instead of a month:
-    negative = that day already passed this week and the bill isn't paid."""
+    """ Same as days_until_due but inside a week (1=Monday .. 7=Sunday).
+    negative = the day already passed this week and the bill isn't paid """
     today = datetime.datetime.now()
     todays_weekday = today.weekday() + 1   #weekday() is 0-6, we use 1-7
     diff = due_weekday - todays_weekday
@@ -402,55 +393,49 @@ def weekday_name(day):
 
 
 def days_left_for(payment):
-    """How many days until this bill is due, whatever its frequency."""
+    """ Days until a bill is due, whatever its frequency """
     if payment.frequency == "weekly":
         return days_until_due_weekly(payment.due_day, payment.is_paid)
     return days_until_due(payment.due_day, payment.is_paid)
 
 
 def due_date_for(payment):
-    """The calendar date a bill is next due.
-    Built from the days-left helpers so the month-length and rollover rules
-    only live in one place. A negative number of days naturally gives the
-    date in the past for a bill that is already overdue."""
+    """ The date a bill is next due.
+    Uses the days-left helpers so month lengths are only handled in one place """
     today = datetime.datetime.now()
     return today + datetime.timedelta(days=days_left_for(payment))
 
 
 def due_date_text(payment):
-    """The due date written out in full, e.g. "Friday 25 July 2026".
-    Built piece by piece instead of one strftime so the day number is not
-    zero padded (we want "Friday 5 July", not "Friday 05 July")."""
+    """ The due date in full, e.g. "Friday 25 July 2026".
+    Built piece by piece so the day isn't zero padded ("5 July", not "05 July") """
     due = due_date_for(payment)
     return f"{due.strftime('%A')} {due.day} {due.strftime('%B %Y')}"
 
 
 def description_note(payment):
-    """The bill's optional description as a short add-on for reminder
-    messages, so the extra detail also reaches the reminder emails."""
+    """ The optional description, tacked onto reminder messages and emails """
     return f" — {payment.description}" if payment.description else ""
 
 
 def due_phrase(payment):
-    """How reminders describe when a bill is due:
-    monthly -> "the 5th, Sunday 5 July 2026", weekly -> "Friday"."""
+    """ How reminders say when a bill is due:
+    monthly -> "the 5th, Sunday 5 July 2026", weekly -> "Friday" """
     if payment.frequency == "weekly":
         return calendar.day_name[payment.due_day - 1]
     return f"the {ordinal_day(payment.due_day)}, {due_date_text(payment)}"
 
 
 def monthly_equivalent(amount, frequency):
-    """A weekly amount expressed as a monthly one (52 weeks / 12 months).
-    Used for INCOME, which has no per-week paid/unpaid state.
-    Bills use month_obligation() instead, which counts the real weeks."""
+    """ A weekly amount as a monthly one (52 weeks / 12 months).
+    For INCOME only - bills use month_obligation, which counts real weeks """
     if frequency == "weekly":
         return round(amount * 52 / 12, 2)
     return amount
 
 
 def previous_month(today=None):
-    """The (year, month) before the given date - used when the monthly job
-    closes off the month that has just ended."""
+    """ The (year, month) before today, for closing off the month just ended """
     today = today or datetime.date.today()
     if today.month == 1:
         return today.year - 1, 12
@@ -458,31 +443,29 @@ def previous_month(today=None):
 
 
 def weeks_in_month(payment, year=None, month=None):
-    """How many times a weekly bill actually falls due in a calendar month.
-    Really 4 or 5 - more honest than the 52/12 average of 4.33."""
+    """ How many times a weekly bill falls due in a month, really 4 or 5 """
     today = datetime.date.today()
     year = year or today.year
     month = month or today.month
     days = calendar.monthrange(year, month)[1]
-    #due_day is 1=Monday..7=Sunday, but date.weekday() is 0=Monday..6=Sunday
+    #due_day is 1=Monday..7=Sunday, weekday() is 0=Monday..6=Sunday
     wanted = payment.due_day - 1
     return sum(1 for d in range(1, days + 1)
                if datetime.date(year, month, d).weekday() == wanted)
 
 
 def month_obligation(payment, year=None, month=None):
-    """What a bill really costs over one calendar month (#54).
-    A weekly bill costs its amount once for every due-weekday in the month,
-    so marking one week paid clears exactly one week of the monthly total."""
+    """ What a bill costs over one whole month.
+    A weekly bill costs its amount once per due-weekday, so ticking off one
+    week clears exactly one week of the monthly total """
     if payment.frequency == "weekly":
         return round(payment.amount * weeks_in_month(payment, year, month), 2)
     return payment.amount
 
 
 def paid_in_month(payment, year=None, month=None):
-    """How much has actually been paid towards a bill in a calendar month,
-    read back from the permanent payment history so that every weekly
-    payment counts, not just the most recent one."""
+    """ How much was really paid towards a bill in a month.
+    Read from the payment history so every week counts, not just the last one """
     today = datetime.date.today()
     year = year or today.year
     month = month or today.month
@@ -500,8 +483,8 @@ def paid_in_month(payment, year=None, month=None):
 
 
 def remaining_this_month(payment):
-    """What is still owed on a bill for THIS month, ignoring anything
-    carried over from earlier months (that is added separately)."""
+    """ Still owed on a bill for THIS month.
+    Carried over debt is counted separately, not here """
     if payment.frequency == "weekly":
         return max(0.0, round(month_obligation(payment) - paid_in_month(payment), 2))
     if payment.is_paid:
@@ -510,7 +493,7 @@ def remaining_this_month(payment):
 
 
 def weeks_paid_this_month(payment):
-    """How many of this month's weeks have been paid off so far."""
+    """ How many of this month's weeks are paid off so far """
     if payment.frequency != "weekly" or not payment.amount:
         return 0
     return int(paid_in_month(payment) // payment.amount)
@@ -572,17 +555,16 @@ BUDDY_MESSAGES = {
     ],
 }
 
-#an egg hatches once it has soaked up this much XP
+#an egg hatches once it has soaked up this much xp
 HATCH_XP = 100
 
-#the sprite families an egg can hatch into - the cats are CSS recolours of
-#the blob-cat; the frogs share their own drawing in _buddy_sprite.html
+#what an egg can hatch into. cats are recolours of one drawing, frogs of another
 BUDDY_SPECIES = ["blobcat", "mintcat", "peachcat", "blackcat", "frog", "purplefrog"]
 
-#which species use the frog drawing instead of the cat one
+#which species use the frog drawing
 FROG_SPECIES = ("frog", "purplefrog")
 
-#what the egg "says" at each stage of hatching progress (percent thresholds)
+#what the egg says at each % of hatching progress
 EGG_MESSAGES = [
     (0, "An egg! Keeping your budget tidy might warm it up..."),
     (25, "The egg twitched! Paying bills seems to help."),
@@ -590,12 +572,13 @@ EGG_MESSAGES = [
     (75, "It's nearly hatching! Just a little more XP!"),
 ]
 
-#reaching these levels rewards a brand-new egg for the house (up to the cap)
+#hitting these levels earns a new egg, up to MAX_BUDDIES.
+#the cap is one starting egg plus one per milestone, so none are wasted
 EGG_LEVELS = (3, 5, 7, 10)
-MAX_BUDDIES = 4
+MAX_BUDDIES = 5
 
-#everything the buddy shop sells. One item per slot can be worn at a time.
-#the drawings themselves live in templates/_buddy_sprite.html
+#everything the shop sells, one item per slot at a time.
+#the drawings live in templates/_buddy_sprite.html and _buddy_room.html
 BUDDY_SHOP = {
     "party_hat":  {"name": "Party hat",  "icon": "🎉", "price": 60,  "slot": "hat",       "min_level": 1},
     "flower":     {"name": "Flower",     "icon": "🌸", "price": 80,  "slot": "hat",       "min_level": 1},
@@ -604,10 +587,7 @@ BUDDY_SHOP = {
     "witch_hat":  {"name": "Witch hat",  "icon": "🧙", "price": 130, "slot": "hat",       "min_level": 2},
     "sunglasses": {"name": "Sunglasses", "icon": "🕶️", "price": 100, "slot": "accessory", "min_level": 2},
     "scarf":      {"name": "Scarf",      "icon": "🧣", "price": 120, "slot": "accessory", "min_level": 2},
-    #decor for the buddy's room on the /buddy page (Phase B5).
-    #The room is divided into four corners plus the floor in the middle,
-    #so a window in the top left and a poster in the top right can hang at
-    #the same time - each corner is its own slot.
+    #room decor. each corner is its own slot, so all four can be filled at once
     "window":     {"name": "Window",     "icon": "🪟", "price": 140, "slot": "wall_left",   "min_level": 2},
     "poster":     {"name": "Poster",     "icon": "🖼️", "price": 90,  "slot": "wall_right",  "min_level": 1},
     "plant":      {"name": "Pot plant",  "icon": "🪴", "price": 80,  "slot": "floor_left",  "min_level": 1},
@@ -615,7 +595,7 @@ BUDDY_SHOP = {
     "rug":        {"name": "Cosy rug",   "icon": "🧶", "price": 100, "slot": "floor",       "min_level": 1},
 }
 
-#what each slot is called on screen - "wall_left" reads badly in a shop
+#slot names for the shop - "wall_left" reads badly on screen
 SLOT_LABELS = {
     "hat": "hat",
     "accessory": "accessory",
@@ -626,13 +606,12 @@ SLOT_LABELS = {
     "floor": "floor",
 }
 
-#the two slots worn ON the buddy; everything else furnishes the room
+#slots worn ON the buddy, everything else furnishes the room
 WEARABLE_SLOTS = ("hat", "accessory")
 
 
 def buddy_mood(user):
-    """How the buddy feels about the user's bills right now.
-    Returns (mood, message)."""
+    """ How the buddy feels about the bills, returns (mood, message) """
     payments = Payment.query.filter_by(user_id=user.id).all()
     overdue = [p for p in payments if get_status(p) == "overdue"]
     if overdue:
@@ -648,18 +627,17 @@ def buddy_mood(user):
 
 
 def buddy_level(xp):
-    """Level from lifetime XP: level 2 at 50, level 3 at 200, level 4 at 450..."""
+    """ Level from lifetime xp: 2 at 50, 3 at 200, 4 at 450 etc """
     return int((xp / 50) ** 0.5) + 1
 
 
 def xp_for_level(level):
-    """Total XP needed to reach a level (the reverse of buddy_level)."""
+    """ Xp needed to reach a level, the reverse of buddy_level """
     return 50 * (level - 1) ** 2
 
 
 def pay_period_key(payment):
-    """The one-award-per-period key for paying a bill:
-    once per month for monthly bills, once per ISO week for weekly ones."""
+    """ The one-award-per-period key: per month, or per week for weekly bills """
     today = datetime.date.today()
     if payment.frequency == "weekly":
         year, week, _ = today.isocalendar()
@@ -668,9 +646,9 @@ def pay_period_key(payment):
 
 
 def get_active_buddy(user):
-    """The buddy currently shown on screen. Accounts from before the house
-    existed get their first buddy promoted; brand-new lazy accounts get a
-    ready-hatched one created on the spot."""
+    """ The buddy shown on screen.
+    Older accounts get their first buddy promoted, and an account with none
+    at all gets a ready-hatched one made on the spot """
     buddy = Buddy.query.filter_by(user_id=user.id, is_active=True).first()
     if buddy is None:
         buddy = Buddy.query.filter_by(user_id=user.id).first()
@@ -684,17 +662,17 @@ def get_active_buddy(user):
 
 
 def award_xp(user, kind, ref_key, amount):
-    """Give the user's active buddy XP - but only once per (kind, ref_key).
-    Returns True if the XP was actually awarded."""
+    """ Give the active buddy xp, but only once per (kind, ref_key).
+    Returns True if it was actually awarded """
     if XpEvent.query.filter_by(user_id=user.id, kind=kind, ref_key=ref_key).first():
         return False
     buddy = get_active_buddy(user)
     level_before = buddy_level(buddy.xp)
     db.session.add(XpEvent(user_id=user.id, kind=kind, ref_key=ref_key, amount=amount))
     buddy.xp += amount
-    buddy.coins += amount   #coins arrive alongside XP, and get spent in the shop
+    buddy.coins += amount   #coins come alongside xp, and get spent in the shop
 
-    #enough XP hatches an egg - the species is a surprise until this moment
+    #enough xp hatches an egg, the species is a surprise until now
     just_hatched = False
     if buddy.stage == "egg" and buddy.xp >= HATCH_XP:
         buddy.stage = "hatched"
@@ -703,13 +681,13 @@ def award_xp(user, kind, ref_key, amount):
     db.session.commit()
 
     if just_hatched:
-        #tells the next page render to play the hatch animation, exactly once
+        #makes the next page play the hatch animation, once
         session["buddy_hatched"] = True
         flash(f"The egg hatched! Say hello to {buddy.name}!", "success")
     elif buddy.stage == "hatched" and buddy_level(buddy.xp) > level_before:
         new_level = buddy_level(buddy.xp)
         flash(f"{buddy.name} reached level {new_level}!", "success")
-        #milestone levels reward a brand-new egg for the house
+        #milestone levels earn a new egg for the house
         if (new_level in EGG_LEVELS
                 and Buddy.query.filter_by(user_id=user.id).count() < MAX_BUDDIES):
             db.session.add(Buddy(user_id=user.id, stage="egg", is_active=False))
@@ -719,9 +697,8 @@ def award_xp(user, kind, ref_key, amount):
 
 
 def mark_bill_reminders_read(payment):
-    """When a bill gets paid, tick off its unread reminders (#53).
-    New reminders carry the bill's id; older rows from before the link
-    existed fall back to matching the quoted bill name in the message."""
+    """ Tick off a bill's unread reminders when it gets paid.
+    New reminders carry the bill id, older ones match on the quoted name """
     unread = Reminder.query.filter_by(user_id=payment.user_id, is_read=False).all()
     for r in unread:
         if r.payment_id == payment.id or (
@@ -730,11 +707,9 @@ def mark_bill_reminders_read(payment):
 
 
 def parse_money(raw):
-    """Turn a form value into a number rounded to 2 decimal places.
-    Returns None for an empty field.
-    Fixes numbers being saved wrongly in two ways:
-      - float maths can produce values like 149.99999999999997, so round them
-      - some phone keyboards type a comma decimal ("199,99"), so accept that too"""
+    """ Turn a form value into a number, 2 decimals, None if empty.
+    Fixes numbers saving wrongly: float maths gives 149.99999999999997, and
+    some phone keyboards type a comma decimal ("199,99") """
     if raw is None or str(raw).strip() == "":
         return None
     cleaned = str(raw).replace(" ", "").replace(",", ".")
@@ -742,9 +717,8 @@ def parse_money(raw):
 
 
 def log_payment(payment, amount):
-    """Save one row of payment history.
-    Called whenever money is paid towards a bill.
-    A negative amount means a correction (e.g. fixing a typo)."""
+    """ Save one row of payment history.
+    A negative amount is a correction, e.g. fixing a typo """
     if amount == 0:
         return
     db.session.add(PaymentLog(
@@ -756,37 +730,32 @@ def log_payment(payment, amount):
 
 
 def send_email(to_address, subject, body):
-    """Send one plain-text email through an SMTP server (Gmail by default).
-    The login details come from environment variables so that a real
-    password is never written into the code.
-    Any failure is caught so that a broken email can never crash the scheduler."""
+    """ Send one plain text email, Gmail by default.
+    The login comes from .env so no real password is ever written in the code """
 
     sender = os.environ.get("EMAIL_ADDRESS")
     password = os.environ.get("EMAIL_APP_PASSWORD")
 
-    #the mail server to send through. defaults to Gmail, but can be pointed at
-    #another provider from .env without touching this code
+    #the mail server, can be pointed at another provider from .env
     host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
     port = int(os.environ.get("SMTP_PORT", 465))
 
-    #the name people see in their inbox, instead of the raw address
+    #the name people see in their inbox instead of the raw address
     from_name = os.environ.get("EMAIL_FROM_NAME", "Budget Buddy")
 
-    #if email isn't set up, or the user has no address, quietly do nothing
+    #email not set up, or no address to send to = quietly do nothing
     if not sender or not password or not to_address:
         return
 
-    #build the message: subject/from/to are headers, set_content is the body
     msg = EmailMessage()
     msg["Subject"] = subject
-    #"Display Name <address>" is the standard way to show a friendly sender
+    #"Display Name <address>" is how a friendly sender is written
     msg["From"] = f"{from_name} <{sender}>"
     msg["To"] = to_address
     msg.set_content(body)
 
     try:
-        #port 465 means the connection is encrypted from the start (SSL).
-        #port 587 is the other common one, which starts plain and upgrades
+        #465 is encrypted from the start, 587 starts plain and upgrades
         if port == 587:
             with smtplib.SMTP(host, port) as server:
                 server.starttls()
@@ -797,13 +766,13 @@ def send_email(to_address, subject, body):
                 server.login(sender, password)
                 server.send_message(msg)
     except Exception as e:
-        #print instead of raising: the job must keep running for the other users
+        #print instead of raising, so one bad email doesn't stop the others
         print(f"Email failed for {to_address}: {e}")
 
 
 def email_unread_reminders(user, subject):
-    """Gather a user's unread reminders and send them as one summary email.
-    Called AFTER the reminders have been committed, so they can be read back."""
+    """ Send a user's unread reminders as one summary email.
+    Called AFTER they are committed, so they can be read back """
     if not user.email_reminders or not user.email:
         return
 
@@ -863,8 +832,8 @@ def register():
         db.session.add(user)
         db.session.commit()
 
-        #every new account starts with a mystery egg (older accounts
-        #get a ready-hatched buddy from the context processor instead)
+        #new accounts start with a mystery egg, older ones get a
+        #ready-hatched buddy from get_active_buddy instead
         db.session.add(Buddy(user_id=user.id, stage="egg", is_active=True))
         db.session.commit()
 
@@ -910,9 +879,8 @@ def logout():
 
 
 def get_reset_serializer():
-    """Makes signed, expiring tokens for password reset links.
-    The token is signed with the SECRET_KEY so it can't be forged,
-    and nothing extra needs to be stored in the database."""
+    """ Makes the signed, expiring tokens used in password reset links.
+    Signed with SECRET_KEY so it can't be faked, and nothing is stored """
     return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt="password-reset")
 
 
@@ -982,19 +950,18 @@ def reset_password(token):
 
 @app.context_processor
 def inject_buddy():
-    """Give every template the active buddy - base.html includes it on all
-    pages. Lazily creates one the first time a user (old or new) loads a page."""
+    """ Give every template the active buddy, base.html shows it on all pages """
     if not current_user.is_authenticated:
         return {}
     buddy = get_active_buddy(current_user)
 
-    #showing up counts: the daily check-in, once per calendar day
+    #showing up counts, the daily check in
     award_xp(current_user, "check_in", f"day:{datetime.date.today().isoformat()}", 5)
 
-    #did that XP just hatch the egg? (set by award_xp, played exactly once)
+    #did that xp just hatch the egg? set by award_xp, played once
     just_hatched = session.pop("buddy_hatched", False)
 
-    #what the buddy is wearing - drawn as extra layers on the sprite
+    #what the buddy is wearing, drawn as extra layers on the sprite
     equipped = [c.item_key for c in OwnedCosmetic.query.filter_by(
         user_id=current_user.id, equipped=True).all()]
 
@@ -1002,7 +969,7 @@ def inject_buddy():
            "buddy_equipped": equipped}
 
     if buddy.stage == "egg":
-        #eggs don't have moods - their messages track hatching progress
+        #eggs have no mood, their message tracks hatching progress
         pct = min(100, round(buddy.xp / HATCH_XP * 100))
         message = EGG_MESSAGES[0][1]
         for threshold, text in EGG_MESSAGES:
@@ -1033,8 +1000,8 @@ def dashboard():
     filter_status = request.args.get("filter", "all")
     sort_by = request.args.get("sort", "due_day")
 
-    #get only this user's payments, sorted by due day first
-    #archived once-off bills (#50) stay out of sight for good
+    #only this user's payments, sorted by due day. archived once-off
+    #bills are finished with, so they stay out of sight
     payments = (
         Payment.query.filter_by(user_id=current_user.id)
         .filter(Payment.is_archived != True)
@@ -1049,8 +1016,8 @@ def dashboard():
             "payment": p,
             "status": get_status(p),
             "days_left": days_left_for(p),
-            #what this bill costs over the whole month, and how far through
-            #it the user is - weekly bills tick off a week at a time (#54)
+            #what it costs for the whole month and how far through it we are,
+            #weekly bills get ticked off a week at a time
             "month_cost": month_obligation(p),
             "month_paid": paid_in_month(p) if p.frequency == "weekly" else None,
             "weeks_total": weeks_in_month(p) if p.frequency == "weekly" else None,
@@ -1072,10 +1039,10 @@ def dashboard():
             key=lambda p: (p["payment"].sort_order is None, p["payment"].sort_order or 0)
         )
 
-    # useful monthly totals - a weekly bill counts every week of the month,
-    # and each week marked paid subtracts from what's left (#54)
+    #monthly totals. a weekly bill counts every week of the month, and each
+    #week marked paid comes off what's left
     total_monthly = sum(month_obligation(p) for p in payments)
-    #what's left = this month's outstanding PLUS anything carried over from before
+    #left = this month's outstanding PLUS anything carried over from before
     still_owed = {p.id: remaining_this_month(p) for p in payments}
     total_unpaid = (
         sum(still_owed.values())
@@ -1388,10 +1355,10 @@ def mark_paid(payment_id):
     log_payment(payment, payment.amount - (payment.amount_paid or 0))
     payment.is_paid = True      #turns status to paid
     payment.amount_paid = payment.amount
-    #paying also ticks off this bill's reminders (#53)
+    #paying also ticks off this bill's reminders
     mark_bill_reminders_read(payment)
     db.session.commit()         #saves the status change
-    #paying a bill earns XP - once per bill per month (or week)
+    #paying earns xp, once per bill per month or week
     award_xp(current_user, "pay_bill", pay_period_key(payment), 15)
     flash(f"'{payment.name}' is paid.", "success") # green
     return redirect(url_for("dashboard"))
@@ -1399,8 +1366,8 @@ def mark_paid(payment_id):
 @app.route("/archive/<int:payment_id>", methods=["POST"])
 @login_required
 def archive_payment(payment_id):
-    """Tuck a paid once-off bill away for good (#50). It stays in the
-    payment history but disappears from the dashboard."""
+    """ Tuck a paid once-off bill away for good.
+    It stays in the payment history but leaves the dashboard """
     payment = get_owned_payment_or_404(payment_id)
     if payment.bill_type == "once_off" and payment.is_paid:
         payment.is_archived = True
@@ -1414,15 +1381,15 @@ def archive_payment(payment_id):
 @app.route("/unpaid/<int:payment_id>")
 @login_required
 def mark_unpaid(payment_id):
-    """ mark a bill as unpaid (the Undo button).
-    Also removes the history rows for the period being undone, so a
-    mistaken 'Mark paid' doesn't stay in the payment history."""
+    """ Mark a bill as unpaid, the Undo button.
+    Also deletes the history rows for the period being undone, so a
+    mistaken 'Mark paid' doesn't stay in the payment history """
     payment = get_owned_payment_or_404(payment_id)
     payment.is_paid = False
     payment.amount_paid = 0
     today = datetime.date.today()
     if payment.frequency == "weekly":
-        #only undo THIS week - earlier weeks of the month were really paid (#54)
+        #only undo THIS week, earlier weeks of the month were really paid
         period_start = datetime.datetime.combine(
             today - datetime.timedelta(days=today.weekday()), datetime.time.min)
     else:
@@ -1432,8 +1399,8 @@ def mark_unpaid(payment_id):
         PaymentLog.user_id == current_user.id,
         PaymentLog.paid_at >= period_start,
     ).delete()
-    #undoing also takes back the XP and coins the payment earned (#51),
-    #and re-opens the key so an honest re-pay can earn it again
+    #undoing takes back the xp and coins it earned, and frees the key
+    #so paying it again properly can earn them back
     event = XpEvent.query.filter_by(
         user_id=current_user.id, kind="pay_bill",
         ref_key=pay_period_key(payment)).first()
@@ -1577,7 +1544,7 @@ def mark_reminder_read(reminder_id):
 @app.route("/buddy")
 @login_required
 def buddy_page():
-    """The buddy's house - rename, shop, dress up, and pick who's out front."""
+    """ The buddy's house: rename, shop, dress up, pick who's out front """
     owned = {c.item_key: c for c in
              OwnedCosmetic.query.filter_by(user_id=current_user.id).all()}
     buddies = (Buddy.query.filter_by(user_id=current_user.id)
@@ -1591,7 +1558,7 @@ def buddy_page():
 @app.route("/buddy/activate/<int:buddy_id>", methods=["POST"])
 @login_required
 def activate_buddy(buddy_id):
-    """Choose which buddy (or egg) is displayed on every page."""
+    """ Choose which buddy or egg is shown on every page """
     target = Buddy.query.filter_by(id=buddy_id, user_id=current_user.id).first_or_404()
     for b in Buddy.query.filter_by(user_id=current_user.id).all():
         b.is_active = (b.id == target.id)
@@ -1617,7 +1584,7 @@ def rename_buddy():
 @app.route("/buddy/buy/<item_key>", methods=["POST"])
 @login_required
 def buy_cosmetic(item_key):
-    """ Buy a shop item with coins. The new item is worn straight away. """
+    """ Buy a shop item with coins, worn or placed straight away """
     item = BUDDY_SHOP.get(item_key)
     buddy = get_active_buddy(current_user)
     if item is None:
@@ -1650,7 +1617,7 @@ def buy_cosmetic(item_key):
 @app.route("/buddy/equip/<item_key>", methods=["POST"])
 @login_required
 def equip_cosmetic(item_key):
-    """ Put an owned item on (bumping the same slot) or take it off """
+    """ Put an owned item on, bumping the same slot, or take it off """
     item = BUDDY_SHOP.get(item_key)
     owned = OwnedCosmetic.query.filter_by(user_id=current_user.id, item_key=item_key).first()
     if item is None or owned is None:
@@ -1670,17 +1637,16 @@ def equip_cosmetic(item_key):
 
 @app.route("/tasks/run-daily")
 def run_daily_tasks():
-    """Run whichever scheduled jobs are due today.
-    Called once a day by an outside scheduler (e.g. PythonAnywhere's Tasks tab),
-    because a BackgroundScheduler cannot survive on a host whose web worker
-    sleeps between visits.
-    Protected by a secret token so a stranger cannot trigger it."""
+    """ Run whichever scheduled jobs are due today.
+    Called daily by an outside scheduler, because a BackgroundScheduler
+    can't survive on a host whose web worker sleeps between visits.
+    A secret token stops a stranger triggering it """
 
     expected = os.environ.get("TASK_TOKEN")
 
-    #if no token is configured, refuse everyone rather than running unprotected.
-    #compare_digest always takes the same time, so it cannot leak the token
-    #one character at a time the way a normal == comparison would.
+    #no token set = refuse everyone rather than run unprotected.
+    #compare_digest always takes the same time, so it can't leak the
+    #token one letter at a time like == would
     if not expected or not secrets.compare_digest(request.args.get("token", ""), expected):
         return "Forbidden", 403
 
@@ -1729,21 +1695,20 @@ def create_weekly_reminder():
                     category="weekly",
                     user_id=user.id,
                 ))
-            #archived once-off bills are done - no reminders for them (#50)
+            #archived once-off bills are done, no reminders for them
             user_payments = (Payment.query.filter_by(user_id=user.id)
                              .filter(Payment.is_archived != True).all())
 
-            #WEEKLY bills start a fresh week every Monday so they can be
-            #ticked off again. Nothing rolls over here: a missed week simply
-            #stays inside this month's outstanding total, and the monthly
-            #job carries over whatever is still short at month end (#54)
+            #weekly bills start a fresh week every Monday so they can be
+            #ticked off again. nothing rolls over here, a missed week stays
+            #in this month's total until the monthly job closes it off
             for p in user_payments:
                 if p.frequency == "weekly":
                     p.is_paid = False
                     p.amount_paid = 0
 
-            #variable bills (water, electricity): nag until this month's
-            #amount has been confirmed - this lands in the reminder email too
+            #variable bills like water and electricity: nag until this
+            #month's amount is confirmed, this goes in the email too
             for p in user_payments:
                 if p.bill_type == "variable" and not p.is_confirmed:
                     db.session.add(Reminder(
@@ -1791,16 +1756,16 @@ def create_monthly_reminders():
 
     with app.app_context():
         for user in User.query.all():
-            #archived once-off bills are done - leave them out entirely (#50)
+            #archived once-off bills are done, leave them out entirely
             payments = (Payment.query.filter_by(user_id=user.id)
                         .filter(Payment.is_archived != True).all())
 
             # new month so reset all of this user's payments
             last_year, last_month = previous_month()
             for p in payments:
-                #WEEKLY bills: close off the month that just ended. Whatever
-                #of its weeks went unpaid rolls over now, so the new month
-                #starts clean (#54). The week itself resets on Mondays.
+                #weekly bills: close off the month that just ended. whatever
+                #of its weeks went unpaid rolls over now. the week itself
+                #resets on Mondays, not here
                 if p.frequency == "weekly":
                     shortfall = round(
                         month_obligation(p, last_year, last_month)
@@ -1808,23 +1773,22 @@ def create_monthly_reminders():
                     if shortfall > 0:
                         p.carried_over = round((p.carried_over or 0) + shortfall, 2)
                     continue
-                #once-off bills never reset or roll over - they simply stay
-                #on the dashboard until paid, then get archived (#50)
+                #once-off bills never reset, they stay until paid and archived
                 if p.bill_type == "once_off":
                     continue
-                #whatever wasn't paid rolls over instead of being forgotten (#39)
+                #whatever wasn't paid rolls over instead of being forgotten
                 shortfall = round(p.amount - (p.amount_paid or 0), 2)
                 if not p.is_paid and shortfall > 0:
                     p.carried_over = round((p.carried_over or 0) + shortfall, 2)
                 p.is_paid = False
                 p.amount_paid = 0
-                #variable bills need their new month's amount checked (#40)
+                #variable bills need their new month's amount checked
                 if p.bill_type == "variable":
                     p.is_confirmed = False
 
-            #LOANS & STORE ACCOUNTS: a new month means the bank adds its
-            #charges, so grow the balance by interest + insurance + service
-            #fee, then ask the user to check it against their real statement
+            #loans and store accounts: a new month means the bank adds its
+            #charges, so grow the balance by interest + insurance + service fee,
+            #then ask the user to check it against their real statement
             for p in payments:
                 if p.bill_type in ("loan", "credit") and p.current_balance:
                     charges = []
@@ -1930,22 +1894,15 @@ scheduler.add_job(
 #-------------------------------------------------------------------#
 
 def seed_dev_admin():
-    """Create (or refresh) the account used for local testing in VS Code.
+    """ Make or refresh the account used for local testing.
+    The live database can't be opened from a laptop, so local runs need
+    their own login. This resets its password on every local start, so it
+    always lets you in.
 
-    The live database lives on PythonAnywhere and can't be opened from a
-    laptop, so local runs need their own login. This resets the password
-    every time the app starts locally, so the account always lets you in
-    even months later when you've long forgotten what you set.
-
-    Two separate things keep it off the live site:
-      1. it only runs under __main__, and PythonAnywhere serves the app
-         through WSGI, so this function is never reached there (the same
-         reason the BackgroundScheduler above never starts in production)
-      2. it does nothing at all unless DEV_ADMIN_PASSWORD is set, and that
-         variable lives only in the local .env
-
-    The login route itself is untouched - there is deliberately no
-    "accept any password" branch anywhere in the app."""
+    Two things keep it off the live site: it only runs under __main__, and
+    the host serves through WSGI so it is never reached there; and it does
+    nothing unless DEV_ADMIN_PASSWORD is set, which is only in the local .env.
+    The login route itself is untouched, there is no "any password" branch """
     password = os.environ.get("DEV_ADMIN_PASSWORD")
     if not password:
         return
@@ -1967,7 +1924,7 @@ if __name__ == "__main__":
     #create database tables if they dont exist yet
     with app.app_context():
         db.create_all()
-        #local testing login - does nothing unless DEV_ADMIN_PASSWORD is set
+        #local testing login, does nothing unless DEV_ADMIN_PASSWORD is set
         seed_dev_admin()
 
     #start the scheduler

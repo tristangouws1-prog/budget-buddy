@@ -1,23 +1,19 @@
-"""Dev helper - look at or tweak the local test account's buddy.
+"""
+Dev helper, for looking at or tweaking the test account's buddy.
+Saves paying hundreds of pretend bills just to test the shop or a sprite.
 
-Handy when testing the shop, levels or a particular sprite without having
-to pay hundreds of pretend bills first.
-
-    python dev_buddy.py                        # just show the current state
+    python dev_buddy.py                        # show the current state
     python dev_buddy.py --coins 5000           # money for the shop
     python dev_buddy.py --level 5              # jump to level 5
-    python dev_buddy.py --xp 800               # or set XP exactly
+    python dev_buddy.py --xp 800               # or set xp exactly
     python dev_buddy.py --species purplefrog   # preview another sprite
     python dev_buddy.py --stage egg            # go back to being an egg
     python dev_buddy.py --unlock-all           # own every cosmetic
 
-Everything can be combined:
+They can be combined: --level 4 --coins 9999 --species blackcat
 
-    python dev_buddy.py --level 4 --coins 9999 --species blackcat
-
-This edits whichever database DATABASE_URL points at - locally that is
-instance/budget.db. It prints the database it is about to touch, so check
-that line before running it anywhere unusual.
+Edits whichever database DATABASE_URL points at, locally instance/budget.db.
+It prints that database first, so check the line before running it anywhere odd.
 """
 import argparse
 import os
@@ -28,7 +24,7 @@ from app import (app, db, User, Buddy, OwnedCosmetic,
 
 
 def describe(label, buddy):
-    """One line summary of a buddy's current state."""
+    """ One line summary of a buddy """
     level = buddy_level(buddy.xp)
     nxt = xp_for_level(level + 1)
     print(f"  {label:<7} {buddy.name!r} the {buddy.species} [{buddy.stage}] - "
@@ -39,9 +35,9 @@ def describe(label, buddy):
 def main():
     parser = argparse.ArgumentParser(
         description="Inspect or tweak the local test account's buddy.")
-    parser.add_argument("--xp", type=int, help="set lifetime XP exactly")
+    parser.add_argument("--xp", type=int, help="set lifetime xp exactly")
     parser.add_argument("--level", type=int,
-                        help="set XP to the minimum for this level")
+                        help="set xp to the minimum for this level")
     parser.add_argument("--coins", type=int, help="set spendable coins")
     parser.add_argument("--species", choices=BUDDY_SPECIES, help="swap the sprite")
     parser.add_argument("--stage", choices=["egg", "hatched"])
@@ -53,11 +49,11 @@ def main():
                                                "budgetbuddysite@gmail.com"),
                         help="which account to touch")
     parser.add_argument("--levels", action="store_true",
-                        help="print the XP needed for each level and exit")
+                        help="print the xp needed for each level and exit")
     args = parser.parse_args()
 
     if args.levels:
-        print("XP needed for each level:")
+        print("xp needed for each level:")
         for lvl in range(1, 11):
             print(f"  Lv {lvl:<3} {xp_for_level(lvl):>5} XP")
         return
@@ -71,7 +67,7 @@ def main():
             print("Set DEV_ADMIN_PASSWORD in .env and run 'python app.py' once.")
             return
 
-        #the buddy that is currently out front, or any of them as a fallback
+        #the one out front, or any of them as a fallback
         buddy = (Buddy.query.filter_by(user_id=user.id, is_active=True).first()
                  or Buddy.query.filter_by(user_id=user.id).first())
         if buddy is None:
@@ -87,7 +83,7 @@ def main():
 
         changed = False
 
-        #--level first so an explicit --xp can still override it
+        #--level first so an explicit --xp still wins
         if args.level is not None:
             buddy.xp = xp_for_level(max(1, args.level))
             changed = True
@@ -127,7 +123,7 @@ def main():
         describe("after", buddy)
         print("\nRefresh the page in your browser to see it.")
         if args.xp is not None or args.level is not None:
-            print("Note: setting XP by hand does not hand out the milestone "
+            print("Note: setting xp by hand doesn't hand out the milestone "
                   "eggs that levelling up normally would.")
 
 
