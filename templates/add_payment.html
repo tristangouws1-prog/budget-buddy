@@ -76,7 +76,7 @@
         </div>
 
 
-        <label for="amount">Monthly payment amount ({{ current_user.currency }})</label>
+        <label for="amount" id="amount-label">Monthly payment amount ({{ current_user.currency }})</label>
         <input type="number" id="amount" name="amount" step="0.01" min="0"
                placeholder="e.g. 199.99" required>
 
@@ -137,7 +137,11 @@ function toggleDueField(frequency) {
     const weekly = document.getElementById('weekly-due');
     const dayInput = document.getElementById('due_day');
     const weekdaySelect = document.getElementById('due_weekday');
+    const amountLabel = document.getElementById('amount-label');
     const isWeekly = frequency === 'weekly';
+
+    amountLabel.textContent = (isWeekly ? 'Weekly' : 'Monthly')
+        + ' payment amount ({{ current_user.currency }})';
 
     monthly.style.display = isWeekly ? 'none' : 'block';
     weekly.style.display = isWeekly ? 'block' : 'none';
@@ -145,6 +149,9 @@ function toggleDueField(frequency) {
     dayInput.required = !isWeekly;
     weekdaySelect.disabled = !isWeekly;
 }
+
+toggleBalanceFields(document.getElementById('bill_type').value);
+toggleDueField(document.getElementById('frequency').value);
 
 </script>
 

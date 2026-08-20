@@ -126,3 +126,43 @@ assert f"/week/{gid}/1" not in html, "week boxes are only for loans"
 print("ordinary weekly bill -> unchanged, still uses Mark paid")
 
 print("\nALL LOAN WEEK CHECKS PASSED")
+
+
+# ---- a weekly loan's "true monthly cost" uses the month, not one week ----
+client.post("/add", data={
+    "name": "Van loan", "description": "", "amount": "300",
+    "due_day": "4", "bill_type": "loan", "frequency": "weekly",
+    "total_value": "80000", "current_balance": "50000",
+    "service_fee": "60", "loan_insurance": "40",
+}, follow_redirects=True)
+with bb.app.app_context():
+    van = bb.Payment.query.filter_by(name="Van loan").first()
+    van_weeks = bb.weeks_in_month(van)
+    expected = 300 * van_weeks + 60 + 40
+html = client.get("/").get_data(as_text=True)
+assert f"True monthly cost: R{expected:.2f}" in html, \
+    f"expected R{expected:.2f} (R300 x {van_weeks} weeks + R100 fees)"
+assert f"True monthly cost: R{300 + 100:.2f}" not in html, \
+    "one week's payment must not be mistaken for the month's"
+print(f"weekly loan cost -> R{expected:.2f} = R300 x {van_weeks} weeks + R100 fees")
+
+# ---- a monthly loan is unchanged ----
+client.post("/add", data={
+    "name": "Bike loan", "description": "", "amount": "900",
+    "due_day": "12", "bill_type": "loan", "frequency": "monthly",
+    "total_value": "20000", "current_balance": "12000",
+    "service_fee": "50", "loan_insurance": "25",
+}, follow_redirects=True)
+html = client.get("/").get_data(as_text=True)
+assert f"True monthly cost: R{900 + 75:.2f}" in html
+print("monthly loan cost -> R975.00 = R900 + R75 fees, unchanged")
+
+# ---- both forms offer weekly, and label the amount to match ----
+for page in ("/add", f"/edit/{loan_id}"):
+    html = client.get(page).get_data(as_text=True)
+    assert 'value="weekly"' in html, f"{page} must offer a weekly option"
+    assert 'id="amount-label"' in html and "'Weekly' : 'Monthly'" in html, \
+        f"{page} must relabel the amount when weekly is chosen"
+print("add + edit forms -> weekly option, amount label follows it")
+
+print("\nALL WEEKLY LOAN LABEL CHECKS PASSED")

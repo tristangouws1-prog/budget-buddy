@@ -255,9 +255,10 @@
                                 {% if item.payment.months_remaining %}
                                     <span class="bill-balance-label">{{ item.payment.months_remaining }} month{{ 's' if item.payment.months_remaining != 1 else '' }} remaining</span>
                                 {% endif %}
+                                {# month_cost is amount x weeks for a weekly loan, plain amount otherwise #}
                                 {% set monthly_extras = (item.payment.loan_insurance or 0) + (item.payment.service_fee or 0) %}
                                 {% if monthly_extras > 0 %}
-                                    <span class="bill-balance-label">True monthly cost: {{ current_user.currency }}{{ "%.2f"|format(item.payment.amount + monthly_extras) }} (incl.{% if item.payment.loan_insurance %} {{ current_user.currency }}{{ "%.2f"|format(item.payment.loan_insurance) }} insurance{% endif %}{% if item.payment.loan_insurance and item.payment.service_fee %},{% endif %}{% if item.payment.service_fee %} {{ current_user.currency }}{{ "%.2f"|format(item.payment.service_fee) }} service fee{% endif %})</span>
+                                    <span class="bill-balance-label">True monthly cost: {{ current_user.currency }}{{ "%.2f"|format(item.month_cost + monthly_extras) }} (incl.{% if item.payment.loan_insurance %} {{ current_user.currency }}{{ "%.2f"|format(item.payment.loan_insurance) }} insurance{% endif %}{% if item.payment.loan_insurance and item.payment.service_fee %},{% endif %}{% if item.payment.service_fee %} {{ current_user.currency }}{{ "%.2f"|format(item.payment.service_fee) }} service fee{% endif %})</span>
                                 {% endif %}
                                 {% if item.payment.initiation_fee %}
                                     <span class="bill-balance-label">Initiation fee: {{ current_user.currency }}{{ "%.2f"|format(item.payment.initiation_fee) }}</span>
