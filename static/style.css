@@ -362,6 +362,33 @@ h1, h2, h3, .logo, .hero-amount {
 .bill-progress-credit { background: var(--soon-text); }
 .bill-progress-partial { background: var(--soon-text); }
 
+/* ── Week boxes on a weekly loan, ticked off one at a time ── */
+.week-toggles {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+.week-box {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: var(--surface2);
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.week-box:hover { border-color: var(--primary); color: var(--primary); }
+.week-box-done {
+    background: var(--paid-bg);
+    border-color: var(--paid-border);
+    color: var(--paid-text);
+}
+
 /* ── Carried-over debt from previous months ── */
 .carryover-block {
     display: flex;

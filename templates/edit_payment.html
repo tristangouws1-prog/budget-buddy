@@ -89,8 +89,6 @@
                    value="{{ payment.due_day if payment.frequency != 'weekly' else '' }}">
         </div>
 
-        <!-- weekly bills pick a weekday instead; only one of the two inputs
-             is enabled at a time, so only one "due_day" value is submitted -->
         <div id="weekly-due" style="display:none">
             <label for="due_weekday">Due day of the week</label>
             <select id="due_weekday" name="due_day" disabled>
@@ -137,8 +135,6 @@ function toggleBalanceFields(type) {
 }
 
 function toggleDueField(frequency) {
-    //swap between "day of the month" and "day of the week".
-    //the hidden input is disabled so it doesn't also submit a due_day value
     const monthly = document.getElementById('monthly-due');
     const weekly = document.getElementById('weekly-due');
     const dayInput = document.getElementById('due_day');

@@ -2,20 +2,16 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!-- Makes the page display correctly on phones -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Budget Buddy</title>
 
-    <!-- Load fonts from google fonts-->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 
-    <!-- Load stylesheet. -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body class="{{ 'theme-' + current_user.theme if current_user.is_authenticated else 'theme-pastel' }}">
-    <!-- The navigation bar -->
     <header class="site-header">
         <a href="{{ url_for('dashboard') }}" class="logo">Budget Buddy</a>
         <nav>
@@ -35,7 +31,6 @@
     </header>
 
     <main class="container">
-        <!--get_flashed_messages-->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -47,7 +42,6 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- the pixel buddy in the corner -->
     {% include "_buddy.html" %}
 
     <footer class="site-footer">
@@ -55,9 +49,6 @@
     </footer>
 
     <script>
-    //"Mark paid", "Undo", "Got it" and "Archive" without a full page reload.
-    //the action runs in the background, then the page is read again and
-    //swapped in place, so the scroll position survives
     document.addEventListener("click", async event => {
         const link = event.target.closest("a.btn-pay, a.btn-undo, a.reminder-done");
         if (!link || event.defaultPrevented) return;
@@ -73,9 +64,6 @@
                                   cache: "no-store"});
         softRefresh();
     });
-    //re-read THIS page rather than wherever the action redirected to, so the
-    //totals at the top are fresh and any filter or sort is kept. no-store
-    //matters: without it the browser can hand back the old page
     async function softRefresh() {
         const response = await fetch(window.location.href, {cache: "no-store"});
         const doc = new DOMParser().parseFromString(await response.text(), "text/html");
@@ -83,14 +71,11 @@
         const newMain = doc.querySelector("main.container");
         if (!newMain) { window.location.reload(); return; }
         main.innerHTML = newMain.innerHTML;
-        //scripts in the swapped content don't run via innerHTML,
-        //so re-make them in their own scope
         main.querySelectorAll("script").forEach(old => {
             const s = document.createElement("script");
             s.textContent = "(function(){\n" + old.textContent + "\n})();";
             old.replaceWith(s);
         });
-        //the buddy reacts to payments too: mood, message, xp bar
         const dock = document.getElementById("buddy-dock");
         const newDock = doc.getElementById("buddy-dock");
         if (dock && newDock) dock.outerHTML = newDock.outerHTML;

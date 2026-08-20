@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
 
-<!-- ===== Hero: the most important number up top ===== -->
 {% set paid_count = payments_with_status | selectattr('status', 'equalto', 'paid') | list | length %}
 {% set total_count = payments_with_status | length %}
 
@@ -38,7 +37,6 @@
     {% endif %}
 </section>
 
-<!-- ===== Stats row ===== -->
 <div class="stats-row">
     <div class="stat-card">
         <div class="stat-label">Total monthly bills</div>
@@ -115,7 +113,7 @@
 
 
 
-<!-- ===== Reminders ===== -->
+<!--  Reminders  -->
 {% if reminders %}
 <section class="reminders-box">
     <h2>Things to check</h2>
@@ -129,7 +127,7 @@
 </section>
 {% endif %}
 
-<!-- ===== Bill list ===== -->
+<!--  Bill list  -->
 <section>
     <div class="filter">
         <a href="{{ url_for('dashboard', filter='all', sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'all' }}">All</a>
@@ -216,10 +214,26 @@
                             <div class="bill-progress-bar">
                                 <div class="bill-progress-fill bill-progress-partial" style="width: {{ week_percent }}%"></div>
                             </div>
+
+                            {% if item.payment.bill_type in ('loan', 'credit') %}
+                                <!-- one box per week the loan is due, ticked off as it's paid -->
+                                <div class="week-toggles">
+                                    {% for week in range(1, item.weeks_total + 1) %}
+                                        <form method="POST" class="soft-form"
+                                              action="{{ url_for('toggle_week', payment_id=item.payment.id, week=week) }}">
+                                            <button type="submit"
+                                                    class="week-box {{ 'week-box-done' if week <= item.weeks_paid }}"
+                                                    title="{{ 'Undo week' if week <= item.weeks_paid else 'Mark week' }} {{ week }}">
+                                                {{ '✓' if week <= item.weeks_paid else week }}
+                                            </button>
+                                        </form>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
                         {% endif %}
 
                         {% if item.payment.carried_over %}
-                            <!-- money from earlier months that was never paid -->
+                            <!-- money from previous months carried over -->
                             <div class="carryover-block">
                                 <span>{{ current_user.currency }}{{ "%.2f"|format(item.payment.carried_over) }} still owed from previous {{ 'weeks' if item.payment.frequency == 'weekly' else 'months' }}</span>
                                 <form method="POST" action="{{ url_for('clear_carryover', payment_id=item.payment.id) }}"
@@ -302,11 +316,13 @@
                     <div class="bill-right">
                         <span class="bill-amount">{{ current_user.currency }}{{ "%.2f"|format(item.payment.amount) }}</span>
                         <div class="bill-actions">
-                            {% if item.payment.is_paid %}
+                            {% if item.payment.frequency == 'weekly' and item.payment.bill_type in ('loan', 'credit') %}
+                                <!-- weekly loans are ticked off weekly -->
+                            {% elif item.payment.is_paid %}
                                 <a class="btn-small btn-undo"
                                    href="{{ url_for('mark_unpaid', payment_id=item.payment.id) }}">Undo</a>
                                 {% if item.payment.bill_type == 'once_off' %}
-                                    <!-- a paid once-off is finished, tuck it away -->
+                                    <!-- a paid once-off -->
                                     <form method="POST" class="soft-form"
                                           action="{{ url_for('archive_payment', payment_id=item.payment.id) }}">
                                         <button type="submit" class="btn-small btn-update">Archive</button>
@@ -348,7 +364,6 @@ billsList.querySelectorAll('.bill').forEach(bill => {
     });
     bill.addEventListener('dragend', async () => {
         bill.classList.remove('dragging');
-        //read the cards top-to-bottom and send that order to be saved
         const ids = [...billsList.querySelectorAll('.bill')].map(b => Number(b.dataset.id));
         await fetch('{{ url_for("reorder_bills") }}', {
             method: 'POST',
@@ -359,8 +374,7 @@ billsList.querySelectorAll('.bill').forEach(bill => {
 });
 
 billsList.addEventListener('dragover', event => {
-    event.preventDefault();  //needed, or the browser refuses the drop
-    //slot the dragged card in front of whichever card the pointer is above
+    event.preventDefault();
     const target = [...billsList.querySelectorAll('.bill:not(.dragging)')].find(b => {
         const box = b.getBoundingClientRect();
         return event.clientY < box.top + box.height / 2;

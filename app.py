@@ -499,6 +499,12 @@ def weeks_paid_this_month(payment):
     return int(paid_in_month(payment) // payment.amount)
 
 
+def week_xp_key(payment, week, month=None):
+    """ The one-award-per-week key for ticking a weekly loan off """
+    month = month or datetime.date.today().strftime("%Y-%m")
+    return f"loanweek:{payment.id}:{month}:{week}"
+
+
 def get_status(payment):
     """
     Return a status WORD for a bill
@@ -1363,6 +1369,51 @@ def mark_paid(payment_id):
     flash(f"'{payment.name}' is paid.", "success") # green
     return redirect(url_for("dashboard"))
 
+@app.route("/week/<int:payment_id>/<int:week>", methods=["POST"])
+@login_required
+def toggle_week(payment_id, week):
+    """ Tick one week of a weekly loan off, or untick it again.
+    Clicking an empty box pays every week up to it, clicking the last
+    full box undoes just that week """
+    payment = get_owned_payment_or_404(payment_id)
+    if payment.frequency != "weekly" or not payment.amount:
+        flash("Only weekly bills are paid off a week at a time.", "warning")
+        return redirect(url_for("dashboard"))
+
+    total_weeks = weeks_in_month(payment)
+    week = max(1, min(week, total_weeks))
+    done = weeks_paid_this_month(payment)
+    #ticking a full box undoes it, ticking an empty one fills up to it
+    target = week - 1 if week <= done else week
+
+    if target > done:
+        #one history row per week, so the months add up properly
+        log_payment(payment, round(payment.amount * (target - done), 2))
+        for w in range(done + 1, target + 1):
+            award_xp(current_user, "pay_bill", week_xp_key(payment, w), 15)
+    elif target < done:
+        #a negative row is a correction, same as anywhere else
+        log_payment(payment, round(payment.amount * (target - done), 2))
+        #and the xp for those weeks goes back too
+        buddy = get_active_buddy(current_user)
+        for w in range(target + 1, done + 1):
+            event = XpEvent.query.filter_by(
+                user_id=current_user.id, kind="pay_bill",
+                ref_key=week_xp_key(payment, w)).first()
+            if event:
+                buddy.xp = max(0, buddy.xp - event.amount)
+                buddy.coins = max(0, buddy.coins - event.amount)
+                db.session.delete(event)
+
+    #the bill only counts as "paid" once every week of the month is done
+    payment.is_paid = target >= total_weeks
+    payment.amount_paid = payment.amount if payment.is_paid else 0
+    if payment.is_paid:
+        mark_bill_reminders_read(payment)
+    db.session.commit()
+    return redirect(url_for("dashboard"))
+
+
 @app.route("/archive/<int:payment_id>", methods=["POST"])
 @login_required
 def archive_payment(payment_id):
@@ -1455,6 +1506,9 @@ def update_balance(payment_id):
     payment = get_owned_payment_or_404(payment_id)
     payment.current_balance = parse_money(request.form["new_balance"])
     db.session.commit()
+    #keeping the balance honest earns xp, once per bill per month
+    month = datetime.date.today().strftime("%Y-%m")
+    award_xp(current_user, "update_balance", f"balance:{payment.id}:{month}", 10)
     flash(f"Balance updated for '{payment.name}'.", "success")
     return redirect(url_for("dashboard"))
 
