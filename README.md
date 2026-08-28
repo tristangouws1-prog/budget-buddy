@@ -12,3 +12,11 @@ acting as a body doubling friend.
 ## 2.  App.py
 app.py is the main file.
 app.py contains the database models(User, Payment, Income, Reminder, PaymentLog),
+
+## 3. Copyright
+Copyright (c) 2026 [Tristan Gouws]. All rights reserved.
+
+This software and associated documentation files are the sole property of the author. 
+No part of this code may be reproduced, distributed, modified, or transmitted 
+in any form or by any means, including photocopying, recording, or other 
+electronic or mechanical methods, without the prior written permission of the author.
