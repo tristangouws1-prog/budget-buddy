@@ -6,10 +6,16 @@ import app as bb
 bb.app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
 del bb.app.extensions["sqlalchemy"]
 bb.db.init_app(bb.app)
+#TESTING keeps send_email off the network entirely
 with bb.app.app_context():
     bb.db.create_all()
 
 bb.app.config["TESTING"] = True
+#the test client has no browser to carry a csrf token, and the login
+#limiter would trip on repeated test logins
+bb.app.config["WTF_CSRF_ENABLED"] = False
+bb.app.config["RATELIMIT_ENABLED"] = False
+bb.limiter.enabled = False
 client = bb.app.test_client()
 
 client.post("/register", data={
@@ -42,8 +48,8 @@ def state():
 
 
 paid, left, is_paid, xp0, coins0 = state()
-assert paid == 0 and left == 250 * weeks and not is_paid
-print(f"new weekly loan -> 0 of {weeks} weeks, R{left:.2f} owed this month")
+assert paid == 0 and left == 25000 * weeks and not is_paid
+print(f"new weekly loan -> 0 of {weeks} weeks, R{left/100:.2f} owed this month")
 
 html = client.get("/").get_data(as_text=True)
 assert "week-toggles" in html and html.count("week-box") >= weeks, "week boxes missing"
@@ -52,10 +58,10 @@ print(f"dashboard -> {weeks} week boxes, no Mark paid button")
 
 client.post(f"/week/{loan_id}/1")
 paid, left, is_paid, xp1, coins1 = state()
-assert paid == 1 and left == 250 * (weeks - 1), (paid, left)
+assert paid == 1 and left == 25000 * (weeks - 1), (paid, left)
 assert xp1 == xp0 + 15 and coins1 == coins0 + 15, "ticking a week should earn 15 xp"
 assert not is_paid, "one week does not finish the month"
-print(f"tick week 1 -> R{left:.2f} left, +15 xp")
+print(f"tick week 1 -> R{left/100:.2f} left, +15 xp")
 
 client.post(f"/week/{loan_id}/3")
 paid, left, is_paid, xp3, coins3 = state()
@@ -89,11 +95,11 @@ client.post(f"/update_balance/{loan_id}", data={"new_balance": "41000"})
 after = state()[3]
 assert after == before + 10, f"updating the balance should earn 10 xp, got {after - before}"
 with bb.app.app_context():
-    assert bb.db.session.get(bb.Payment, loan_id).current_balance == 41000
+    assert bb.db.session.get(bb.Payment, loan_id).current_balance_cents == 4100000
 client.post(f"/update_balance/{loan_id}", data={"new_balance": "40500"})
 assert state()[3] == after, "a second update in the same month earns nothing"
 with bb.app.app_context():
-    assert bb.db.session.get(bb.Payment, loan_id).current_balance == 40500, \
+    assert bb.db.session.get(bb.Payment, loan_id).current_balance_cents == 4050000, \
         "the balance must still update even when no xp is given"
 print("update balance -> +10 xp once a month, balance always saves")
 
@@ -138,7 +144,7 @@ client.post("/add", data={
 with bb.app.app_context():
     van = bb.Payment.query.filter_by(name="Van loan").first()
     van_weeks = bb.weeks_in_month(van)
-    expected = 300 * van_weeks + 60 + 40
+    expected = 300 * van_weeks + 60 + 40          # rands, for the page text
 html = client.get("/").get_data(as_text=True)
 assert f"True monthly cost: R{expected:.2f}" in html, \
     f"expected R{expected:.2f} (R300 x {van_weeks} weeks + R100 fees)"
@@ -166,3 +172,32 @@ for page in ("/add", f"/edit/{loan_id}"):
 print("add + edit forms -> weekly option, amount label follows it")
 
 print("\nALL WEEKLY LOAN LABEL CHECKS PASSED")
+
+
+# ---- every week ticks visibly, whatever the amount ----
+# 208.35 // 41.67 is 4 in floating point, so week 5 used to stay unticked
+for weekly_amount in ("41.67", "333.33", "1666.67", "99.99", "7.77"):
+    with bb.app.app_context():
+        bb.db.drop_all()
+        bb.db.create_all()
+    client = bb.app.test_client()
+    client.post("/register", data={"username": "t", "email": "t@t.local",
+                                   "password": "pw12345", "confirm": "pw12345"},
+                follow_redirects=True)
+    client.post("/add", data={"name": "Loan", "description": "", "amount": weekly_amount,
+                              "due_day": "1", "bill_type": "loan", "frequency": "weekly",
+                              "total_value": "60000", "current_balance": "42000"},
+                follow_redirects=True)
+    with bb.app.app_context():
+        p = bb.Payment.query.first()
+        pid, n_weeks = p.id, bb.weeks_in_month(p)
+    for w in range(1, n_weeks + 1):
+        client.post(f"/week/{pid}/{w}")
+        ticked = client.get("/").get_data(as_text=True).count("week-box-done")
+        assert ticked == w, f"R{weekly_amount}: clicked week {w} but {ticked} show ticked"
+    with bb.app.app_context():
+        bb.db.session.expire_all()
+        assert bb.remaining_this_month(bb.db.session.get(bb.Payment, pid)) == 0
+print("every week ticks visibly for awkward amounts, and clears the month")
+
+print("\nALL WEEK COUNTING CHECKS PASSED")

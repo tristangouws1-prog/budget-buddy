@@ -6,6 +6,7 @@
     <p class="form-intro">Update this bill's details and save your changes.</p>
 
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="name">Short name</label>
         <input type="text" id="name" name="name"
                value="{{ payment.name }}" required>
@@ -44,10 +45,10 @@
 <div id="balance-fields" style="display:none">
     <label for="total_value" id="total-label">Total loan amount ({{ current_user.currency }})</label>
     <input type="number" id="total_value" name="total_value" step="0.01" min="0"
-           value="{{ payment.total_value or '' }}">
+           value="{{ payment.total_value_cents | rands }}">
     <label for="current_value" id="balance-label">Current balance owed ({{ current_user.currency }})</label>
     <input type="number" id="current_value" name="current_balance" step="0.01" min="0"
-           value="{{ payment.current_balance or '' }}">
+           value="{{ payment.current_balance_cents | rands }}">
     <label for="interest_rate" id="interest-label">Interest rate (%)</label>
     <input type="number" id="interest_rate" name="interest_rate" step="0.01" min="0"
            value="{{ payment.interest_rate or '' }}">
@@ -55,7 +56,7 @@
     <!-- both loans AND store accounts can have a monthly admin fee -->
     <label for="service_fee">Monthly service/admin fee ({{ current_user.currency }})</label>
     <input type="number" id="service_fee" name="service_fee" step="0.01" min="0"
-           value="{{ payment.service_fee or '' }}">
+           value="{{ payment.service_fee_cents | rands }}">
 
     <div id="loan-only-fields" style="display:none">
         <label for="months_remaining">Months remaining</label>
@@ -63,10 +64,10 @@
                value="{{ payment.months_remaining or '' }}">
         <label for="loan_insurance">Monthly insurance/protection ({{ current_user.currency }})</label>
         <input type="number" id="loan_insurance" name="loan_insurance" step="0.01" min="0"
-               value="{{ payment.loan_insurance or '' }}">
+               value="{{ payment.loan_insurance_cents | rands }}">
         <label for="initiation_fee">Initiation fee ({{ current_user.currency }})</label>
         <input type="number" id="initiation_fee" name="initiation_fee" step="0.01" min="0"
-               value="{{ payment.initiation_fee or '' }}">
+               value="{{ payment.initiation_fee_cents | rands }}">
     </div>
 
     <div id="credit-only-fields" style="display:none">
@@ -81,7 +82,7 @@
 
         <label for="amount" id="amount-label">Monthly payment amount ({{ current_user.currency }})</label>
         <input type="number" id="amount" name="amount" step="0.01" min="0"
-               value="{{ payment.amount }}" required>
+               value="{{ payment.amount_cents | rands }}" required>
 
         <div id="monthly-due">
             <label for="due_day">Due day of the month</label>

@@ -6,24 +6,24 @@
 
 <section class="hero">
     <p class="hero-label">Left to pay this month</p>
-    <p class="hero-amount">{{ current_user.currency }}{{ "%.2f"|format(total_unpaid) }}</p>
+    <p class="hero-amount">{{ current_user.currency }}{{ total_unpaid | money }}</p>
     <p class="hero-sub">
         {% if unpaid_count == 0 and total_unpaid <= 0 %}
             Everything's paid. Amazing work!
         {% elif unpaid_count == 0 %}
-            This month's bills are paid &mdash; {{ current_user.currency }}{{ "%.2f"|format(total_unpaid) }} carried over from before still to clear
+            This month's bills are paid &mdash; {{ current_user.currency }}{{ total_unpaid | money }} carried over from before still to clear
         {% else %}
             {{ unpaid_count }} bill{{ 's' if unpaid_count != 1 else '' }} still to pay &middot;
-            {{ current_user.currency }}{{ "%.2f"|format(total_monthly) }} total this month
+            {{ current_user.currency }}{{ total_monthly | money }} total this month
         {% endif %}
     </p>
     {% if over_budget %}
         <p class="hero-budget-warning">
-            You're {{ current_user.currency }}{{ "%.2f"|format(total_monthly - budget_limit) }} over your budget limit.
+            You're {{ current_user.currency }}{{ (total_monthly - budget_limit_cents) | money }} over your budget limit.
         </p>
-    {% elif budget_limit %}
+    {% elif budget_limit_cents %}
         <p class="hero-budget-ok">
-            {{ current_user.currency }}{{ "%.2f"|format(budget_limit - total_monthly) }} left in your budget
+            {{ current_user.currency }}{{ (budget_limit_cents - total_monthly) | money }} left in your budget
         </p>
     {% endif %}
 
@@ -40,7 +40,7 @@
 <div class="stats-row">
     <div class="stat-card">
         <div class="stat-label">Total monthly bills</div>
-        <div class="stat-value">{{ current_user.currency }}{{ "%.2f"|format(total_monthly) }}</div>
+        <div class="stat-value">{{ current_user.currency }}{{ total_monthly | money }}</div>
     </div>
     <div class="stat-card">
         <div class="stat-label">Bills paid</div>
@@ -49,12 +49,12 @@
 
     <div class="stat-card">
         <div class="stat-label">Total Income</div>
-        <div class="stat-value">{{ current_user.currency }}{{ "%.2f"|format(total_income) }}</div>
+        <div class="stat-value">{{ current_user.currency }}{{ total_income | money }}</div>
     </div>
     <div class="stat-card">
         <div class="stat-label">Remaining balance</div>
         <div class="stat-value {% if money_remaining < 0 %}stat-negative{% else %}stat-positive{% endif %}">
-            {{ current_user.currency }}{{ "%.2f"|format(money_remaining) }}
+            {{ current_user.currency }}{{ money_remaining | money }}
         </div>
     </div>
 </div>
@@ -80,6 +80,7 @@
                         {% if income.income_type == 'variable' and not income.is_confirmed %}
                             <span class="status-badge badge-soon">Unconfirmed</span>
                             <form method="POST" action="{{ url_for('confirm_income', income_id=income.id)}}" class="update-balance-form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <input type="number" name="new_amount" step="0.01" min="0"
                                        placeholder="This month's amount" required>
                                 <button type="submit" class="btn-small btn-update">Confirm</button>
@@ -87,13 +88,16 @@
                         {% endif %}
                     </div>
                     <div class="bill-right">
-                        <span class="bill-amount">{{ current_user.currency }}{{ "%.2f"|format(income.amount) }}</span>
+                        <span class="bill-amount">{{ current_user.currency }}{{ income.amount_cents | money }}</span>
                         <div class="bill-actions">
                             <a class="btn-small btn-edit"
                             href="{{ url_for('edit_income', income_id=income.id) }}">Edit</a>
-                            <a class="btn-small btn-delete"
-                            href="{{ url_for('delete_income', income_id=income.id) }}"
-                            onclick="return confirm('Delete this income source?');">Delete</a>
+                            <form method="POST" class="soft-form"
+                                  action="{{ url_for('delete_income', income_id=income.id) }}"
+                                  onsubmit="return confirm('Delete this income source?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn-small btn-delete">Delete</button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -120,8 +124,11 @@
     {% for r in reminders %}
         <div class="reminder reminder-{{ r.category }}">
             <span>{{ r.message }}</span>
-            <a class="reminder-done"
-               href="{{ url_for('mark_reminder_read', reminder_id=r.id) }}">Got it</a>
+            <form method="POST" class="soft-form"
+                  action="{{ url_for('mark_reminder_read', reminder_id=r.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="reminder-done">Got it</button>
+            </form>
         </div>
     {% endfor %}
 </section>
@@ -177,6 +184,7 @@
                             {% if not item.payment.is_confirmed %}
                                 <span class="status-badge badge-soon">Amount unconfirmed</span>
                                 <form method="POST" action="{{ url_for('confirm_bill', payment_id=item.payment.id) }}" class="update-balance-form">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="number" name="new_amount" step="0.01" min="0"
                                            placeholder="This month's amount ({{ current_user.currency }})">
                                     <button type="submit" class="btn-small btn-update">Confirm</button>
@@ -207,8 +215,8 @@
                                  each one clearing part of the monthly total -->
                             {% set week_percent = [(item.month_paid / item.month_cost * 100)|round|int, 100]|min if item.month_cost else 0 %}
                             <span class="bill-balance-label">
-                                {{ current_user.currency }}{{ "%.2f"|format(item.month_paid) }} paid of
-                                {{ current_user.currency }}{{ "%.2f"|format(item.month_cost) }} this month
+                                {{ current_user.currency }}{{ item.month_paid | money }} paid of
+                                {{ current_user.currency }}{{ item.month_cost | money }} this month
                                 &middot; {{ item.weeks_paid }} of {{ item.weeks_total }} weeks
                             </span>
                             <div class="bill-progress-bar">
@@ -221,6 +229,7 @@
                                     {% for week in range(1, item.weeks_total + 1) %}
                                         <form method="POST" class="soft-form"
                                               action="{{ url_for('toggle_week', payment_id=item.payment.id, week=week) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                             <button type="submit"
                                                     class="week-box {{ 'week-box-done' if week <= item.weeks_paid }}"
                                                     title="{{ 'Undo week' if week <= item.weeks_paid else 'Mark week' }} {{ week }}">
@@ -232,53 +241,54 @@
                             {% endif %}
                         {% endif %}
 
-                        {% if item.payment.carried_over %}
+                        {% if item.payment.carried_over_cents %}
                             <!-- money from previous months carried over -->
                             <div class="carryover-block">
-                                <span>{{ current_user.currency }}{{ "%.2f"|format(item.payment.carried_over) }} still owed from previous {{ 'weeks' if item.payment.frequency == 'weekly' else 'months' }}</span>
+                                <span>{{ current_user.currency }}{{ item.payment.carried_over_cents | money }} still owed from previous {{ 'weeks' if item.payment.frequency == 'weekly' else 'months' }}</span>
                                 <form method="POST" action="{{ url_for('clear_carryover', payment_id=item.payment.id) }}"
                                       onsubmit="return confirm('Mark the carried-over amount as paid off?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn-small btn-update">Paid off</button>
                                 </form>
                             </div>
                         {% endif %}
 
-                        {% if item.payment.bill_type in ('loan', 'credit') and item.payment.total_value %}
-                            {% set bill_balance = item.payment.current_balance or 0 %}
-                            {% set bill_total = item.payment.total_value %}
+                        {% if item.payment.bill_type in ('loan', 'credit') and item.payment.total_value_cents %}
+                            {% set bill_balance = item.payment.current_balance_cents or 0 %}
+                            {% set bill_total = item.payment.total_value_cents %}
                             {% if item.payment.bill_type == 'loan' %}
                                 {% set fill_percent = [((bill_total - bill_balance) / bill_total * 100)|round|int, 100]|min %}
-                                <span class="bill-balance-label">{{ current_user.currency }}{{ "%.2f"|format(bill_balance) }} remaining of {{ current_user.currency }}{{ "%.2f"|format(bill_total) }}</span>
+                                <span class="bill-balance-label">{{ current_user.currency }}{{ bill_balance | money }} remaining of {{ current_user.currency }}{{ bill_total | money }}</span>
                                 {% if item.payment.interest_rate %}
-                                    <span class="bill-balance-label">Interest Rate: {{ "%.2f"|format(item.payment.interest_rate) }}%</span>
+                                    <span class="bill-balance-label">Interest Rate: {{ item.payment.interest_rate | money }}%</span>
                                 {% endif %}
                                 {% if item.payment.months_remaining %}
                                     <span class="bill-balance-label">{{ item.payment.months_remaining }} month{{ 's' if item.payment.months_remaining != 1 else '' }} remaining</span>
                                 {% endif %}
                                 {# month_cost is amount x weeks for a weekly loan, plain amount otherwise #}
-                                {% set monthly_extras = (item.payment.loan_insurance or 0) + (item.payment.service_fee or 0) %}
+                                {% set monthly_extras = (item.payment.loan_insurance_cents or 0) + (item.payment.service_fee_cents or 0) %}
                                 {% if monthly_extras > 0 %}
-                                    <span class="bill-balance-label">True monthly cost: {{ current_user.currency }}{{ "%.2f"|format(item.month_cost + monthly_extras) }} (incl.{% if item.payment.loan_insurance %} {{ current_user.currency }}{{ "%.2f"|format(item.payment.loan_insurance) }} insurance{% endif %}{% if item.payment.loan_insurance and item.payment.service_fee %},{% endif %}{% if item.payment.service_fee %} {{ current_user.currency }}{{ "%.2f"|format(item.payment.service_fee) }} service fee{% endif %})</span>
+                                    <span class="bill-balance-label">True monthly cost: {{ current_user.currency }}{{ (item.month_cost + monthly_extras) | money }} (incl.{% if item.payment.loan_insurance_cents %} {{ current_user.currency }}{{ item.payment.loan_insurance_cents | money }} insurance{% endif %}{% if item.payment.loan_insurance_cents and item.payment.service_fee_cents %},{% endif %}{% if item.payment.service_fee_cents %} {{ current_user.currency }}{{ item.payment.service_fee_cents | money }} service fee{% endif %})</span>
                                 {% endif %}
-                                {% if item.payment.initiation_fee %}
-                                    <span class="bill-balance-label">Initiation fee: {{ current_user.currency }}{{ "%.2f"|format(item.payment.initiation_fee) }}</span>
+                                {% if item.payment.initiation_fee_cents %}
+                                    <span class="bill-balance-label">Initiation fee: {{ current_user.currency }}{{ item.payment.initiation_fee_cents | money }}</span>
                                 {% endif %}
                             {% else %}
                                 {% set fill_percent = [(bill_balance / bill_total * 100)|round|int, 100]|min %}
-                                <span class="bill-balance-label">{{ current_user.currency }}{{ "%.2f"|format(bill_balance) }} used of {{ current_user.currency }}{{ "%.2f"|format(bill_total) }} limit</span>
+                                <span class="bill-balance-label">{{ current_user.currency }}{{ bill_balance | money }} used of {{ current_user.currency }}{{ bill_total | money }} limit</span>
                                 {% if item.payment.interest_rate %}
-                                    <span class="bill-balance-label">Interest rate: {{ "%.2f"|format(item.payment.interest_rate) }}%</span>
+                                    <span class="bill-balance-label">Interest rate: {{ item.payment.interest_rate | money }}%</span>
                                 {% endif %}
-                                {% if item.payment.minimum_payment_percent and item.payment.current_balance %}
-                                    {% set min_payment = item.payment.current_balance * (item.payment.minimum_payment_percent / 100) %}
-                                    <span class="bill-balance-label">Min. payment due: {{ current_user.currency }}{{ "%.2f"|format(min_payment) }}</span>
+                                {% if item.payment.minimum_payment_percent and item.payment.current_balance_cents %}
+                                    {% set min_payment = (item.payment.current_balance_cents * item.payment.minimum_payment_percent / 100) | round | int %}
+                                    <span class="bill-balance-label">Min. payment due: {{ current_user.currency }}{{ min_payment | money }}</span>
                                     {% if item.payment.interest_rate %}
-                                        {% set monthly_interest = item.payment.current_balance * (item.payment.interest_rate / 100 / 12) %}
-                                        <span class="bill-balance-label">Est. monthly interest: {{ current_user.currency }}{{ "%.2f"|format(monthly_interest) }}</span>
+                                        {% set monthly_interest = (item.payment.current_balance_cents * item.payment.interest_rate / 100 / 12) | round | int %}
+                                        <span class="bill-balance-label">Est. monthly interest: {{ current_user.currency }}{{ monthly_interest | money }}</span>
                                     {% endif %}
                                 {% endif %}
-                                {% if item.payment.service_fee %}
-                                    <span class="bill-balance-label">Monthly service fee: {{ current_user.currency }}{{ "%.2f"|format(item.payment.service_fee) }}</span>
+                                {% if item.payment.service_fee_cents %}
+                                    <span class="bill-balance-label">Monthly service fee: {{ current_user.currency }}{{ item.payment.service_fee_cents | money }}</span>
                                 {% endif %}
 
                             
@@ -288,6 +298,7 @@
                                 <div class="bill-progress-fill bill-progress-{{ item.payment.bill_type }}" style="width: {{ fill_percent }}%"></div>
                             </div>
                             <form method="POST" action="{{ url_for('update_balance', payment_id=item.payment.id) }}" class="update-balance-form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <input type="number" name="new_balance" step="0.01" min="0" placeholder="Update balance ({{ current_user.currency }})" required>
                                 <button type="submit" class="btn-small btn-update">Update</button>
                             </form>
@@ -296,15 +307,16 @@
                             {% if not item.payment.is_paid and item.payment.bill_type not in ('loan', 'credit') %}
                             {% set paid_so_far = item.payment.amount_paid or 0 %}
                             {% if paid_so_far > 0 %}
-                                {% set partial_percent = [(paid_so_far / item.payment.amount * 100)|round|int, 100]|min %}
+                                {% set partial_percent = [(paid_so_far / item.payment.amount_cents * 100)|round|int, 100]|min %}
                                 <div class="bill-progress-bar">
                                     <div class="bill-progress-fill bill-progress-partial" style="width: {{ partial_percent }}%"></div>
                                 </div>
-                                <span class="bill-balance-label">{{ current_user.currency }}{{ "%.2f"|format(paid_so_far) }} paid of {{ current_user.currency }}{{ "%.2f"|format(item.payment.amount) }}</span>
+                                <span class="bill-balance-label">{{ current_user.currency }}{{ paid_so_far | money }} paid of {{ current_user.currency }}{{ item.payment.amount_cents | money }}</span>
                             {% endif %}
                             <form method="POST" action="{{ url_for('partial_pay', payment_id=item.payment.id) }}" class="update-balance-form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <input type="number" name="paid_amount" step="0.01" min="0"
-                                       max="{{ item.payment.amount }}"
+                                       max="{{ item.payment.amount_cents | rands }}"
                                        placeholder="Amount paid so far"
                                        value="{{ item.payment.amount_paid or '' }}">
                                 <button type="submit" class="btn-small btn-update">Update</button>
@@ -315,29 +327,39 @@
                     </div>
 
                     <div class="bill-right">
-                        <span class="bill-amount">{{ current_user.currency }}{{ "%.2f"|format(item.payment.amount) }}</span>
+                        <span class="bill-amount">{{ current_user.currency }}{{ item.payment.amount_cents | money }}</span>
                         <div class="bill-actions">
                             {% if item.payment.frequency == 'weekly' and item.payment.bill_type in ('loan', 'credit') %}
                                 <!-- weekly loans are ticked off weekly -->
                             {% elif item.payment.is_paid %}
-                                <a class="btn-small btn-undo"
-                                   href="{{ url_for('mark_unpaid', payment_id=item.payment.id) }}">Undo</a>
+                                <form method="POST" class="soft-form"
+                                      action="{{ url_for('mark_unpaid', payment_id=item.payment.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn-small btn-undo">Undo</button>
+                                </form>
                                 {% if item.payment.bill_type == 'once_off' %}
                                     <!-- a paid once-off -->
                                     <form method="POST" class="soft-form"
                                           action="{{ url_for('archive_payment', payment_id=item.payment.id) }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn-small btn-update">Archive</button>
                                     </form>
                                 {% endif %}
                             {% else %}
-                                <a class="btn-small btn-pay"
-                                   href="{{ url_for('mark_paid', payment_id=item.payment.id) }}">Mark paid</a>
+                                <form method="POST" class="soft-form"
+                                      action="{{ url_for('mark_paid', payment_id=item.payment.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn-small btn-pay">Mark paid</button>
+                                </form>
                             {% endif %}
                             <a class="btn-small btn-edit"
                                href="{{ url_for('edit_payment', payment_id=item.payment.id) }}">Edit</a>
-                            <a class="btn-small btn-delete"
-                               href="{{ url_for('delete_payment', payment_id=item.payment.id) }}"
-                               onclick="return confirm('Delete this bill?');">Delete</a>
+                            <form method="POST" class="soft-form"
+                                  action="{{ url_for('delete_payment', payment_id=item.payment.id) }}"
+                                  onsubmit="return confirm('Delete this bill?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn-small btn-delete">Delete</button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -368,7 +390,10 @@ billsList.querySelectorAll('.bill').forEach(bill => {
         const ids = [...billsList.querySelectorAll('.bill')].map(b => Number(b.dataset.id));
         await fetch('{{ url_for("reorder_bills") }}', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+            },
             body: JSON.stringify(ids),
         });
     });

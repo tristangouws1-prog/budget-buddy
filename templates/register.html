@@ -6,6 +6,7 @@
     <p class="form-intro">Your bills stay private to you.</p>
 
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="username">Username</label>
         <input type="text" id="username" name="username"
                placeholder="Pick a username" required autofocus>

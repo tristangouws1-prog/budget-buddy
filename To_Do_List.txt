@@ -61,6 +61,8 @@ have suffixes be incrementel when each new user makes a profile,
 #55! TODO make sure "left to pay" at top of header updates when payments are done
 #56! TODO make house larger, so that more than one buddy can be in the house, but keep only one active buddy as on every page
 
+#57! TODO visual bug where week 3 of the loan of the loan payment does not show a check marked
+#58  TODO loan weekly payments need to reduce main bills left to pay at the top of page
 
 #future TODO add a small pixel buddy that motivates the user
 # to keep up to date with their budget info

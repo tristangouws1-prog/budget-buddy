@@ -9,6 +9,7 @@
 
     {% if mine %}
         <form action="{{ url_for('equip_cosmetic', item_key=key) }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn-primary btn-shop" type="submit">
                 {{ "Put away" if mine.equipped else "Use" }}
             </button>
@@ -17,6 +18,7 @@
         <span class="shop-locked">Unlocks at Lv {{ item.min_level }}</span>
     {% else %}
         <form action="{{ url_for('buy_cosmetic', item_key=key) }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn-primary btn-shop" type="submit"
                     {% if buddy.coins < item.price %}disabled{% endif %}>
                 Buy · 🪙 {{ item.price }}
@@ -39,6 +41,7 @@
         {% else %}
             <h2>{{ buddy.name }} <span class="buddy-species-tag">the {{ buddy.species }}</span></h2>
             <form action="{{ url_for('rename_buddy') }}" method="POST" class="buddy-rename">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="text" name="name" maxlength="50" placeholder="New name" required>
                 <button class="btn-primary" type="submit">Rename</button>
             </form>
@@ -79,6 +82,7 @@
             <span class="shop-locked">Out front</span>
         {% else %}
             <form action="{{ url_for('activate_buddy', buddy_id=b.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn-primary btn-shop" type="submit">Bring out</button>
             </form>
         {% endif %}

@@ -6,6 +6,7 @@
     <p class="form-intro">Tell Budget Buddy about a regular payment so it can keep track for you.</p>
 
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="name">Short name</label>
         <input type="text" id="name" name="name"
                placeholder="e.g. Spotify, Rent, Phone" required>

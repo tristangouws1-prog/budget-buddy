@@ -31,8 +31,9 @@
         <section class="history-month">
             <div class="history-month-head">
                 <h3>{{ month.label }}</h3>
-                <span class="history-month-total">{{ current_user.currency }}{{ "%.2f"|format(month.total) }} paid</span>
+                <span class="history-month-total">{{ current_user.currency }}{{ month.total | money }} paid</span>
             </div>
+            <div class="history-scroll">
             <table class="history-table">
                 <thead>
                     <tr>
@@ -50,13 +51,14 @@
                             <td>{{ log.paid_at.strftime('%H:%M') }}</td>
                             <td>{{ log.bill_name }}</td>
                             <!-- a negative amount means a correction, e.g. fixing a typo -->
-                            <td class="history-amount {{ 'history-negative' if log.amount_paid < 0 }}">
-                                {{ current_user.currency }}{{ "%.2f"|format(log.amount_paid) }}
+                            <td class="history-amount {{ 'history-negative' if log.amount_paid_cents < 0 }}">
+                                {{ current_user.currency }}{{ log.amount_paid_cents | money }}
                             </td>
                         </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            </div>
         </section>
     {% endfor %}
 {% else %}

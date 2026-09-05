@@ -232,6 +232,8 @@ h1, h2, h3, .logo, .hero-amount {
 .reminder-overdue { background: var(--overdue-bg); border-color: var(--overdue-border); color: var(--overdue-text); }
 .reminder-soon    { background: var(--soon-bg);    border-color: var(--soon-border);    color: var(--soon-text); }
 .reminder-done {
+    font-family: inherit;
+    cursor: pointer;
     white-space: nowrap;
     background: var(--pill-bg);
     padding: 6px 14px;
@@ -413,6 +415,7 @@ h1, h2, h3, .logo, .hero-amount {
 
 .update-balance-form {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
     margin-top: 8px;
     align-items: center;
@@ -429,7 +432,7 @@ h1, h2, h3, .logo, .hero-amount {
 .btn-update { background: var(--primary-light); color: var(--primary-dark); border: 1px solid var(--border); }
 .btn-update:hover { background: var(--primary); color: #fff; }
 .bill-amount { font-family: 'Fraunces', serif; font-weight: 600; font-size: 1.15rem; }
-.bill-actions { display: flex; gap: 6px; }
+.bill-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* ── Buttons ── */
 .btn-primary {
@@ -550,8 +553,11 @@ h1, h2, h3, .logo, .hero-amount {
 }
 .history-month-head h3 { font-size: 1.1rem; }
 .history-month-total { color: var(--muted); font-weight: 700; font-size: 0.9rem; }
+/* the table scrolls sideways on a phone rather than stretching the page */
+.history-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .history-table {
     width: 100%;
+    min-width: 420px;
     border-collapse: separate;
     border-spacing: 0;
     background: var(--surface);
@@ -652,6 +658,24 @@ h1, h2, h3, .logo, .hero-amount {
 }
 
 /* ── Animations ── */
+/* after a soft refresh the content is swapped in place, so the entry
+   animations must not replay - a stagger of 0.4s + 0.3s made every tick
+   look like the page was still working */
+main[data-swapped] .hero,
+main[data-swapped] .stat-card,
+main[data-swapped] .reminder,
+main[data-swapped] .bill,
+main[data-swapped] .buddy-card,
+main[data-swapped] .flash { animation: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
 @keyframes rise {
     from { opacity: 0; transform: translateY(12px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -671,13 +695,32 @@ h1, h2, h3, .logo, .hero-amount {
 /* ── Mobile ── */
 @media (max-width: 600px) {
     .site-header { padding: 14px 16px; }
-    .container { padding: 20px 14px 60px; }
+    /* the buddy sits bottom-left, so leave room under the last card */
+    .container { padding: 20px 14px 96px; }
     .hero { padding: 26px 22px; }
     .hero-amount { font-size: 2.4rem; }
     .stats-row { grid-template-columns: 1fr; gap: 10px; }
     .bill { flex-wrap: wrap; }
     .bill-right { width: 100%; justify-content: space-between; margin-top: 8px; }
     .form-card { padding: 22px 18px; }
+
+    /* the nav wraps instead of squashing the logo */
+    .site-header { flex-wrap: wrap; gap: 8px; }
+    .site-header nav { flex-wrap: wrap; gap: 4px; }
+    .site-header nav a { padding: 7px 11px; font-size: 0.88rem; }
+
+    /* a full-width input reads better than a 170px one on a phone */
+    .update-balance-form input { width: 100%; }
+    .update-balance-form button { width: 100%; }
+
+    /* six months of bars in ~290px: smaller gaps and labels */
+    .chart { gap: 4px; }
+    .chart-bar-area { height: 120px; }
+    .chart-value { font-size: 0.62rem; }
+    .chart-label { font-size: 0.68rem; }
+
+    .section-head { flex-wrap: wrap; gap: 10px; }
+    .history-month-head { flex-wrap: wrap; gap: 4px; }
 }
 
 /* ── The Buddy ── */
@@ -933,38 +976,40 @@ body.theme-dark .buddy-egg-spot-fill rect { fill: #8f7fb0; }
     background: linear-gradient(to bottom,
         var(--welcome-bg) 0 60%, var(--neutral-bg) 60% 100%);
 }
-/* the active buddy, front and centre */
+/* everything below is a % of the room, so the furniture keeps its
+   place when the room shrinks on a phone. width % is of the room's
+   width, bottom/top % of its height */
 .room-sprite {
     position: absolute;
-    bottom: 6px;
+    bottom: 2.5%;
     left: 50%;
     transform: translateX(-50%);
-    width: 100px;
-    height: 100px;
+    width: 30.3%;
+    aspect-ratio: 1;
 }
 .room-sprite svg { width: 100%; height: 100%; animation: buddy-bob 3s ease-in-out infinite; }
 .room-egg {
     position: absolute;
-    bottom: 16px;
+    bottom: 6%;
     left: 50%;
     transform: translateX(-50%);
     font-size: 3.2rem;
 }
 /* the others lounging around. 3 and 4 stand further back, so they
    are smaller and higher up the floor */
-.room-mate { position: absolute; width: 62px; height: 62px; }
+.room-mate { position: absolute; width: 18.8%; aspect-ratio: 1; }
 .room-mate svg { width: 100%; height: 100%; }
-.room-mate-1 { bottom: 8px;  left: 60px;  transform: scaleX(-1); }
-.room-mate-2 { bottom: 8px;  right: 62px; }
-.room-mate-3 { bottom: 54px; left: 104px; width: 48px; height: 48px; transform: scaleX(-1); }
-.room-mate-4 { bottom: 54px; right: 106px; width: 48px; height: 48px; }
+.room-mate-1 { bottom: 3.3%;  left: 18.2%;  transform: scaleX(-1); }
+.room-mate-2 { bottom: 3.3%;  right: 18.8%; }
+.room-mate-3 { bottom: 22.5%; left: 31.5%;  width: 14.5%; transform: scaleX(-1); }
+.room-mate-4 { bottom: 22.5%; right: 32.1%; width: 14.5%; }
 .mate-egg { font-size: 2rem; }
 
-.room-window { position: absolute; top: 18px; left: 20px; width: 62px; }
-.room-poster { position: absolute; top: 26px; right: 24px; width: 46px; }
-.room-rug    { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); width: 180px; }
-.room-plant  { position: absolute; bottom: 14px; left: 14px; width: 38px; }
-.room-lamp   { position: absolute; bottom: 14px; right: 16px; width: 38px; }
+.room-window { position: absolute; top: 7.5%;  left: 6.1%;  width: 18.8%; }
+.room-poster { position: absolute; top: 10.8%; right: 7.3%; width: 13.9%; }
+.room-rug    { position: absolute; bottom: 1.7%; left: 50%; transform: translateX(-50%); width: 54.5%; }
+.room-plant  { position: absolute; bottom: 5.8%; left: 4.2%;  width: 11.5%; }
+.room-lamp   { position: absolute; bottom: 5.8%; right: 4.8%; width: 11.5%; }
 .buddy-info { flex: 1; min-width: 0; }
 .buddy-info h2 { margin-bottom: 8px; }
 .buddy-species-tag { font-size: 0.85rem; color: var(--muted); font-weight: 600; }

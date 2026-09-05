@@ -3,6 +3,7 @@
 Flask
 Flask-SQLAlchemy
 Flask-Login
+Flask-WTF
+Flask-Limiter
 APScheduler
 python-dotenv
-

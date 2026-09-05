@@ -6,6 +6,7 @@
     <p class="form-intro">Update this income source's details.</p>
 
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <label for="name">Name</label>
         <input type="text" id="name" name="name"
@@ -25,7 +26,7 @@
 
         <label for="amount">Expected amount (per month, or per week if weekly)</label>
         <input type="number" id="amount" name="amount" step="0.01" min="0"
-               value="{{ income.amount }}" required>
+               value="{{ income.amount_cents | rands }}" required>
 
         <button type="submit" class="btn-primary btn-block">Save changes</button>
     </form>

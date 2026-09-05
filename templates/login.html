@@ -6,6 +6,7 @@
     <p class="form-intro">Log in to see your bills and reminders.</p>
 
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="username">Username</label>
         <input type="text" id="username" name="username"
                placeholder="Your username" required autofocus>

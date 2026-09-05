@@ -11,4 +11,4 @@ acting as a body doubling friend.
 
 ## 2.  App.py
 app.py is the main file.
-app.py contains the database models(User, Payment, Income, Reminder, PaymentLog),
+

@@ -17,8 +17,11 @@
                     </div>
                 </div>
                 {% if not r.is_read %}
-                    <a class="reminder-done"
-                       href="{{ url_for('mark_reminder_read', reminder_id=r.id) }}">Got it</a>
+                    <form method="POST" class="soft-form"
+                          action="{{ url_for('mark_reminder_read', reminder_id=r.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="reminder-done">Got it</button>
+                    </form>
                 {% endif %}
             </div>
         {% endfor %}

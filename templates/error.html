@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="form-card">
+    <h2>{{ code }}</h2>
+    <p class="form-intro">{{ message }}</p>
+    <a class="back-link" href="{{ url_for('dashboard') }}">&larr; Back to home</a>
+</section>
+
+{% endblock %}

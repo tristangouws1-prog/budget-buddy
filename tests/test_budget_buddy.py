@@ -15,6 +15,14 @@ import app as bb
 
 bb.app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
 bb.app.config["TESTING"] = True
+#the test client has no browser to carry a csrf token, and the login
+#limiter would trip on repeated test logins
+bb.app.config["WTF_CSRF_ENABLED"] = False
+bb.app.config["RATELIMIT_ENABLED"] = False
+bb.limiter.enabled = False
+#belt and braces: TESTING already stops send_email touching the network,
+#and this proves no test ever slips a real message out
+assert not bb.sent_emails
 del bb.app.extensions["sqlalchemy"]
 bb.db.init_app(bb.app)
 
@@ -79,10 +87,10 @@ def test_buddy_appears_and_reacts():
     with bb.app.app_context():
         for p in bb.Payment.query.all():
             p.is_paid = True
-            p.amount_paid = p.amount
+            p.amount_paid_cents = p.amount_cents
         bb.db.session.commit()
     bill = add_bill(client, "Spotify", 99.99)
-    client.get(f"/pay/{bill}")
+    client.post(f"/pay/{bill}")
     assert "buddy-mood-happy" in client.get("/").get_data(as_text=True)
     check("everything paid makes the buddy happy")
 
@@ -105,21 +113,21 @@ def test_levels_and_xp_cannot_be_farmed():
 
     bill = add_bill(client, "Gym", 200)
     assert buddy().xp == 15
-    client.get(f"/pay/{bill}")
+    client.post(f"/pay/{bill}")
     assert buddy().xp == 30
     for _ in range(5):
-        client.get(f"/unpaid/{bill}")
-        client.get(f"/pay/{bill}")
+        client.post(f"/unpaid/{bill}")
+        client.post(f"/pay/{bill}")
     assert buddy().xp == 30, "paying and un-paying must never farm xp"
     check("add +10, pay +15, and no farming by re-paying")
 
-    client.get(f"/unpaid/{bill}")
+    client.post(f"/unpaid/{bill}")
     assert buddy().xp == 15, "undo takes the payment xp back"
     check("undo returns the xp and coins")
 
     with bb.app.app_context():
         p = bb.db.session.get(bb.Payment, bill)
-        p.carried_over = 120.0
+        p.carried_over_cents = 12000
         bb.db.session.commit()
     before = buddy().xp
     client.post(f"/carryover_paid/{bill}")
@@ -284,6 +292,61 @@ def test_the_house():
     check("you cannot bring out someone else's buddy")
 
 
+def test_reminders_are_built_but_never_posted():
+    client = fresh()
+    add_bill(client, "Wifi", 500, day=1)
+    before = len(bb.sent_emails)
+    bb.create_monthly_reminders()
+    with bb.app.app_context():
+        assert bb.Reminder.query.count() > 0, "the monthly job should write reminders"
+    #the job still assembles the message, it just never reaches a mail server
+    assert len(bb.sent_emails) > before, "the email path should still be exercised"
+    assert all("@" in e["to"] for e in bb.sent_emails)
+    check(f"the monthly job wrote reminders and queued "
+          f"{len(bb.sent_emails) - before} email(s) without sending")
+
+
+# ---------- money
+def test_money_is_exact_integer_cents():
+    #the whole point: no float can hold 41.67, so cents are stored instead
+    assert bb.parse_cents("41.67") == 4167
+    assert bb.parse_cents("0.1") + bb.parse_cents("0.2") == bb.parse_cents("0.3")
+    assert bb.parse_cents("199,99") == 19999, "comma decimals still accepted"
+    assert bb.parse_cents("") is None and bb.parse_cents(None) is None
+    assert bb.money(4167) == "41.67" and bb.money(0) == "0.00"
+    assert bb.money(None) == "0.00", "a missing amount shows as zero, not a crash"
+    assert bb.rands(4167) == "41.67" and bb.rands(None) == ""
+    check("rands parse to exact cents and format back")
+
+    client = fresh()
+    bill = add_bill(client, "Odd", 41.67, day=1, freq="weekly")
+    with bb.app.app_context():
+        p = bb.db.session.get(bb.Payment, bill)
+        assert isinstance(p.amount_cents, int) and p.amount_cents == 4167
+        weeks = bb.weeks_in_month(p)
+        #weeks of 41.67 must total exactly, which floats got wrong
+        assert bb.month_obligation(p) == 4167 * weeks
+    check(f"41.67 stored as 4167 cents, {weeks} weeks = {4167 * weeks} cents exactly")
+
+    for w in range(1, weeks + 1):
+        client.post(f"/week/{bill}/{w}")
+    with bb.app.app_context():
+        bb.db.session.expire_all()
+        p = bb.db.session.get(bb.Payment, bill)
+        assert bb.remaining_this_month(p) == 0, "every week must clear exactly"
+        assert bb.weeks_paid_this_month(p) == weeks
+    check("paying every week clears the month to exactly zero")
+
+    #percentages are not money and stay fractional
+    with bb.app.app_context():
+        p = bb.db.session.get(bb.Payment, bill)
+        p.interest_rate = 12.5
+        bb.db.session.commit()
+        assert bb.db.session.get(bb.Payment, bill).interest_rate == 12.5
+    assert bb.percent_of(4100000, 12.5 / 12) == 42708
+    check("percentages stay fractional; interest rounds to whole cents")
+
+
 # ---------------- billing
 def test_weekly_bills_cost_the_whole_month():
     client = fresh()
@@ -291,15 +354,15 @@ def test_weekly_bills_cost_the_whole_month():
     with bb.app.app_context():
         p = bb.db.session.get(bb.Payment, bill)
         weeks = bb.weeks_in_month(p)
-        assert bb.month_obligation(p) == 100 * weeks
-        assert bb.remaining_this_month(p) == 100 * weeks
+        assert bb.month_obligation(p) == 10000 * weeks   # cents
+        assert bb.remaining_this_month(p) == 10000 * weeks
     check(f"a weekly bill costs {weeks} weeks, not the 4.33 average")
 
-    client.get(f"/pay/{bill}")
+    client.post(f"/pay/{bill}")
     with bb.app.app_context():
         bb.db.session.expire_all()
         p = bb.db.session.get(bb.Payment, bill)
-        assert bb.remaining_this_month(p) == 100 * (weeks - 1)
+        assert bb.remaining_this_month(p) == 10000 * (weeks - 1)
         assert bb.weeks_paid_this_month(p) == 1
     check("marking a week paid clears exactly one week")
 
@@ -308,8 +371,8 @@ def test_weekly_bills_cost_the_whole_month():
         bb.db.session.expire_all()
         p = bb.db.session.get(bb.Payment, bill)
         assert not p.is_paid, "Monday makes it tickable again"
-        assert not p.carried_over, "a missed week must not become debt mid-month"
-        assert bb.remaining_this_month(p) == 100 * (weeks - 1)
+        assert not p.carried_over_cents, "a missed week must not become debt mid-month"
+        assert bb.remaining_this_month(p) == 10000 * (weeks - 1)
     check("the Monday reset keeps the month's arithmetic intact")
 
     html = client.get("/").get_data(as_text=True)
@@ -325,13 +388,13 @@ def test_month_end_carries_the_shortfall_over():
         p = bb.db.session.get(bb.Payment, bill)
         owed = bb.month_obligation(p, year, month)
         bb.db.session.add(bb.PaymentLog(
-            bill_name="Transport", amount_paid=50, payment_id=bill,
+            bill_name="Transport", amount_paid_cents=5000, payment_id=bill,
             user_id=p.user_id, paid_at=datetime.datetime(year, month, 15)))
         bb.db.session.commit()
     bb.create_monthly_reminders()
     with bb.app.app_context():
         bb.db.session.expire_all()
-        assert bb.db.session.get(bb.Payment, bill).carried_over == round(owed - 50, 2)
+        assert bb.db.session.get(bb.Payment, bill).carried_over_cents == owed - 5000
     check("an unpaid week rolls over when the month closes")
 
 
@@ -343,7 +406,7 @@ def test_once_off_bills_persist_then_archive():
     with bb.app.app_context():
         bb.db.session.expire_all()
         p = bb.db.session.get(bb.Payment, bill)
-        assert not p.is_paid and not p.carried_over, \
+        assert not p.is_paid and not p.carried_over_cents, \
             "an unpaid once-off must be left completely alone"
     check("the monthly reset skips once-off bills")
 
@@ -351,7 +414,7 @@ def test_once_off_bills_persist_then_archive():
     assert "Only paid once-off" in html
     check("an unpaid once-off cannot be archived")
 
-    client.get(f"/pay/{bill}")
+    client.post(f"/pay/{bill}")
     bb.create_monthly_reminders()
     with bb.app.app_context():
         bb.db.session.expire_all()
@@ -374,7 +437,7 @@ def test_paying_ticks_off_reminders():
         bb.db.session.add(bb.Reminder(message="Weekly Check in! Anything new?",
                                       category="weekly", user_id=uid))
         bb.db.session.commit()
-    client.get(f"/pay/{bill}")
+    client.post(f"/pay/{bill}")
     with bb.app.app_context():
         read = {r.category: r.is_read for r in bb.Reminder.query.all()}
     assert read["overdue"] and read["monthly"], "the bill's reminders should tick"
@@ -388,6 +451,38 @@ def test_page_updates_without_a_reload():
     assert "softRefresh" in html and 'cache: "no-store"' in html, \
         "the totals go stale if the browser is allowed to cache the page"
     check("the soft reload never serves a cached page")
+
+    assert "main.dataset.swapped" in html, \
+        "swapped content must be flagged so entry animations don't replay"
+    check("a swapped page does not replay its entry animations")
+
+
+def test_the_page_paints_without_waiting():
+    import re
+    client = fresh()
+    html = client.get("/").get_data(as_text=True)
+    #google fonts used to block the first paint entirely
+    assert 'media="print"' in html, "the webfont must not block the first paint"
+    assert "<noscript>" in html, "and must still load without javascript"
+    check("webfonts load without blocking the first paint")
+
+    #a year-long cache is only safe if the url changes when the file does
+    url = re.search(r'href="(/static/style\.css[^"]*)"', html).group(1)
+    assert re.search(r"\?v=\d+", url), "the stylesheet url must carry a version"
+    assert "max-age=31536000" in client.get(url).headers.get("Cache-Control", "")
+    check("stylesheet cached for a year, busted by a version stamp")
+
+
+def test_a_bad_weekly_day_does_not_break_the_page():
+    #a bill switched from monthly to weekly can still hold a day of the month
+    client = fresh()
+    with bb.app.app_context():
+        uid = bb.User.query.first().id
+        bb.db.session.add(bb.Payment(name="Switched", amount_cents=5000,
+                                     due_day=28, frequency="weekly", user_id=uid))
+        bb.db.session.commit()
+    assert client.get("/").status_code == 200, "day 28 on a weekly bill must not 500"
+    check("an out-of-range weekly day is clamped, not crashed on")
 
 
 # ----------- dev account
