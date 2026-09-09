@@ -7,6 +7,7 @@ Regression tests for Budget Buddy.
 """
 import datetime
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -662,7 +663,59 @@ def test_page_updates_without_a_reload():
 
     assert "main.dataset.swapped" in html, \
         "swapped content must be flagged so entry animations don't replay"
+    #the flag has to be on the incoming page too, or a block that gets
+    #replaced outright arrives without it and animates in
+    assert "newMain.dataset.swapped" in html
     check("a swapped page does not replay its entry animations")
+
+    #only the parts that changed are touched, so the page doesn't blink
+    assert "function morph" in html and "isEqualNode" in html, \
+        "an unchanged element must be left alone, not replaced"
+    assert "main.innerHTML = newMain.innerHTML" not in html, \
+        "replacing all of main is what made a click feel like a page reload"
+    check("only the changed parts of the page are swapped")
+
+    #the POST must not quietly load the page it redirects to
+    assert 'redirect: "manual"' in html, \
+        "following the redirect renders the page twice and eats the flash"
+    check("one round trip per click, not two")
+
+    #the flash message survives to the page the user actually sees
+    bill = add_bill(client, "Rent", 500, day=5)
+    client.post(f"/pay/{bill}")                 # redirect NOT followed
+    assert "is paid" in client.get("/").get_data(as_text=True), \
+        "the confirmation was being swallowed by the hidden redirect"
+    check("the confirmation message reaches the user")
+
+    #the flash space is always in the page, so nothing shifts when one appears
+    assert "flash-area" in client.get("/").get_data(as_text=True)
+    check("a flash appearing doesn't shift the whole page down")
+
+    #dragging is delegated, so a bill swapped in by a refresh still drags
+    dragging = client.get("/?sort=custom").get_data(as_text=True)
+    assert "billDragBound" in dragging and "closest('.bill')" in dragging, \
+        "per-bill listeners are lost when a bill is swapped in"
+    check("drag and drop survives a soft refresh")
+
+
+def test_the_buddy_holds_its_tongue():
+    """ The speech bubble re-rolled its message on every single page load,
+    so it changed and re-popped on every click """
+    client = fresh()
+    bill = add_bill(client, "Rent", 500, day=5)
+
+    def bubble():
+        html = client.get("/").get_data(as_text=True)
+        return re.search(r'class="buddy-bubble">(.*?)</div>', html, re.S).group(1).strip()
+
+    said = {bubble() for _ in range(10)}
+    assert len(said) == 1, f"the buddy changed its line {len(said)} times doing nothing"
+    check("the buddy says the same thing until something changes")
+
+    before = bubble()
+    client.post(f"/pay/{bill}")
+    assert bubble() != before, "paying the last bill should cheer it up"
+    check("it does speak up when the bills actually change")
 
 
 def test_the_page_paints_without_waiting():

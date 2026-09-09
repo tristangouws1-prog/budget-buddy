@@ -768,6 +768,15 @@ SLOT_LABELS = {
 WEARABLE_SLOTS = ("hat", "accessory")
 
 
+def buddy_says(mood, user, about=""):
+    """ Pick one of the buddy's lines for this mood.
+    Picked from a seed rather than at random, so the buddy keeps saying the
+    same thing until something actually changes. A fresh line on every page
+    load made the speech bubble jump about on every click """
+    seed = f"{user.id}:{mood}:{about}:{datetime.date.today()}"
+    return random.Random(seed).choice(BUDDY_MESSAGES[mood])
+
+
 def buddy_mood(user):
     """ How the buddy feels about the bills, returns (mood, message) """
     payments = Payment.query.filter_by(user_id=user.id).all()
@@ -776,13 +785,13 @@ def buddy_mood(user):
                if get_status(p) == "overdue" or weeks_behind(p)]
     if overdue:
         mood = "worried"
-        message = random.choice(BUDDY_MESSAGES["worried"]).format(bill=overdue[0].name)
+        message = buddy_says(mood, user, overdue[0].name).format(bill=overdue[0].name)
     elif payments and all(p.is_paid for p in payments):
         mood = "happy"
-        message = random.choice(BUDDY_MESSAGES["happy"])
+        message = buddy_says(mood, user)
     else:
         mood = "neutral"
-        message = random.choice(BUDDY_MESSAGES["neutral"])
+        message = buddy_says(mood, user)
     return mood, message
 
 

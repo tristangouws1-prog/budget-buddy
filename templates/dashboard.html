@@ -394,18 +394,27 @@
 {% if sort_by == 'custom' and payments_with_status %}
 <script>
 //drag and drop reordering: pick a bill up, drop it somewhere new,
-//and the order is saved straight away
-const billsList = document.getElementById('bills-list');
-let dragged = null;
+//and the order is saved straight away.
+//the listeners sit on the document and find the list when they fire, so a
+//bill swapped in by a soft refresh can still be dragged. bound once, or a
+//second refresh would save the new order twice
+if (!window.billDragBound) {
+    window.billDragBound = true;
+    let dragged = null;
+    const list = () => document.getElementById('bills-list');
 
-billsList.querySelectorAll('.bill').forEach(bill => {
-    bill.addEventListener('dragstart', () => {
+    document.addEventListener('dragstart', event => {
+        const bill = event.target.closest && event.target.closest('.bill');
+        if (!bill || !list()) return;
         dragged = bill;
         bill.classList.add('dragging');
     });
-    bill.addEventListener('dragend', async () => {
+
+    document.addEventListener('dragend', async event => {
+        const bill = event.target.closest && event.target.closest('.bill');
+        if (!bill || !list()) return;
         bill.classList.remove('dragging');
-        const ids = [...billsList.querySelectorAll('.bill')].map(b => Number(b.dataset.id));
+        const ids = [...list().querySelectorAll('.bill')].map(b => Number(b.dataset.id));
         await fetch('{{ url_for("reorder_bills") }}', {
             method: 'POST',
             headers: {
@@ -415,17 +424,19 @@ billsList.querySelectorAll('.bill').forEach(bill => {
             body: JSON.stringify(ids),
         });
     });
-});
 
-billsList.addEventListener('dragover', event => {
-    event.preventDefault();
-    const target = [...billsList.querySelectorAll('.bill:not(.dragging)')].find(b => {
-        const box = b.getBoundingClientRect();
-        return event.clientY < box.top + box.height / 2;
+    document.addEventListener('dragover', event => {
+        const billsList = list();
+        if (!billsList || !dragged || !billsList.contains(event.target)) return;
+        event.preventDefault();
+        const target = [...billsList.querySelectorAll('.bill:not(.dragging)')].find(b => {
+            const box = b.getBoundingClientRect();
+            return event.clientY < box.top + box.height / 2;
+        });
+        if (target) billsList.insertBefore(dragged, target);
+        else billsList.appendChild(dragged);
     });
-    if (target) billsList.insertBefore(dragged, target);
-    else billsList.appendChild(dragged);
-});
+}
 </script>
 {% endif %}
 

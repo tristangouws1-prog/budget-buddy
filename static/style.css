@@ -692,6 +692,9 @@ h1, h2, h3, .logo, .hero-amount {
 }
 
 /* ── Animations ── */
+/* a button that has been clicked and is waiting on the server */
+.is-working { opacity: 0.55; pointer-events: none; }
+
 /* after a soft refresh the content is swapped in place, so the entry
    animations must not replay - a stagger of 0.4s + 0.3s made every tick
    look like the page was still working */
