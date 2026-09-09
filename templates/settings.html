@@ -52,6 +52,18 @@
         <button class="btn-primary btn-block" type="submit">Save Settings</button>
 
     </form>
+
+    <!-- send one real email so the reminder wording can be checked (#31) -->
+    <form method="POST" action="{{ url_for('send_test_email') }}" class="test-email-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <p class="form-hint">
+            Not sure the reminders are reaching you? This sends one real email
+            to {{ current_user.email or 'your address' }} showing what they say,
+            using your own bills. It doesn't add anything to your reminders.
+        </p>
+        <button class="btn-small btn-update" type="submit">Send me a test reminder email</button>
+    </form>
+
     <a class="back-link" href="{{ url_for('dashboard') }}">&larr; Back to home</a>
 
 </section>

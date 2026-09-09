@@ -348,6 +348,68 @@ def test_money_is_exact_integer_cents():
 
 
 # ---------------- billing
+def test_weekly_loan_traffic_lights():
+    """ A loan paid weekly is red while nothing is paid, amber part way
+    through the month, and green only once every week is ticked off """
+    client = fresh()
+    #due on today's weekday, so at least one week is always already due
+    today_weekday = datetime.date.today().weekday() + 1
+    loan = add_bill(client, "Weekly loan", 250, day=today_weekday,
+                    kind="loan", freq="weekly",
+                    total_value=60000, current_balance=42000)
+    with bb.app.app_context():
+        p = bb.db.session.get(bb.Payment, loan)
+        weeks = bb.weeks_in_month(p)
+        assert bb.get_status(p) == "overdue", "an untouched weekly loan is red"
+    html = client.get("/").get_data(as_text=True)
+    assert "bill-overdue" in html
+    check(f"nothing paid -> red, {weeks} weeks still owing")
+
+    client.post(f"/week/{loan}/1")
+    with bb.app.app_context():
+        bb.db.session.expire_all()
+        p = bb.db.session.get(bb.Payment, loan)
+        assert bb.get_status(p) == "partial", "one week paid is amber, not green"
+    html = client.get("/").get_data(as_text=True)
+    assert "bill-partial" in html and "part paid" in html
+    assert f"1 of {weeks} week" in html
+    check("week 1 paid, the rest waiting -> amber")
+
+    #every week but the last still reads amber, never green
+    for w in range(2, weeks):
+        client.post(f"/week/{loan}/{w}")
+        with bb.app.app_context():
+            bb.db.session.expire_all()
+            assert bb.get_status(bb.db.session.get(bb.Payment, loan)) == "partial",                 f"week {w} of {weeks} must still be amber"
+    check(f"still amber all the way to week {weeks - 1}")
+
+    client.post(f"/week/{loan}/{weeks}")
+    with bb.app.app_context():
+        bb.db.session.expire_all()
+        p = bb.db.session.get(bb.Payment, loan)
+        assert bb.get_status(p) == "paid", "every week paid is green"
+        assert bb.remaining_this_month(p) == 0
+        assert not bb.weeks_behind(p), "nothing is outstanding once it is green"
+    html = client.get("/").get_data(as_text=True)
+    assert "bill-paid" in html and "bill-partial" not in html
+    check("every week paid -> green, nothing left owing this month")
+
+    #unticking the last week takes it back to amber, not straight to red
+    client.post(f"/week/{loan}/{weeks}")
+    with bb.app.app_context():
+        bb.db.session.expire_all()
+        assert bb.get_status(bb.db.session.get(bb.Payment, loan)) == "partial"
+    check("undoing the last week goes back to amber")
+
+    #an ordinary weekly bill is untouched by any of this
+    plain = add_bill(client, "Groceries", 100, day=today_weekday, freq="weekly")
+    client.post(f"/pay/{plain}")
+    with bb.app.app_context():
+        bb.db.session.expire_all()
+        assert bb.get_status(bb.db.session.get(bb.Payment, plain)) == "paid",             "Mark paid on a plain weekly bill still reads green"
+    check("plain weekly bills keep the old Mark paid behaviour")
+
+
 def test_weekly_bills_cost_the_whole_month():
     client = fresh()
     bill = add_bill(client, "Groceries", 100, day=1, freq="weekly")
@@ -396,6 +458,152 @@ def test_month_end_carries_the_shortfall_over():
         bb.db.session.expire_all()
         assert bb.db.session.get(bb.Payment, bill).carried_over_cents == owed - 5000
     check("an unpaid week rolls over when the month closes")
+
+
+def test_part_paid_bar_and_the_carryover_divider():
+    """ #2 - a bill's own progress bar, with a dark divider where the debt
+    carried over from earlier months begins """
+    client = fresh()
+    bill = add_bill(client, "Water", 400, day=10, kind="variable")
+
+    #a partial payment must show on the bar. this used to read a field the
+    #model doesn't have (amount_paid), so the bar never appeared at all
+    client.post(f"/partial_pay/{bill}", data={"paid_amount": "100"})
+    html = client.get("/").get_data(as_text=True)
+    with bb.app.app_context():
+        p = bb.db.session.get(bb.Payment, bill)
+        assert p.amount_paid_cents == 10000 and not p.is_paid
+    assert "bill-progress-fill" in html, "a part paid bill must show its bar"
+    assert "R100.00 paid of R400.00" in html
+    assert 'value="100.00"' in html, "the box should remember what was paid"
+    assert "bill-progress-divider" not in html, "no old debt, so no divider yet"
+    check("a partial payment fills the bill's own progress bar")
+
+    #now give it debt from an earlier month
+    with bb.app.app_context():
+        p = bb.db.session.get(bb.Payment, bill)
+        p.carried_over_cents = 40000        # R400 from before
+        bb.db.session.commit()
+    html = client.get("/").get_data(as_text=True)
+    assert "bill-progress-divider" in html and "bill-progress-carried" in html
+    #R400 this month + R400 carried = the divider sits halfway along the bar
+    assert "left: 50.0%" in html, "the divider marks where this month ends"
+    #R100 of the R800 total is paid, so the fill is an eighth of the whole bar
+    assert 'style="width: 12%"' in html, "the fill is a share of everything owed"
+    check("carried over debt gets its own part of the bar, divided off")
+
+    #paying the old debt off takes the divider away again
+    client.post(f"/carryover_paid/{bill}")
+    html = client.get("/").get_data(as_text=True)
+    assert "bill-progress-divider" not in html
+    check("clearing the old debt removes the divider")
+
+    #and a weekly bill's bar works the same way
+    weekly = add_bill(client, "Petrol", 100, day=1, freq="weekly")
+    with bb.app.app_context():
+        p = bb.db.session.get(bb.Payment, weekly)
+        p.carried_over_cents = 10000
+        bb.db.session.commit()
+        month = bb.month_obligation(p)
+    client.post(f"/pay/{weekly}")
+    html = client.get("/").get_data(as_text=True)
+    assert html.count("bill-progress-divider") == 1
+    with bb.app.app_context():
+        p = bb.db.session.get(bb.Payment, weekly)
+        assert bb.paid_towards_this_month(p) == 10000, "one week of the month"
+        assert bb.paid_towards_this_month(p) <= month, "never more than the month owes"
+    check("a weekly bill shows the same divider for its older weeks")
+
+
+def test_the_reminder_messages_say_the_right_thing():
+    """ #31 - the exact wording of every reminder, and the email it goes out in """
+    client = fresh()
+    with bb.app.app_context():
+        user = bb.User.query.first()
+        user.email_reminders = True
+        bb.db.session.commit()
+
+    #a bill that is already overdue, with a description on it
+    client.post("/add", data={"name": "Rent", "description": "the flat",
+                              "amount": "5500", "due_day": "1",
+                              "bill_type": "fixed", "frequency": "monthly"},
+                follow_redirects=True)
+    with bb.app.app_context():
+        user = bb.User.query.first()
+        p = bb.Payment.query.filter_by(name="Rent").first()
+        overdue = bb.overdue_message(p, user)
+        soon = bb.due_soon_message(p, user)
+        monthly = bb.monthly_message(p, user)
+
+        assert overdue.startswith("'Rent' (R5500.00) is overdue!"), overdue
+        assert "the flat" in overdue, "the bill's description must reach the message"
+        assert "1st" in overdue, "the due day is written 1st, not 1"
+        assert "R550000" not in overdue, "cents must never be printed raw"
+        assert "'Rent' (R5500.00)" in soon and "the flat" in soon
+        assert monthly.startswith("Monthly reminder: 'Rent' (R5500.00)")
+    check("every message names the bill, its real amount and its description")
+
+    #the summary line used to print cents as rands - R550000.00 for one bill
+    with bb.app.app_context():
+        user = bb.User.query.first()
+        payments = bb.Payment.query.all()
+        summary = bb.monthly_summary_message(payments, user)
+        assert "R5500.00" in summary, summary
+        assert "R550000" not in summary, "the month total was printed in cents"
+    check("the monthly total reads R5500.00, not R550000.00")
+
+    #a variable bill asks to be confirmed, in the user's own currency
+    with bb.app.app_context():
+        user = bb.User.query.first()
+        user.currency = "$"
+        bb.db.session.commit()
+    client.post("/add", data={"name": "Electricity", "description": "",
+                              "amount": "700", "due_day": "20",
+                              "bill_type": "variable", "frequency": "monthly"},
+                follow_redirects=True)
+    with bb.app.app_context():
+        user = bb.User.query.first()
+        p = bb.Payment.query.filter_by(name="Electricity").first()
+        assert bb.confirm_amount_message(p, user).startswith(
+            "Has the amount for 'Electricity' been updated this month? It's currently $700.00")
+    check("the currency setting is used, not a hard coded R")
+
+    #the real job writes those same words, and emails them
+    before = len(bb.sent_emails)
+    bb.create_monthly_reminders()
+    with bb.app.app_context():
+        messages = [r.message for r in bb.Reminder.query.all()]
+    assert any(m.startswith("Monthly reminder: 'Rent'") for m in messages)
+    assert len(bb.sent_emails) > before, "the reminders should be emailed too"
+    body = bb.sent_emails[-1]["body"]
+    assert all(m in body for m in messages if "Rent" in m), \
+        "every reminder must appear in the email, word for word"
+    assert "the flat" in body, "the description has to survive into the email"
+    check("the scheduled job writes and emails exactly those messages")
+
+    #the test email button: one real send, showing every wording
+    before = len(bb.sent_emails)
+    client.post("/settings/test-email", follow_redirects=True)
+    assert len(bb.sent_emails) == before + 1, "the button must send one email"
+    test_mail = bb.sent_emails[-1]
+    assert test_mail["to"] == EMAIL
+    assert test_mail["subject"] == "Budget Buddy test reminder"
+    for phrase in ("is overdue!", "is due", "Monthly reminder:",
+                   "Has the amount for", "Weekly Check in!", "New month!"):
+        assert phrase in test_mail["body"], f"the test email is missing {phrase!r}"
+    with bb.app.app_context():
+        count = bb.Reminder.query.count()
+    client.post("/settings/test-email", follow_redirects=True)
+    with bb.app.app_context():
+        assert bb.Reminder.query.count() == count, \
+            "a test email must not add real reminders"
+    check("the settings button sends one real email with every wording in it")
+
+    #no bills, no confusing empty email
+    empty = fresh()
+    empty.post("/settings/test-email", follow_redirects=True)
+    assert "no bills yet" in bb.sent_emails[-1]["body"]
+    check("with no bills the test email says so instead of arriving blank")
 
 
 def test_once_off_bills_persist_then_archive():

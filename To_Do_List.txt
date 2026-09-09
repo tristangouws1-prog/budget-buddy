@@ -1,49 +1,49 @@
-#1!  TODO the box that says Welcome to Budget Buddy is currently green, make it a pastel blue
-#2!  TODO add a partial payment amount option instead of just "paid", add a progress bar for each individual bill as well, with a small dark divider between if the unpaid part comes from a previous month
-#3!  TODO add a category called once off bills
-#4!  TODO add logic that adds st rd or th to the end of of the due day
-#5!  TODO add a settings menu where colour scheme can be changed
-#6!  TODO add different payment modes(e.g. spotify is paid from airtime, WiFi bill is paid from debit card etc)
-#7!  TODO add currency option
-#8!  TODO split date and time into separate columns
-#9!  TODO add on the dashboard how much the total bill cost is
+!  #1!  TODO the box that says Welcome to Budget Buddy is currently green, make it a pastel blue
+!  #2!  TODO add a partial payment amount option instead of just "paid", add a progress bar for each individual bill as well, with a small dark divider between if the unpaid part comes from a previous month
+!  #3!  TODO add a category called once off bills
+!  #4!  TODO add logic that adds st rd or th to the end of of the due day
+!  #5!  TODO add a settings menu where colour scheme can be changed
+!  #6!  TODO add different payment modes(e.g. spotify is paid from airtime, WiFi bill is paid from debit card etc)
+!  #7!  TODO add currency option
+!  #8!  TODO split date and time into separate columns
+!  #9!  TODO add on the dashboard how much the total bill cost is
 #10  TODO offline version that can run anywhere, mobile,pc,laptop etc
-#11! TODO: Currencies
-#12! TODO double check what happens with months that have 30 days vs 31 vs 28 or 29
-#13! TODO payment history
-#14! TODO add a progress bar and stuff for payments that are not just a fixed amount.
-#15! TODO something like aaq store account that has a store credit of R10 000, a payment per month that is R500
-#16! TODO vs a loan that is a fixed amount that is just paid down.
-#17! TODO for loan category add a question for rent % and months remaining and loan insurance so a more accurate budget can be made
-#18! TODO Edit bill
-#19! TODO Bill sorting / filtering — filter by status (overdue only, etc.) or sort by amount
-#20! TODO Monthly spending history — a simple chart showing total spend over the last 6 months
-#21! TODO Budget limit — let users set a monthly budget cap; warn them in the hero if they're over
-#22! TODO Dark mode — pairs well with TODO #5 (settings menu)
-#23! TODO loans need to have a catagory for service fees, loan insurance and rent % so that can auto update, then there needs to be a reminder that tells the user to make sure the amount shown is correct
-#24! TODO add income as a category so income vs budget vs actual use can be compared
-#25! TODO add a category for non permanent work like freelance work, which will also receive a weekly or monthly reminder that asks for the income or if it has changed
-#26! TODO readme for CS50
-#27! TODO 2 minute app walkthrough
-#28! TODO loan category: add fields for total months remaining, interest rate (%), loan initiation fee, and monthly insurance so that a truly accurate monthly cost and payoff timeline can be displayed
-#29! TODO store/credit account category: add fields for interest rate (%), minimum payment percentage, and credit limit so that the true minimum payment and interest charged can be calculated and displayed accurately
-#30! TODO deploy app online via PythonAnywhere (free tier) so it can be accessed from any device without VS Code — user accounts, bills, and income data all persist as normal with SQLite
-#31! TODO test the reminder messages
-#32! TODO add email as a reminders mesage option
-#33! TODO spending history table
-#34! TODO spending history chart
-#35! TODO make sure the optional description part of the bill is also sent to the email
+!  #11! TODO: Currencies
+!  #12! TODO double check what happens with months that have 30 days vs 31 vs 28 or 29
+!  #13! TODO payment history
+!  #14! TODO add a progress bar and stuff for payments that are not just a fixed amount.
+!  #15! TODO something like aaq store account that has a store credit of R10 000, a payment per month that is R500
+!  #16! TODO vs a loan that is a fixed amount that is just paid down.
+!  #17! TODO for loan category add a question for rent % and months remaining and loan insurance so a more accurate budget can be made
+!  #18! TODO Edit bill
+!  #19! TODO Bill sorting / filtering — filter by status (overdue only, etc.) or sort by amount
+!  #20! TODO Monthly spending history — a simple chart showing total spend over the last 6 months
+!  #21! TODO Budget limit — let users set a monthly budget cap; warn them in the hero if they're over
+!  #22! TODO Dark mode — pairs well with TODO #5 (settings menu)
+!  #23! TODO loans need to have a catagory for service fees, loan insurance and rent % so that can auto update, then there needs to be a reminder that tells the user to make sure the amount shown is correct
+!  #24! TODO add income as a category so income vs budget vs actual use can be compared
+!  #25! TODO add a category for non permanent work like freelance work, which will also receive a weekly or monthly reminder that asks for the income or if it has changed
+!  #26! TODO readme for CS50
+!  #27! TODO 2 minute app walkthrough
+!  #28! TODO loan category: add fields for total months remaining, interest rate (%), loan initiation fee, and monthly insurance so that a truly accurate monthly cost and payoff timeline can be displayed
+!  #29! TODO store/credit account category: add fields for interest rate (%), minimum payment percentage, and credit limit so that the true minimum payment and interest charged can be calculated and displayed accurately
+!  #30! TODO deploy app online via PythonAnywhere (free tier) so it can be accessed from any device without VS Code — user accounts, bills, and income data all persist as normal with SQLite
+!  #31! TODO test the reminder messages
+!  #32! TODO add email as a reminders mesage option
+!  #33! TODO spending history table
+!  #34! TODO spending history chart
+!  #35! TODO make sure the optional description part of the bill is also sent to the email
 #36  TODO have bbudget buddy be installable and run on any device as an .exe file, or a web link?
 #37! TODO show password as it is typed
-#38! TODO implement a forgot password function
-#39! TODO implemenet a function that shows if a previous month's bill was paid or not, which shows a buildup of bills
-#40! TODO add variable bill type such as water and electricity
-#41! TODO add debit order as a payment type
-#42! TODO add a way to handle weekly debit orders, plus weekly income
-#44! TODO ensure the loan catagory automatically adds the loan % rent assurance and admin fee at the begginning of each month
-#45! TODO find out why it keeps saving numbbers wrongly
-#47! TODO mannually reorder drag and drop maybe? way to put certain bills next too each other
-#48! TODO Add service fee part to store accounts
+!  #38! TODO implement a forgot password function
+!  #39! TODO implemenet a function that shows if a previous month's bill was paid or not, which shows a buildup of bills
+!  #40! TODO add variable bill type such as water and electricity
+!  #41! TODO add debit order as a payment type
+!  #42! TODO add a way to handle weekly debit orders, plus weekly income
+!  #44! TODO ensure the loan catagory automatically adds the loan % rent assurance and admin fee at the begginning of each month
+!  #45! TODO find out why it keeps saving numbbers wrongly
+!  #47! TODO mannually reorder drag and drop maybe? way to put certain bills next too each other
+!  #48! TODO Add service fee part to store accounts
 
 
 #49  TODO Allow for multiple of the same "Username" but only one profile per email account, 
@@ -52,17 +52,19 @@ or give each username a unique suffix that can be seen in the settings Tab, that
 "David" and "David" but the second david ACTUALLYYYYY looks like this "David#1234"
 have suffixes be incrementel when each new user makes a profile,
 
-#50! TODO make that one time paymennts dont reset monthly and stay on until you have markedd them as paid, and then they can be "Archived"
-#51! TODO undo button for paid bills, that also subtracts the buddy xp gained for it
-#52! TODO Make that when a check is clicked the whole page doesnt reloadd each time,
-#53! TODO Update that when a payment is made, all reminders related to it are "checked"
+!  #50! TODO make that one time paymennts dont reset monthly and stay on until you have markedd them as paid, and then they can be "Archived"
+!  #51! TODO undo button for paid bills, that also subtracts the buddy xp gained for it
+!  #52! TODO Make that when a check is clicked the whole page doesnt reloadd each time,
+!  #53! TODO Update that when a payment is made, all reminders related to it are "checked"
 
-#54! TODO weekly payment optionn that subtracts from monthly total
-#55! TODO make sure "left to pay" at top of header updates when payments are done
-#56! TODO make house larger, so that more than one buddy can be in the house, but keep only one active buddy as on every page
+!  #54! TODO weekly payment optionn that subtracts from monthly total
+!  #55! TODO make sure "left to pay" at top of header updates when payments are done
+!  #56! TODO make house larger, so that more than one buddy can be in the house, but keep only one active buddy as on every page
 
-#57! TODO visual bug where week 3 of the loan of the loan payment does not show a check marked
-#58  TODO loan weekly payments need to reduce main bills left to pay at the top of page
+!  #57! TODO visual bug where week 3 of the loan of the loan payment does not show a check marked
+!  #58  TODO loan weekly payments need to reduce main bills left to pay at the top of page
+
+#59  TODO Add a page where normal reminders can also be added, such as "remember to pick up prescription next wednesday"
 
 #future TODO add a small pixel buddy that motivates the user
 # to keep up to date with their budget info

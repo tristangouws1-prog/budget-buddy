@@ -4,6 +4,26 @@
 {% set paid_count = payments_with_status | selectattr('status', 'equalto', 'paid') | list | length %}
 {% set total_count = payments_with_status | length %}
 
+{#  One bill's progress bar (#2). The bar is everything owed on the bill:
+    this month's cost first, then anything carried over from earlier months,
+    with a small dark divider marking where the old debt starts.  #}
+{% macro owed_bar(paid, month_cost, carried, kind='partial') %}
+    {% set total = month_cost + carried %}
+    {% if total > 0 %}
+        <div class="bill-progress-bar">
+            <div class="bill-progress-fill bill-progress-{{ kind }}"
+                 style="width: {{ [(paid / total * 100) | round | int, 100] | min }}%"></div>
+            {% if carried > 0 %}
+                {# where this month ends and the older debt begins #}
+                {% set boundary = (month_cost / total * 100) | round(2) %}
+                <div class="bill-progress-carried" style="left: {{ boundary }}%"
+                     title="Still owed from earlier"></div>
+                <div class="bill-progress-divider" style="left: {{ boundary }}%"></div>
+            {% endif %}
+        </div>
+    {% endif %}
+{% endmacro %}
+
 <section class="hero">
     <p class="hero-label">Left to pay this month</p>
     <p class="hero-amount">{{ current_user.currency }}{{ total_unpaid | money }}</p>
@@ -140,6 +160,7 @@
         <a href="{{ url_for('dashboard', filter='all', sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'all' }}">All</a>
         <a href="{{ url_for('dashboard', filter='overdue', sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'overdue' }}">Overdue</a>
         <a href="{{ url_for('dashboard', filter='soon',    sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'soon' }}">Due soon</a>
+        <a href="{{ url_for('dashboard', filter='partial', sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'partial' }}">Part paid</a>
         <a href="{{ url_for('dashboard', filter='paid',    sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'paid' }}">Paid</a>
 
         <span class="filter-divider">Sort:</span>
@@ -194,10 +215,13 @@
 
                         <span class="bill-meta">
                             <span class="status-badge badge-{{ item.status }}">
-                                {{ item.status }}
+                                {{ 'part paid' if item.status == 'partial' else item.status }}
                             </span>
                             {% if item.payment.frequency == 'weekly' %}Due every {{ item.payment.due_day | weekday_name }}{% else %}Due {{ item.payment.due_day | ordinal }}{% endif %} &middot;
-                            {% if item.status == 'paid' %}
+                            {% if item.by_week %}
+                                {# a weekly loan is measured over the whole month, not this one week #}
+                                {{ item.weeks_paid }} of {{ item.weeks_total }} week{{ 's' if item.weeks_total != 1 else '' }} paid
+                            {% elif item.status == 'paid' %}
                                 Paid this month
                             {% elif item.status == 'overdue' %}
                                 {{ (-item.days_left) }} day{{ 's' if item.days_left != -1 else '' }} overdue
@@ -213,17 +237,14 @@
                         {% if item.payment.frequency == 'weekly' %}
                             <!-- weekly bills tick off a week at a time,
                                  each one clearing part of the monthly total -->
-                            {% set week_percent = [(item.month_paid / item.month_cost * 100)|round|int, 100]|min if item.month_cost else 0 %}
                             <span class="bill-balance-label">
                                 {{ current_user.currency }}{{ item.month_paid | money }} paid of
                                 {{ current_user.currency }}{{ item.month_cost | money }} this month
                                 &middot; {{ item.weeks_paid }} of {{ item.weeks_total }} weeks
                             </span>
-                            <div class="bill-progress-bar">
-                                <div class="bill-progress-fill bill-progress-partial" style="width: {{ week_percent }}%"></div>
-                            </div>
+                            {{ owed_bar(item.paid_so_far, item.month_cost, item.carried) }}
 
-                            {% if item.payment.bill_type in ('loan', 'credit') %}
+                            {% if item.by_week %}
                                 <!-- one box per week the loan is due, ticked off as it's paid -->
                                 <div class="week-toggles">
                                     {% for week in range(1, item.weeks_total + 1) %}
@@ -305,12 +326,9 @@
                         {% endif %}
 
                             {% if not item.payment.is_paid and item.payment.bill_type not in ('loan', 'credit') %}
-                            {% set paid_so_far = item.payment.amount_paid or 0 %}
-                            {% if paid_so_far > 0 %}
-                                {% set partial_percent = [(paid_so_far / item.payment.amount_cents * 100)|round|int, 100]|min %}
-                                <div class="bill-progress-bar">
-                                    <div class="bill-progress-fill bill-progress-partial" style="width: {{ partial_percent }}%"></div>
-                                </div>
+                            {% set paid_so_far = item.payment.amount_paid_cents or 0 %}
+                            {% if paid_so_far > 0 or item.carried > 0 %}
+                                {{ owed_bar(paid_so_far, item.payment.amount_cents, item.carried) }}
                                 <span class="bill-balance-label">{{ current_user.currency }}{{ paid_so_far | money }} paid of {{ current_user.currency }}{{ item.payment.amount_cents | money }}</span>
                             {% endif %}
                             <form method="POST" action="{{ url_for('partial_pay', payment_id=item.payment.id) }}" class="update-balance-form">
@@ -318,7 +336,7 @@
                                 <input type="number" name="paid_amount" step="0.01" min="0"
                                        max="{{ item.payment.amount_cents | rands }}"
                                        placeholder="Amount paid so far"
-                                       value="{{ item.payment.amount_paid or '' }}">
+                                       value="{{ item.payment.amount_paid_cents | rands }}">
                                 <button type="submit" class="btn-small btn-update">Update</button>
                             </form>
                         {% endif %}
@@ -329,7 +347,7 @@
                     <div class="bill-right">
                         <span class="bill-amount">{{ current_user.currency }}{{ item.payment.amount_cents | money }}</span>
                         <div class="bill-actions">
-                            {% if item.payment.frequency == 'weekly' and item.payment.bill_type in ('loan', 'credit') %}
+                            {% if item.by_week %}
                                 <!-- weekly loans are ticked off weekly -->
                             {% elif item.payment.is_paid %}
                                 <form method="POST" class="soft-form"

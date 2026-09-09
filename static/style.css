@@ -309,6 +309,8 @@ h1, h2, h3, .logo, .hero-amount {
 .bill-paid     { border-left-color: var(--paid-text);    background: var(--paid-bg); }
 .bill-overdue  { border-left-color: var(--overdue-text); background: var(--overdue-bg); }
 .bill-soon     { border-left-color: var(--soon-text);    background: var(--soon-bg); }
+/* part way through a weekly loan: some weeks paid, some still waiting */
+.bill-partial  { border-left-color: var(--soon-text);    background: var(--soon-bg); }
 .bill-upcoming { border-left-color: var(--primary); }
 
 .bill-main { flex: 1; min-width: 0; }
@@ -341,6 +343,7 @@ h1, h2, h3, .logo, .hero-amount {
 .badge-paid     { background: var(--paid-border);    color: var(--paid-text); }
 .badge-overdue  { background: var(--overdue-border); color: var(--overdue-text); }
 .badge-soon     { background: var(--soon-border);    color: var(--soon-text); }
+.badge-partial  { background: var(--soon-border);    color: var(--soon-text); }
 .badge-upcoming { background: var(--upcoming-border); color: var(--info-text); }
 
 .bill-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
@@ -354,6 +357,29 @@ h1, h2, h3, .logo, .hero-amount {
     border-radius: 999px;
     height: 5px;
     overflow: hidden;
+    /* the carried-over part and its divider are placed along the bar */
+    position: relative;
+}
+
+/* debt from earlier months sits at the end of the bar, in a duller shade,
+   with a small dark divider showing where this month stops (#2) */
+.bill-progress-carried {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    background: var(--overdue-border);
+}
+.bill-progress-divider {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    margin-left: -1px;
+    /* --ink is the dark text colour, and flips light on the dark theme so
+       the divider still shows up against the bar */
+    background: var(--ink);
+    opacity: 0.75;
 }
 .bill-progress-fill {
     height: 100%;
@@ -485,6 +511,14 @@ h1, h2, h3, .logo, .hero-amount {
 .form-intro { color: var(--muted); margin-bottom: 24px; font-size: 0.95rem; }
 
 .form-hint { font-size: 0.82rem; color: var(--muted); margin-top: 4px; }
+
+/* the "send me a test reminder email" block, under the settings form */
+.test-email-form {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+.test-email-form .form-hint { margin-bottom: 8px; }
 
 .form-card label {
     display: block;

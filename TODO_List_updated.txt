@@ -1,0 +1,140 @@
+#===========================================================================#
+#                   BUDGET BUDDY - TO DO LIST (UPDATED)
+#   [x] done   [~] partly done, note says what is left   [ ] still to do
+#                      last checked: 5 September 2026
+#
+#   The original To_Do_List.txt is left exactly as it was - this is the
+#   same list, checked against the code and sorted by what is finished.
+#===========================================================================#
+
+
+#--------------------------- DONE --------------------------#
+
+[x] #1!  the box that says Welcome to Budget Buddy is currently green, make it a pastel blue
+         (the dashboard hero is the pastel card now, and the whole palette is themeable)
+[x] #2!  add a partial payment amount option instead of just "paid", add a progress bar for each
+         individual bill as well, with a small dark divider between if the unpaid part comes from
+         a previous month
+         (the bar is now the whole of what a bill owes - this month first, then the carried over
+          part after a small dark divider. also fixed the bar never showing: the page was reading
+          amount_paid, a field the model does not have)
+[x] #3!  add a category called once off bills
+[x] #4!  add logic that adds st rd or th to the end of of the due day
+[x] #5!  add a settings menu where colour scheme can be changed
+[x] #6!  add different payment modes(e.g. spotify is paid from airtime, WiFi bill is paid from debit card etc)
+[x] #7!  add currency option
+[x] #8!  split date and time into separate columns  (payment history has a Date and a Time column)
+[x] #9!  add on the dashboard how much the total bill cost is
+[x] #11! Currencies
+[x] #12! double check what happens with months that have 30 days vs 31 vs 28 or 29
+[x] #13! payment history
+[x] #14! add a progress bar and stuff for payments that are not just a fixed amount
+[x] #15! something like aaq store account that has a store credit of R10 000, a payment per month that is R500
+[x] #16! vs a loan that is a fixed amount that is just paid down
+[x] #17! for loan category add a question for rent % and months remaining and loan insurance
+[x] #18! Edit bill
+[x] #19! Bill sorting / filtering - filter by status (overdue only, etc.) or sort by amount
+[x] #20! Monthly spending history - a simple chart showing total spend over the last 6 months
+[x] #21! Budget limit - let users set a monthly budget cap; warn them in the hero if they're over
+[x] #22! Dark mode - pairs well with TODO #5 (settings menu)
+[x] #23! loans need a category for service fees, loan insurance and rent % so that can auto update,
+         then a reminder that tells the user to make sure the amount shown is correct
+[x] #24! add income as a category so income vs budget vs actual use can be compared
+[x] #25! add a category for non permanent work like freelance work, which also gets a weekly or
+         monthly reminder that asks for the income or if it has changed
+[x] #26! readme for CS50
+[x] #27! 2 minute app walkthrough
+[x] #28! loan category: total months remaining, interest rate (%), initiation fee, monthly insurance
+[x] #29! store/credit account: interest rate (%), minimum payment percentage, and credit limit
+[x] #30! deploy app online via PythonAnywhere (free tier) so it can be accessed from any device
+         without VS Code - user accounts, bills, and income data all persist as normal with SQLite
+[x] #31! test the reminder messages
+         (every wording lives in one place now and is asserted word for word, and Settings has a
+          "Send me a test reminder email" button that really sends one so it can be read in an inbox)
+[x] #32! add email as a reminders message option
+[x] #33! spending history table
+[x] #34! spending history chart
+[x] #35! make sure the optional description part of the bill is also sent to the email
+[x] #38! implement a forgot password function
+[x] #39! implement a function that shows if a previous month's bill was paid or not,
+         which shows a buildup of bills  (carried over amount, added by the month end job)
+[x] #40! add variable bill type such as water and electricity
+[x] #41! add debit order as a payment type
+[x] #42! add a way to handle weekly debit orders, plus weekly income
+[x] #44! ensure the loan category automatically adds the loan %, insurance and admin fee at the
+         beginning of each month  (the month end job grows the balance and asks you to check it)
+[x] #45! find out why it keeps saving numbers wrongly  (money is whole cents now, never a float)
+[x] #47! manually reorder drag and drop, way to put certain bills next to each other  (sort = "My order")
+[x] #48! Add service fee part to store accounts
+[x] #50! make that one time payments dont reset monthly and stay on until you have marked them
+         as paid, and then they can be "Archived"
+[x] #51! undo button for paid bills, that also subtracts the buddy xp gained for it
+[x] #52! Make that when a check is clicked the whole page doesnt reload each time
+         (soft-form + softRefresh() swaps the page contents instead)
+[x] #53! Update that when a payment is made, all reminders related to it are "checked"
+[x] #54! weekly payment option that subtracts from monthly total
+[x] #55! make sure "left to pay" at top of header updates when payments are done
+[x] #56! make house larger, so that more than one buddy can be in the house, but keep only
+         one active buddy as on every page
+[x] #57! visual bug where week 3 of the loan payment does not show a check marked
+         (was integer division on odd amounts like 41.67, fixed and covered by a test)
+[x] #58  loan weekly payments need to reduce main bills left to pay at the top of page
+[x] #60! a loan paid weekly must read RED while no week is paid, AMBER once the first week is paid
+         but the rest are still waiting, and GREEN only when every week of the month is done
+         (new "partial" status, its own amber card and "part paid" badge, a Part paid filter,
+          and the buddy / overdue reminders count the weeks still outstanding)
+
+[x] webpage that houses all currently hatched buddies, cute poses on furniture, and where the
+    displayed buddy can be chosen  (the /buddy page is the house: housemates lounge in the room,
+    "Bring out" picks who's displayed, new eggs arrive at levels 3/5/7/10, up to 4 buddies)
+
+
+#----------------------- STILL TO DO -----------------------#
+
+[ ] #10  offline version that can run anywhere, mobile, pc, laptop etc
+[ ] #36  have budget buddy be installable and run on any device as an .exe file, or a web link?
+         (#30 is live now, so the web link half of this may already be covered)
+[ ] #37! show password as it is typed
+[ ] #49  Allow for multiple of the same "Username" but only one profile per email account,
+         make sure each username is linked to that corresponding email it was registered to with a
+         "hash"? or "pointer"? or give each username a unique suffix that can be seen in the
+         settings Tab, that way the username may look the same e.g. "David" and "David" but the
+         second david ACTUALLYYYYY looks like this "David#1234"
+         have suffixes be incremental when each new user makes a profile
+         (right now a second "David" is simply refused at registration)
+[ ] #59  Add a page where normal reminders can also be added, such as
+         "remember to pick up prescription next wednesday"
+
+
+#--------------------- NEW, STILL TO DO --------------------#
+
+[ ] #61! give plain weekly bills (groceries, weekly debit orders) the same week boxes the weekly
+         loans have, so they get the red / amber / green treatment too - right now they have one
+         "Mark paid" button that only clears one week and resets every Monday
+[ ] #62! a weekly loan can only be paid a whole week at a time, add a part of a week amount for
+         when only some of that week's instalment went through
+[ ] #63! carry the red / amber / green over to the payment history page so a whole month can be
+         read at a glance
+[ ] #64! the overdue reminder now says how many weeks of a loan are unpaid - read that wording
+         in a real email and make sure it doesn't sound clumsy
+[ ] #65! now that the app is deployed (#30), check the scheduler actually fires on the host -
+         the daily / weekly / monthly reminder jobs, and the emails that go with them
+
+
+#--------------------------- IDEAS -------------------------#
+
+#future TODO add a small pixel buddy that motivates the user
+# to keep up to date with their budget info
+#after that include an egg hatching system to get new buddies
+#paying bills and registering bills and daily check ins grant xp
+#which can be used to get cosmetics for your buddy as they level up
+#no need to worry about even more money problems
+#can make a house for buddy that can be decorated
+#buddy will appear and live on left side of screen
+#(all of this is built now - the buddy, the eggs, the xp, the shop and the house)
+
+
+#---------------|||||||||||||||||||||||||||||---------------#
+                     README.md  - done
+                ~2 minute video walkthrough  - done
+#---------------|||||||||||||||||||||||||||||---------------#

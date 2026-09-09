@@ -476,6 +476,22 @@ def weeks_in_month(payment, year=None, month=None):
                if datetime.date(year, month, d).weekday() == wanted)
 
 
+def weeks_due_so_far(payment, year=None, month=None):
+    """ How many of this month's due weekdays have already come around.
+    A weekly bill owes nothing until its first due day arrives, so this is
+    what says whether an unpaid week is really late """
+    today = datetime.date.today()
+    year = year or today.year
+    month = month or today.month
+    last_day = calendar.monthrange(year, month)[1]
+    #only count up to today when we're looking at the month we're in
+    if (year, month) == (today.year, today.month):
+        last_day = min(last_day, today.day)
+    wanted = max(1, min(int(payment.due_day or 1), 7)) - 1
+    return sum(1 for d in range(1, last_day + 1)
+               if datetime.date(year, month, d).weekday() == wanted)
+
+
 def month_obligation(payment, year=None, month=None):
     """ What a bill costs over one whole month.
     A weekly bill costs its amount once per due-weekday, so ticking off one
@@ -529,6 +545,19 @@ def remaining_this_month(payment, paid=None):
     return payment.amount_cents - (payment.amount_paid_cents or 0)
 
 
+def paid_towards_this_month(payment, paid=None):
+    """ What has gone towards this month's cost, never more than the month
+    itself owes. Carried over debt is money from earlier months, so it is
+    kept out of this and drawn as its own part of the bar """
+    if payment.frequency == "weekly":
+        if paid is None:
+            paid = paid_in_month(payment)
+        return min(paid, month_obligation(payment))
+    if payment.is_paid:
+        return payment.amount_cents
+    return min(payment.amount_paid_cents or 0, payment.amount_cents)
+
+
 def weeks_paid_this_month(payment, paid=None):
     """ How many of this month's weeks are paid off so far """
     if payment.frequency != "weekly" or not payment.amount_cents:
@@ -538,27 +567,111 @@ def weeks_paid_this_month(payment, paid=None):
     return paid // payment.amount_cents
 
 
+def pays_by_week(payment):
+    """ True for the bills that are ticked off one week at a time, the
+    weekly loans and store accounts with the little week boxes on them """
+    return (payment.frequency == "weekly"
+            and payment.bill_type in ("loan", "credit")
+            and bool(payment.amount_cents))
+
+
+def weeks_behind(payment, paid=None):
+    """ Due weeks that have come and gone without being ticked off """
+    if not pays_by_week(payment):
+        return 0
+    return max(0, weeks_due_so_far(payment) - weeks_paid_this_month(payment, paid))
+
+
 def week_xp_key(payment, week, month=None):
     """ The one-award-per-week key for ticking a weekly loan off """
     month = month or datetime.date.today().strftime("%Y-%m")
     return f"loanweek:{payment.id}:{month}:{week}"
 
 
-def get_status(payment):
+#-----------------------------------------------------------------------------#
+#--------REMINDER WORDING - written once here, used by the jobs, the----------#
+#--------"send me a test email" button and the tests (#31)--------------------#
+#-----------------------------------------------------------------------------#
+
+def overdue_message(payment, user):
+    """ "'Rent' (R500.00) is overdue! ..." """
+    behind = weeks_behind(payment)
+    #a part paid weekly loan says how much of the month is still outstanding
+    weeks_note = (f" {behind} week{'s' if behind != 1 else ''} of it "
+                  f"{'are' if behind != 1 else 'is'} unpaid.") if behind else ""
+    return (f"'{payment.name}' ({user.currency}{money(payment.amount_cents)}) is overdue! "
+            f"Was due on {due_phrase(payment)}{description_note(payment)}{weeks_note}")
+
+
+def due_soon_message(payment, user):
+    """ "'Rent' (R500.00) is due in 3 days, Friday 8 May 2026" """
+    days = days_left_for(payment)
+    #"in 0 days" reads badly, so say "today" instead
+    if days == 0:
+        timing = "is due today"
+    else:
+        timing = f"is due in {days} day{'s' if days != 1 else ''}"
+    return (f"'{payment.name}' ({user.currency}{money(payment.amount_cents)}) {timing}, "
+            f"{due_date_text(payment)}{description_note(payment)}")
+
+
+def monthly_message(payment, user):
+    """ The start-of-month "here's what's coming" line """
+    return (f"Monthly reminder: '{payment.name}' ({user.currency}{money(payment.amount_cents)}) "
+            f"is due on {due_phrase(payment)}{description_note(payment)}")
+
+
+def monthly_summary_message(payments, user):
+    """ The one-line summary at the start of a new month.
+    month_obligation is in CENTS, so it goes through money() like every other
+    amount - printing it raw was showing R100000.00 for a R1000.00 month """
+    total = sum(month_obligation(p) for p in payments)
+    return (f"New month! You have {len(payments)} bills totalling "
+            f"{user.currency}{money(total)} to stay on top of. You've got this!")
+
+
+def confirm_amount_message(payment, user):
+    """ Variable bills (water, electricity) whose amount changes every month """
+    return (f"Has the amount for '{payment.name}' been updated this month? "
+            f"It's currently {user.currency}{money(payment.amount_cents)} - confirm it on the dashboard.")
+
+
+def get_status(payment, paid=None):
     """
     Return a status WORD for a bill
     Colour coded
     "paid"     -> (green)
+    "partial"  -> (amber)
     "overdue"  -> (soft red)
     "soon"     -> (amber)
     "upcoming" -> (neutral)
 
+    `paid` is how much has been paid towards it this month, passed in by the
+    dashboard so a weekly bill doesn't need its own query
     """
+
+    #weekly bills are judged on the month as a whole, so a loan paid a week
+    #at a time reads red while nothing is paid, amber part way through and
+    #green only once every week of the month is done
+    if pays_by_week(payment):
+        total_weeks = weeks_in_month(payment)
+        done = weeks_paid_this_month(payment, paid)
+        if done >= total_weeks:
+            return "paid"
+        if done > 0:
+            return "partial"
+        #nothing paid: late as soon as the first due day has gone by
+        if weeks_due_so_far(payment) > 0:
+            return "overdue"
+        days = days_until_due_weekly(payment.due_day, payment.is_paid)
+        if days <= 2:
+            return "soon"
+        return "upcoming"
 
     if payment.is_paid:
         return "paid"
 
-    #weekly bills 
+    #other weekly bills are still judged a week at a time
     if payment.frequency == "weekly":
         days = days_until_due_weekly(payment.due_day, payment.is_paid)
         if days < 0:
@@ -658,7 +771,9 @@ WEARABLE_SLOTS = ("hat", "accessory")
 def buddy_mood(user):
     """ How the buddy feels about the bills, returns (mood, message) """
     payments = Payment.query.filter_by(user_id=user.id).all()
-    overdue = [p for p in payments if get_status(p) == "overdue"]
+    #a weekly loan with an unpaid week counts as overdue to the buddy too
+    overdue = [p for p in payments
+               if get_status(p) == "overdue" or weeks_behind(p)]
     if overdue:
         mood = "worried"
         message = random.choice(BUDDY_MESSAGES["worried"]).format(bill=overdue[0].name)
@@ -849,6 +964,35 @@ def send_email(to_address, subject, body):
     except Exception as e:
         #print instead of raising, so one bad email doesn't stop the others
         print(f"Email failed for {to_address}: {e}")
+
+
+def sample_reminder_lines(user):
+    """ One of every reminder wording, built from the user's own bills, so a
+    test email shows exactly what a real one will say (#31).
+    Nothing here is saved - these lines never become real reminders """
+    payments = (Payment.query.filter_by(user_id=user.id)
+                .filter(Payment.is_archived != True)
+                .order_by(Payment.due_day).all())
+    if not payments:
+        return ["You have no bills yet, so there is nothing to remind you about. "
+                "Add one and send this test again to see the real wording."]
+
+    lines = []
+    #the two that depend on where the bill is in its cycle
+    overdue = next((p for p in payments
+                    if get_status(p) == "overdue" or weeks_behind(p)), None)
+    soon = next((p for p in payments if get_status(p) == "soon"), None)
+    lines.append(overdue_message(overdue or payments[0], user))
+    lines.append(due_soon_message(soon or payments[0], user))
+    #and the two that go out on a schedule whatever the bill is doing
+    lines.append(monthly_message(payments[0], user))
+    variable = next((p for p in payments if p.bill_type == "variable"), None)
+    if variable:
+        lines.append(confirm_amount_message(variable, user))
+    lines.append("Weekly Check in! Have you added any new bills or subscriptions "
+                 "this week? Click on + to add")
+    lines.append(monthly_summary_message(payments, user))
+    return lines
 
 
 def email_unread_reminders(user, subject):
@@ -1128,14 +1272,22 @@ def dashboard():
         paid = paid_map.get(p.id, 0)
         payments_with_status.append({
             "payment": p,
-            "status": get_status(p),
+            "status": get_status(p, paid),
             "days_left": days_left_for(p),
+            #a weekly loan is ticked off week by week, so it reads red until
+            #the first week is paid, amber part way, green once the month is done
+            "by_week": pays_by_week(p),
             #what it costs for the whole month and how far through it we are,
             #weekly bills get ticked off a week at a time
             "month_cost": month_obligation(p),
             "month_paid": paid if p.frequency == "weekly" else None,
             "weeks_total": weeks_in_month(p) if p.frequency == "weekly" else None,
             "weeks_paid": weeks_paid_this_month(p, paid),
+            #for the progress bar: what's gone towards THIS month, and what
+            #is still hanging over from earlier ones. the bar draws the two
+            #with a dark divider between them (#2)
+            "paid_so_far": paid_towards_this_month(p, paid),
+            "carried": p.carried_over_cents or 0,
         })
 
     #filter
@@ -1445,6 +1597,28 @@ def settings():
         flash("Settings saved", "success")
         return redirect(url_for("settings"))
     return render_template("settings.html")
+
+@app.route("/settings/test-email", methods=["POST"])
+@login_required
+@limiter.limit("3 per hour")
+def send_test_email():
+    """ Send one real email with a sample of every reminder wording, so the
+    messages can be checked in an actual inbox and not just in a test (#31).
+    Rate limited because it really does go out over SMTP """
+    if not current_user.email:
+        flash("Add an email address first, then send the test.", "warning")
+        return redirect(url_for("settings"))
+
+    body = ("This is a test from Budget Buddy - it shows what your reminders "
+            "look like, using your own bills. Nothing here has been added to "
+            "your reminders.\n\n")
+    body += "\n".join(f"- {line}" for line in sample_reminder_lines(current_user))
+    body += "\n\nIf this email looks right, your reminders will too."
+    send_email(current_user.email, "Budget Buddy test reminder", body)
+    flash(f"Test email sent to {current_user.email}. "
+          "If it doesn't arrive, check your spam folder.", "success")
+    return redirect(url_for("settings"))
+
 
 def get_owned_payment_or_404(payment_id):
     """ Fetch a bill by id but ONLY if it belongs to the logged-in user.
@@ -1876,8 +2050,7 @@ def create_weekly_reminder():
             for p in user_payments:
                 if p.bill_type == "variable" and not p.is_confirmed:
                     db.session.add(Reminder(
-                        message=(f"Has the amount for '{p.name}' been updated this month? "
-                                 f"It's currently {user.currency}{money(p.amount_cents)} - confirm it on the dashboard."),
+                        message=confirm_amount_message(p, user),
                         category="weekly",
                         payment_id=p.id,
                         user_id=user.id,
@@ -1886,22 +2059,17 @@ def create_weekly_reminder():
             #remind about overdue and upcoming bills
             for p in user_payments:
                 status = get_status(p)
-                if status == "overdue":
+                #a part paid weekly loan still nags while a week is outstanding
+                if status == "overdue" or weeks_behind(p):
                     db.session.add(Reminder(
-                        message=f"'{p.name}' ({user.currency}{money(p.amount_cents)}) is overdue! Was due on {due_phrase(p)}{description_note(p)}",
+                        message=overdue_message(p, user),
                         category="overdue",
                         payment_id=p.id,
                         user_id=user.id,
                     ))
                 elif status == "soon":
-                    days = days_until_due(p.due_day, p.is_paid)
-                    #"in 0 days" reads badly, so say "today" instead
-                    if days == 0:
-                        timing = "is due today"
-                    else:
-                        timing = f"is due in {days} day{'s' if days != 1 else ''}"
                     db.session.add(Reminder(
-                        message=f"'{p.name}' ({user.currency}{money(p.amount_cents)}) {timing}, {due_date_text(p)}{description_note(p)}",
+                        message=due_soon_message(p, user),
                         category="soon",
                         payment_id=p.id,
                         user_id=user.id,
@@ -1990,7 +2158,7 @@ def create_monthly_reminders():
             # create a reminder for each bill
             for p in payments:
                 db.session.add(Reminder(
-                    message=(f"Monthly reminder: '{p.name}' ({user.currency}{money(p.amount_cents)}) is due on {due_phrase(p)}{description_note(p)}"),
+                    message=monthly_message(p, user),
                     category="monthly",
                     payment_id=p.id,
                     user_id=user.id,
@@ -1998,9 +2166,8 @@ def create_monthly_reminders():
 
             #add a reminder that gives a summary of the monthly bills (if there are bills)
             if payments:
-                total = sum(month_obligation(p) for p in payments)
                 db.session.add(Reminder(
-                    message=(f"New month! You have {len(payments)} bills totalling {user.currency}{total:.2f} to stay on top of. You've got this!"),
+                    message=monthly_summary_message(payments, user),
                     category="monthly",
                     user_id=user.id,
                 ))
