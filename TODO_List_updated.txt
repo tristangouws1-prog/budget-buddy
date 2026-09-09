@@ -84,6 +84,28 @@
          (new "partial" status, its own amber card and "part paid" badge, a Part paid filter,
           and the buddy / overdue reminders count the weeks still outstanding)
 
+[x] #66! a weekly loan saved with a day of the MONTH (e.g. "the 15th") raised IndexError deep in
+         due_phrase and aborted BOTH reminder jobs, so nobody got reminders at all
+         (the day is clamped when saved and again when read, so old rows are safe too, and each
+          account now runs on its own - a broken one is logged and skipped, everyone else is fine)
+[x] #67! clicking "Got it" or "Mark paid" felt like a full page reload
+         (the POST no longer follows its redirect, so one round trip instead of two and the
+          confirmation message survives; only the changed parts of the page are swapped instead of
+          all of it; and the buddy holds its line instead of re-rolling and re-popping every click)
+[x] #68! every page cost a database query per weekly loan - even Settings, which shows no bills
+         (the buddy shares the bills and totals the page already loaded, through a per-request
+          cache. 30 loans was 39 queries on the dashboard and 35 on Settings; both are flat now,
+          7 and 5, and a test fails if that ever creeps back)
+[x] #69! the payment history loaded every row ever recorded - 11 queries and 415ms at 10 000 rows
+         (100 rows a page with older/newer links, and the six month chart is one grouped query
+          instead of one per month: 4 queries, 4ms)
+[x] #70! dragging a bill to reorder ran one query per bill - 61 queries and 54ms for 30 bills
+         (all of them fetched in one go instead: 3 queries, 5ms)
+[x] #71! smaller ones found in the same audit: the daily check-in queried the database on every
+         single page load (now remembered in the session), the stylesheet was stat-ed on every
+         request (read once at startup), and counting a bill's weeks built a date object for all
+         28-31 days of the month (arithmetic now, checked identical for every month 2024-2028)
+
 [x] webpage that houses all currently hatched buddies, cute poses on furniture, and where the
     displayed buddy can be chosen  (the /buddy page is the house: housemates lounge in the room,
     "Bring out" picks who's displayed, new eggs arrive at levels 3/5/7/10, up to 4 buddies)
@@ -119,6 +141,11 @@
          in a real email and make sure it doesn't sound clumsy
 [ ] #65! now that the app is deployed (#30), check the scheduler actually fires on the host -
          the daily / weekly / monthly reminder jobs, and the emails that go with them
+         (more worth doing than ever: the jobs no longer die on one bad account, but nothing has
+          confirmed they run at all on a free tier that recycles its workers)
+[ ] #72! the monthly close-off still totals LAST month one bill at a time - it is a different
+         window so the shared map doesn't cover it. only runs once a month, so it is last on the
+         list, but it is the one N+1 left in the app
 
 
 #--------------------------- IDEAS -------------------------#

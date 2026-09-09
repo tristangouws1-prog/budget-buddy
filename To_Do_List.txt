@@ -66,6 +66,18 @@ have suffixes be incrementel when each new user makes a profile,
 
 #59  TODO Add a page where normal reminders can also be added, such as "remember to pick up prescription next wednesday"
 
+!  #60! TODO a loan paid weekly must read RED while no week is paid, AMBER once the first week is paid but the rest are still waiting, and GREEN only when every week of the month is done
+#61! TODO give plain weekly bills (groceries, weekly debit orders) the same week boxes the weekly loans have, so they get the red / amber / green treatment too
+#62! TODO a weekly loan can only be paid a whole week at a time, add a part of a week amount for when only some of that week's instalment went through
+#63! TODO carry the red / amber / green over to the payment history page so a whole month can be read at a glance
+#64! TODO read the new "x weeks of it are unpaid" overdue wording in a real email and make sure it doesn't sound clumsy
+#65! TODO now that the app is deployed, check the scheduler really fires on the host - the daily / weekly / monthly jobs and the emails with them
+!  #66! TODO a weekly loan saved with a day of the MONTH (e.g. the 15th) crashed both reminder jobs, so NOBODY got reminders - the day is now clamped when saved and when read, and each account runs on its own so one bad account cannot stop everyone else
+!  #67! TODO clicking "Got it" or "Mark paid" felt like a full page reload - one round trip instead of two, only the changed parts of the page are swapped, and the buddy stops re-rolling its message on every click
+!  #68! TODO every page cost a database query per weekly loan, even Settings which shows no bills - the buddy now shares what the page already loaded, so 20 loans costs the same as 2
+!  #69! TODO payment history loaded every row ever recorded (415ms at 10 000) - now 100 rows a page with the six month chart as one grouped query
+!  #70! TODO dragging a bill saved the order with one query per bill (61 queries for 30 bills) - now 3
+
 #future TODO add a small pixel buddy that motivates the user
 # to keep up to date with their budget info
 #after that include an egg hatching system to get new buddies

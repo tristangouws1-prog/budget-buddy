@@ -70,6 +70,27 @@ def check(name):
     print(f"  ok  {name}")
 
 
+class counting_queries:
+    """ Count the SQL statements a block of code runs.
+    Used to prove a page's cost doesn't grow with the number of bills """
+
+    def __enter__(self):
+        from sqlalchemy import event, engine
+        self.n = 0
+        self._event, self._engine = event, engine
+
+        def tick(*args, **kwargs):
+            self.n += 1
+
+        self._tick = tick
+        event.listen(engine.Engine, "after_cursor_execute", tick)
+        return self
+
+    def __exit__(self, *exc):
+        self._event.remove(self._engine.Engine, "after_cursor_execute", self._tick)
+        return False
+
+
 # ---------- the buddy
 def test_buddy_appears_and_reacts():
     client = fresh()
@@ -696,6 +717,139 @@ def test_page_updates_without_a_reload():
     assert "billDragBound" in dragging and "closest('.bill')" in dragging, \
         "per-bill listeners are lost when a bill is swapped in"
     check("drag and drop survives a soft refresh")
+
+
+def test_a_weekly_bill_never_keeps_a_day_of_the_month():
+    """ A weekly loan carrying "the 15th" used to raise IndexError deep in
+    due_phrase, which killed the reminder jobs for EVERY user """
+    client = fresh()
+
+    #the form can't save a weekday of 15 any more
+    bill = add_bill(client, "Car loan", 250, day=15, kind="loan", freq="weekly",
+                    total_value=50000, current_balance=30000)
+    with bb.app.app_context():
+        p = bb.db.session.get(bb.Payment, bill)
+        assert p.due_day == 7, f"a weekly day must be 1-7, got {p.due_day}"
+    #and switching a monthly bill over re-reads the day the same way
+    monthly = add_bill(client, "Gym", 300, day=28)
+    client.post(f"/edit/{monthly}", data={
+        "name": "Gym", "description": "", "amount": "300", "due_day": "28",
+        "bill_type": "fixed", "frequency": "weekly"}, follow_redirects=True)
+    with bb.app.app_context():
+        assert bb.db.session.get(bb.Payment, monthly).due_day == 7
+    check("a weekly bill is saved with a weekday, never a day of the month")
+
+    #bills saved before that clamp existed still must not crash anything
+    with bb.app.app_context():
+        p = bb.db.session.get(bb.Payment, bill)
+        p.due_day = 15                     # straight into the database
+        bb.db.session.commit()
+        assert bb.due_phrase(p) in list(__import__("calendar").day_name)
+        assert bb.get_status(p) in ("paid", "partial", "overdue", "soon", "upcoming")
+    assert client.get("/").status_code == 200
+    bb.create_weekly_reminder()
+    bb.create_monthly_reminders()
+    with bb.app.app_context():
+        assert bb.Reminder.query.count() > 0
+    check("an old bill with a bad day still reads, and the jobs still run")
+
+
+def test_one_bad_account_cannot_stop_everyone_elses_reminders():
+    client = fresh()                        # a normal user
+    add_bill(client, "Rent", 500, day=5)
+    other = bb.app.test_client()
+    other.post("/register", data={"username": "bob", "email": "bob@t.local",
+                                  "password": "pw12345", "confirm": "pw12345"},
+               follow_redirects=True)
+    other.post("/add", data={"name": "Boom", "description": "", "amount": "100",
+                             "due_day": "1", "bill_type": "fixed",
+                             "frequency": "monthly"}, follow_redirects=True)
+
+    #make one account's reminders blow up, the way bad data used to
+    original = bb.monthly_message
+
+    def explode(payment, user):
+        if payment.name == "Boom":
+            raise ValueError("bad data on this account")
+        return original(payment, user)
+
+    bb.monthly_message = explode
+    try:
+        bb.create_monthly_reminders()       # must not raise
+    finally:
+        bb.monthly_message = original
+
+    with bb.app.app_context():
+        messages = [r.message for r in bb.Reminder.query.all()]
+    assert any("Rent" in m for m in messages), \
+        "the healthy account must still get its reminders"
+    assert not any("Boom" in m for m in messages), \
+        "the broken account is rolled back, not half written"
+    check("a broken account is skipped, everyone else still gets reminded")
+
+
+def test_a_page_costs_the_same_however_many_bills():
+    """ The buddy sits on every page. It used to run a SUM per weekly loan,
+    so even Settings got slower with every loan added """
+    def queries_for(url, loans):
+        client = fresh()
+        for i in range(loans):
+            add_bill(client, f"Loan {i}", 250, day=(i % 7) + 1, kind="loan",
+                     freq="weekly", total_value=50000, current_balance=30000)
+        client.get(url)                      # warm up
+        with counting_queries() as counter:
+            client.get(url)
+        return counter.n
+
+    for url in ("/", "/settings", "/reminders"):
+        few, many = queries_for(url, 2), queries_for(url, 20)
+        assert many <= few, f"{url}: {few} queries with 2 loans, {many} with 20"
+        assert many < 12, f"{url} runs {many} queries"
+        check(f"{url:<11} {many} queries with 20 loans, same as with 2")
+
+
+def test_history_is_paged_and_cheap():
+    client = fresh()
+    bill = add_bill(client, "Rent", 500, day=5)
+    with bb.app.app_context():
+        uid = bb.User.query.first().id
+        for i in range(250):
+            bb.db.session.add(bb.PaymentLog(
+                bill_name="Rent", amount_paid_cents=1000, payment_id=bill,
+                user_id=uid, paid_at=datetime.datetime.now() - datetime.timedelta(hours=i * 5)))
+        bb.db.session.commit()
+
+    client.get("/history")
+    with counting_queries() as counter:
+        html = client.get("/history").get_data(as_text=True)
+    assert counter.n < 8, f"/history runs {counter.n} queries"
+    check(f"/history is {counter.n} queries, chart included, not one per month")
+
+    assert html.count("<tr>") <= bb.HISTORY_PER_PAGE + 6, "the page must be capped"
+    assert "Older" in html, "there is more history, so there must be a way to it"
+    page2 = client.get("/history?page=2").get_data(as_text=True)
+    assert "Newer" in page2 and "<tr>" in page2
+    assert client.get("/history?page=99").status_code == 200, "past the end is not an error"
+    check(f"{bb.HISTORY_PER_PAGE} rows a page, with older and newer links")
+
+    #the chart still adds up, even though it no longer loads every row
+    with bb.app.app_context():
+        this_month = bb.paid_in_month(bb.db.session.get(bb.Payment, bill))
+    assert f'{this_month // 100}' in html or this_month == 0
+    check("the six month chart still totals from one grouped query")
+
+
+def test_reordering_is_one_query_not_thirty():
+    client = fresh()
+    ids = [add_bill(client, f"B{i}", 100, day=(i % 27) + 1) for i in range(30)]
+    client.get("/?sort=custom")
+    with counting_queries() as counter:
+        client.post("/reorder", json=list(reversed(ids)))
+    assert counter.n < 6, f"a drag cost {counter.n} queries for 30 bills"
+    with bb.app.app_context():
+        order = {p.id: p.sort_order for p in bb.Payment.query.all()}
+    assert order[ids[-1]] == 0 and order[ids[0]] == 29, "the new order must stick"
+    check(f"a drag with 30 bills is {counter.n} queries, and still saves the order")
 
 
 def test_the_buddy_holds_its_tongue():

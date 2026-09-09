@@ -22,7 +22,8 @@ load_dotenv(Path(__file__).with_name(".env"))
 #signed expiring tokens for the password reset links, comes with Flask
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import (Flask, render_template, request, redirect, url_for, flash,
+                   session, g, has_request_context)
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
     LoginManager, UserMixin, login_user, logout_user,
@@ -417,7 +418,7 @@ def weekday_name(day):
 def days_left_for(payment):
     """ Days until a bill is due, whatever its frequency """
     if payment.frequency == "weekly":
-        return days_until_due_weekly(payment.due_day, payment.is_paid)
+        return days_until_due_weekly(weekly_due_day(payment), payment.is_paid)
     return days_until_due(payment.due_day, payment.is_paid)
 
 
@@ -440,11 +441,29 @@ def description_note(payment):
     return f" — {payment.description}" if payment.description else ""
 
 
+def clean_due_day(raw, frequency):
+    """ The due day as the bill's frequency needs it: 1..7 for a weekly bill
+    (Monday..Sunday) and 1..31 for a monthly one.
+    Saved clean, so a weekly bill can never be carrying "the 15th" """
+    try:
+        day = int(raw)
+    except (TypeError, ValueError):
+        day = 1
+    return max(1, min(day, 7 if frequency == "weekly" else 31))
+
+
+def weekly_due_day(payment):
+    """ A weekly bill's day as a safe 1..7.
+    Bills saved before clean_due_day existed can still be carrying a day of
+    the MONTH, and 15 would run off the end of the week """
+    return max(1, min(int(payment.due_day or 1), 7))
+
+
 def due_phrase(payment):
     """ How reminders say when a bill is due:
     monthly -> "the 5th, Sunday 5 July 2026", weekly -> "Friday" """
     if payment.frequency == "weekly":
-        return calendar.day_name[payment.due_day - 1]
+        return calendar.day_name[weekly_due_day(payment) - 1]
     return f"the {ordinal_day(payment.due_day)}, {due_date_text(payment)}"
 
 
@@ -464,6 +483,20 @@ def previous_month(today=None):
     return today.year, today.month - 1
 
 
+def weekdays_up_to(year, month, last_day, wanted):
+    """ How many times the wanted weekday (0=Monday) falls on or before
+    last_day of a month. Worked out with arithmetic instead of building a
+    date for all 28-31 days, since this is asked for every bill on every page """
+    if last_day < 1:
+        return 0
+    first = calendar.monthrange(year, month)[0]      # weekday of the 1st
+    #the day of the month the wanted weekday first lands on, 1-7
+    first_hit = 1 + (wanted - first) % 7
+    if first_hit > last_day:
+        return 0
+    return (last_day - first_hit) // 7 + 1
+
+
 def weeks_in_month(payment, year=None, month=None):
     """ How many times a weekly bill falls due in a month, really 4 or 5 """
     today = datetime.date.today()
@@ -471,9 +504,8 @@ def weeks_in_month(payment, year=None, month=None):
     month = month or today.month
     days = calendar.monthrange(year, month)[1]
     #due_day is 1=Monday..7=Sunday, weekday() is 0=Monday..6=Sunday
-    wanted = max(1, min(int(payment.due_day or 1), 7)) - 1
-    return sum(1 for d in range(1, days + 1)
-               if datetime.date(year, month, d).weekday() == wanted)
+    wanted = weekly_due_day(payment) - 1
+    return weekdays_up_to(year, month, days, wanted)
 
 
 def weeks_due_so_far(payment, year=None, month=None):
@@ -487,9 +519,8 @@ def weeks_due_so_far(payment, year=None, month=None):
     #only count up to today when we're looking at the month we're in
     if (year, month) == (today.year, today.month):
         last_day = min(last_day, today.day)
-    wanted = max(1, min(int(payment.due_day or 1), 7)) - 1
-    return sum(1 for d in range(1, last_day + 1)
-               if datetime.date(year, month, d).weekday() == wanted)
+    wanted = weekly_due_day(payment) - 1
+    return weekdays_up_to(year, month, last_day, wanted)
 
 
 def month_obligation(payment, year=None, month=None):
@@ -520,9 +551,47 @@ def paid_in_month(payment, year=None, month=None):
     return int(total or 0)
 
 
+def request_cache(key, build):
+    """ Work something out once per request and reuse it.
+    The buddy sits on every page and wants the same bills and totals the page
+    itself has already loaded - without this it fetched them all again """
+    if not has_request_context():
+        return build()
+    cache = getattr(g, "bb_cache", None)
+    if cache is None:
+        cache = g.bb_cache = {}
+    if key not in cache:
+        cache[key] = build()
+    return cache[key]
+
+
+def forget_cached(prefix):
+    """ Drop what a write has just made out of date """
+    cache = getattr(g, "bb_cache", None) if has_request_context() else None
+    if cache:
+        for key in [k for k in cache if k.startswith(prefix)]:
+            del cache[key]
+
+
+def bills_of(user_id, include_archived=False):
+    """ A user's bills, fetched once per request.
+    Archived once-off bills are finished with, so they stay out by default """
+    def build():
+        query = Payment.query.filter_by(user_id=user_id)
+        if not include_archived:
+            query = query.filter(Payment.is_archived != True)
+        return query.order_by(Payment.due_day).all()
+    return request_cache(f"bills:{user_id}:{include_archived}", build)
+
+
 def paid_this_month_by_bill(user_id):
     """ {payment_id: total paid this month} in ONE grouped query,
     instead of a separate SUM per bill on every dashboard load """
+    return request_cache(f"paid_map:{user_id}",
+                         lambda: _paid_this_month_by_bill(user_id))
+
+
+def _paid_this_month_by_bill(user_id):
     today = datetime.date.today()
     start = datetime.datetime(today.year, today.month, 1)
     rows = (db.session.query(PaymentLog.payment_id,
@@ -663,7 +732,7 @@ def get_status(payment, paid=None):
         #nothing paid: late as soon as the first due day has gone by
         if weeks_due_so_far(payment) > 0:
             return "overdue"
-        days = days_until_due_weekly(payment.due_day, payment.is_paid)
+        days = days_until_due_weekly(weekly_due_day(payment), payment.is_paid)
         if days <= 2:
             return "soon"
         return "upcoming"
@@ -673,7 +742,7 @@ def get_status(payment, paid=None):
 
     #other weekly bills are still judged a week at a time
     if payment.frequency == "weekly":
-        days = days_until_due_weekly(payment.due_day, payment.is_paid)
+        days = days_until_due_weekly(weekly_due_day(payment), payment.is_paid)
         if days < 0:
             return "overdue"
         if days <= 2:
@@ -735,6 +804,9 @@ EGG_MESSAGES = [
 EGG_LEVELS = (3, 5, 7, 10)
 MAX_BUDDIES = 5
 
+#how many payment history rows one page of /history shows
+HISTORY_PER_PAGE = 100
+
 #everything the shop sells, one item per slot at a time.
 #the drawings live in templates/_buddy_sprite.html and _buddy_room.html
 BUDDY_SHOP = {
@@ -779,10 +851,14 @@ def buddy_says(mood, user, about=""):
 
 def buddy_mood(user):
     """ How the buddy feels about the bills, returns (mood, message) """
-    payments = Payment.query.filter_by(user_id=user.id).all()
+    #the same bills and monthly totals the page itself loaded, so the buddy
+    #costs nothing extra instead of a SUM query per weekly loan, per page
+    payments = bills_of(user.id)
+    paid_map = paid_this_month_by_bill(user.id)
     #a weekly loan with an unpaid week counts as overdue to the buddy too
     overdue = [p for p in payments
-               if get_status(p) == "overdue" or weeks_behind(p)]
+               if get_status(p, paid_map.get(p.id, 0)) == "overdue"
+               or weeks_behind(p, paid_map.get(p.id, 0))]
     if overdue:
         mood = "worried"
         message = buddy_says(mood, user, overdue[0].name).format(bill=overdue[0].name)
@@ -921,6 +997,8 @@ def log_payment(payment, cents):
         payment_id=payment.id,
         user_id=payment.user_id,
     ))
+    #this month's totals have just changed, so don't reuse the old ones
+    forget_cached(f"paid_map:{payment.user_id}")
 
 
 #what the tests would have sent, so they can check the wording without
@@ -1202,15 +1280,23 @@ def reset_password(token):
     return render_template("reset_password.html", token=token)
 
 
+def _stylesheet_stamp():
+    """ The stylesheet's timestamp. Read once when the app starts rather than
+    stat-ing the file on every single request - a restart follows a deploy """
+    try:
+        return int(os.path.getmtime(os.path.join(app.static_folder, "style.css")))
+    except OSError:
+        return 0
+
+
+STATIC_VERSION = _stylesheet_stamp()
+
+
 @app.context_processor
 def inject_static_version():
     """ The stylesheet's timestamp, added to its url so a new deploy shows
     up straight away even though the file is cached for a year """
-    try:
-        stamp = int(os.path.getmtime(os.path.join(app.static_folder, "style.css")))
-    except OSError:
-        stamp = 0
-    return {"static_version": stamp}
+    return {"static_version": STATIC_VERSION}
 
 
 @app.context_processor
@@ -1220,8 +1306,14 @@ def inject_buddy():
         return {}
     buddy = get_active_buddy(current_user)
 
-    #showing up counts, the daily check in
-    award_xp(current_user, "check_in", f"day:{datetime.date.today().isoformat()}", 5)
+    #showing up counts, the daily check in. once it's been given today the
+    #session remembers, so the rest of the day's pages skip the lookup
+    #the user id is in the key too, so someone else logging in on the same
+    #browser still gets their own check in
+    today = f"{current_user.id}:{datetime.date.today().isoformat()}"
+    if session.get("checked_in") != today:
+        award_xp(current_user, "check_in", f"day:{datetime.date.today().isoformat()}", 5)
+        session["checked_in"] = today
 
     #did that xp just hatch the egg? set by award_xp, played once
     just_hatched = session.pop("buddy_hatched", False)
@@ -1266,13 +1358,9 @@ def dashboard():
     sort_by = request.args.get("sort", "due_day")
 
     #only this user's payments, sorted by due day. archived once-off
-    #bills are finished with, so they stay out of sight
-    payments = (
-        Payment.query.filter_by(user_id=current_user.id)
-        .filter(Payment.is_archived != True)
-        .order_by(Payment.due_day)
-        .all()
-    )
+    #bills are finished with, so they stay out of sight.
+    #fetched through the per-request cache, so the buddy shares this list
+    payments = bills_of(current_user.id)
 
     #build a list pairing each payment with its status + days left
     paid_map = paid_this_month_by_bill(current_user.id)
@@ -1371,10 +1459,11 @@ def add_payment():
         name = request.form["name"]
         description = request.form["description"] or None
         amount_cents = parse_cents(request.form["amount"])
-        due_day = int(request.form["due_day"])
         payment_method = request.form.get("payment_method") or None
         bill_type = request.form.get("bill_type", "fixed")
         frequency = request.form.get("frequency", "monthly")
+        #a weekly bill's day is a weekday, so 1..7 whatever the box said
+        due_day = clean_due_day(request.form["due_day"], frequency)
         total_value_cents = parse_cents(request.form.get("total_value"))
         current_balance_cents = parse_cents(request.form.get("current_balance"))
 
@@ -1463,10 +1552,12 @@ def edit_payment(payment_id):
         payment.name = request.form["name"]
         payment.description = request.form["description"] or None
         payment.amount = parse_cents(request.form["amount"])
-        payment.due_day = int(request.form["due_day"])
         payment.payment_method = request.form.get("payment_method") or None
         payment.bill_type = request.form.get("bill_type", "fixed")
         payment.frequency = request.form.get("frequency", "monthly")
+        #switching a bill to weekly re-reads the day as a weekday, so it can
+        #never keep "the 15th" from when it was monthly
+        payment.due_day = clean_due_day(request.form["due_day"], payment.frequency)
 
         payment.total_value = parse_cents(request.form.get("total_value"))
         payment.current_balance = parse_cents(request.form.get("current_balance"))
@@ -1573,8 +1664,12 @@ def reorder_bills():
     ids = request.get_json(silent=True)
     if not isinstance(ids, list):
         return {"ok": False}, 400
+    #fetch the lot in one query instead of one per bill - a drag with 30 bills
+    #on the page was 30 round trips to the database
+    owned = {p.id: p for p in Payment.query.filter(
+        Payment.user_id == current_user.id, Payment.id.in_(ids)).all()}
     for position, payment_id in enumerate(ids):
-        payment = Payment.query.filter_by(id=payment_id, user_id=current_user.id).first()
+        payment = owned.get(payment_id)
         if payment:
             payment.sort_order = position
     db.session.commit()
@@ -1809,11 +1904,18 @@ def update_balance(payment_id):
 @login_required
 def history():
     """ Page showing every payment ever recorded, grouped by month, newest first """
-    logs = (
+    #a page at a time: after a year of weekly bills this table is hundreds of
+    #rows, and it only ever grows. loading every row ever took 415ms at 10,000
+    page = max(1, request.args.get("page", 1, type=int))
+    rows = (
         PaymentLog.query.filter_by(user_id=current_user.id)
         .order_by(PaymentLog.paid_at.desc())
+        .limit(HISTORY_PER_PAGE + 1)              # one extra says "there's more"
+        .offset((page - 1) * HISTORY_PER_PAGE)
         .all()
     )
+    has_next = len(rows) > HISTORY_PER_PAGE
+    logs = rows[:HISTORY_PER_PAGE]
 
     #group the logs into months, newest month first
     #each month is a dict: its name e.g. "July 2026", its rows, and its total
@@ -1829,23 +1931,29 @@ def history():
     year = today.year
     month = today.month
 
+    #the chart's six months in ONE grouped query. it used to run a query per
+    #month and load every row of each just to add them up
+    oldest = datetime.datetime(year, month, 1) - datetime.timedelta(days=186)
+    oldest = datetime.datetime(oldest.year, oldest.month, 1)
+    #extract() rather than sqlite's strftime, so this still works if the app
+    #is ever moved off sqlite
+    year_of = db.func.extract("year", PaymentLog.paid_at)
+    month_of = db.func.extract("month", PaymentLog.paid_at)
+    totals = {
+        (int(y), int(m)): int(total or 0)
+        for y, m, total in db.session.query(
+            year_of, month_of, db.func.sum(PaymentLog.amount_paid_cents))
+        .filter(PaymentLog.user_id == current_user.id,
+                PaymentLog.paid_at >= oldest)
+        .group_by(year_of, month_of).all()
+    }
+
     chart_months = []
     for _ in range(6):
         start = datetime.datetime(year, month, 1)
-        if month == 12:
-            next_start = datetime.datetime(year + 1, 1, 1)
-        else:
-            next_start = datetime.datetime(year, month + 1, 1)
-
-        month_logs = PaymentLog.query.filter(
-            PaymentLog.user_id == current_user.id,
-            PaymentLog.paid_at >= start,
-            PaymentLog.paid_at < next_start
-        ).all()
-        total = sum(log.amount_paid_cents for log in month_logs)
-
         #short month name e.g. "Jul" so the label fits under a narrow chart bar
-        chart_months.append({"label": start.strftime("%b"), "total": total})
+        chart_months.append({"label": start.strftime("%b"),
+                             "total": totals.get((year, month), 0)})
 
         if month == 1:
             month = 12
@@ -1859,7 +1967,8 @@ def history():
     for m in chart_months:
         m["height"] = max(round(m["total"] / chart_max * 100), 0)
 
-    return render_template("history.html", months=months, chart_months=chart_months)
+    return render_template("history.html", months=months, chart_months=chart_months,
+                           page=page, has_next=has_next)
 
 
 @app.route("/reminders")
@@ -2020,11 +2129,29 @@ automated reminders that run once a week or once a month etc.
 they loop over every user so everyone gets their own reminders.
 """
 
+def for_each_user(job_name, work, subject=None):
+    """ Run one job for every user, each on their own.
+    One account with odd data used to raise and abandon the whole run, so
+    nobody got their reminders. Now a bad account is logged and skipped, and
+    everyone else still gets theirs. The email goes out after the commit,
+    because the reminders have to be in the database to be read back """
+    for user in User.query.all():
+        try:
+            work(user)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            app.logger.exception("%s failed for user %s", job_name, user.id)
+            continue
+        if subject:
+            email_unread_reminders(user, subject)
+
+
 def create_weekly_reminder():
     #runs once a week
 
     with app.app_context():
-        for user in User.query.all():
+        def one_user(user):
             db.session.add(Reminder(
                 message=("Weekly Check in! Have you added any new bills or subscriptions this week? Click on + to add"),
                 category="weekly",
@@ -2066,10 +2193,14 @@ def create_weekly_reminder():
                     ))
 
             #remind about overdue and upcoming bills
+            #one grouped query for the whole account, rather than a SUM per
+            #weekly bill - this job runs over every user in one go
+            paid_map = _paid_this_month_by_bill(user.id)
             for p in user_payments:
-                status = get_status(p)
+                paid = paid_map.get(p.id, 0)
+                status = get_status(p, paid)
                 #a part paid weekly loan still nags while a week is outstanding
-                if status == "overdue" or weeks_behind(p):
+                if status == "overdue" or weeks_behind(p, paid):
                     db.session.add(Reminder(
                         message=overdue_message(p, user),
                         category="overdue",
@@ -2084,19 +2215,15 @@ def create_weekly_reminder():
                         user_id=user.id,
                     ))
 
-        db.session.commit()
-
-        #email AFTER committing: the reminders above only exist in the database
-        #once committed, so reading them back has to happen in a second loop
-        for user in User.query.all():
-            email_unread_reminders(user, "Your Budget Buddy weekly reminders")
+        for_each_user("weekly reminders", one_user,
+                      "Your Budget Buddy weekly reminders")
 
 
 def create_monthly_reminders():
     #runs once a month, resets every bill back to not paid for every user
 
     with app.app_context():
-        for user in User.query.all():
+        def one_user(user):
             #archived once-off bills are done, leave them out entirely
             payments = (Payment.query.filter_by(user_id=user.id)
                         .filter(Payment.is_archived != True).all())
@@ -2181,11 +2308,8 @@ def create_monthly_reminders():
                     user_id=user.id,
                 ))
 
-        db.session.commit()
-
-        #email AFTER committing, for the same reason as the weekly job
-        for user in User.query.all():
-            email_unread_reminders(user, "Your Budget Buddy monthly reminders")
+        for_each_user("monthly reminders", one_user,
+                      "Your Budget Buddy monthly reminders")
 
 
 #-------------------------------------------------------------------#

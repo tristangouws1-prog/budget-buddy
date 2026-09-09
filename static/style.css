@@ -692,6 +692,16 @@ h1, h2, h3, .logo, .hero-amount {
 }
 
 /* ── Animations ── */
+/* older / newer links under the payment history */
+.pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin: 18px 0 4px;
+}
+.pager-page { font-size: 0.82rem; color: var(--muted); }
+
 /* a button that has been clicked and is waiting on the server */
 .is-working { opacity: 0.55; pointer-events: none; }
 

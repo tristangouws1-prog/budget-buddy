@@ -61,9 +61,27 @@
             </div>
         </section>
     {% endfor %}
+
+    <!-- the history is shown a page at a time, newest first -->
+    {% if has_next or page > 1 %}
+        <div class="pager">
+            {% if page > 1 %}
+                <a class="btn-small btn-update" href="{{ url_for('history', page=page - 1) }}">&larr; Newer</a>
+            {% endif %}
+            <span class="pager-page">Page {{ page }}</span>
+            {% if has_next %}
+                <a class="btn-small btn-update" href="{{ url_for('history', page=page + 1) }}">Older &rarr;</a>
+            {% endif %}
+        </div>
+    {% endif %}
 {% else %}
     <div class="empty">
-        <p>No payments recorded yet. Mark a bill as paid and it will show up here.</p>
+        {% if page > 1 %}
+            <p>Nothing further back than this.</p>
+            <a class="btn-primary" href="{{ url_for('history') }}">Back to the latest</a>
+        {% else %}
+            <p>No payments recorded yet. Mark a bill as paid and it will show up here.</p>
+        {% endif %}
     </div>
 {% endif %}
 
