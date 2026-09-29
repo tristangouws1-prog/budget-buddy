@@ -43,7 +43,7 @@ def signed_in():
     t = re.search(r'name="csrf_token" value="([^"]+)"',
                   c.get("/register").get_data(as_text=True)).group(1)
     c.post("/register", data={"username": "tester", "email": "t@test.local",
-                              "password": "pw12345", "confirm": "pw12345",
+                              "password": "pw123456", "confirm": "pw123456",
                               "csrf_token": t}, follow_redirects=True)
     return c
 
@@ -139,10 +139,59 @@ def test_secret_key_must_be_set_in_production():
     check("a deployed app refuses to start without SECRET_KEY")
 
 
+def boot(**extra):
+    """ Import the app in a fresh process with these env vars, and report
+    whether the session cookie came out https-only """
+    import subprocess
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("SECRET_KEY", "DATABASE_URL", "BB_DEPLOYED")}
+    env.update(extra)
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return subprocess.run(
+        [sys.executable, "-c",
+         "import app; print('SECURE:', app.app.config['SESSION_COOKIE_SECURE'])"],
+        cwd=here, env=env, capture_output=True, text=True)
+
+
+def test_the_deploy_flag_locks_the_app_down():
+    #the real server runs SQLite, so DATABASE_URL is never set there and the
+    #SECRET_KEY guard used to never fire. BB_DEPLOYED is what says "live" now
+    r = boot(BB_DEPLOYED="true", SECRET_KEY="")
+    assert r.returncode != 0 and "SECRET_KEY" in r.stderr, \
+        "BB_DEPLOYED with no SECRET_KEY must refuse to start"
+    check("BB_DEPLOYED alone refuses to start without SECRET_KEY")
+
+    r = boot(BB_DEPLOYED="true", SECRET_KEY="a-real-key")
+    assert "SECURE: True" in r.stdout, f"cookie not secured: {r.stdout}{r.stderr}"
+    check("the deployed site gets an https-only session cookie")
+
+    r = boot(SECRET_KEY="a-real-key")
+    assert "SECURE: False" in r.stdout, "locally the cookie must stay non-secure"
+    check("locally it stays off, so plain http still logs in")
+
+
 def test_session_cookie_is_locked_down():
     assert bb.app.config["SESSION_COOKIE_HTTPONLY"] is True
     assert bb.app.config["SESSION_COOKIE_SAMESITE"] == "Lax"
     check("session cookie is http-only and same-site")
+
+
+def test_asking_for_a_reset_is_rate_limited():
+    #every POST sends a real email, so this is the one worth throttling
+    signed_in()                      #gives us a clean database
+    c = bb.app.test_client()         #but a logged-out client, or /forgot redirects
+    sent_before = len(bb.sent_emails)
+    bb.limiter.enabled = True
+    bb.limiter.reset()
+    codes = []
+    for _ in range(8):
+        r = c.post("/forgot", data={"email": "nobody@test.local",
+                                    "csrf_token": token(c, "/forgot")})
+        codes.append(r.status_code)
+    bb.limiter.enabled = False
+    assert 429 in codes, f"reset emails should be throttled, got {set(codes)}"
+    assert len(bb.sent_emails) == sent_before, "no such account, so nothing to send"
+    check(f"reset emails are throttled after {codes.index(429)} tries")
 
 
 if __name__ == "__main__":

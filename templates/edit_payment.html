@@ -53,7 +53,6 @@
     <input type="number" id="interest_rate" name="interest_rate" step="0.01" min="0"
            value="{{ payment.interest_rate or '' }}">
 
-    <!-- both loans AND store accounts can have a monthly admin fee -->
     <label for="service_fee">Monthly service/admin fee ({{ current_user.currency }})</label>
     <input type="number" id="service_fee" name="service_fee" step="0.01" min="0"
            value="{{ payment.service_fee_cents | rands }}">

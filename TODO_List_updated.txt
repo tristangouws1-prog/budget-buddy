@@ -1,7 +1,7 @@
 #===========================================================================#
 #                   BUDGET BUDDY - TO DO LIST (UPDATED)
 #   [x] done   [~] partly done, note says what is left   [ ] still to do
-#                      last checked: 5 September 2026
+#                      last checked: 28 September 2026
 #
 #   The original To_Do_List.txt is left exactly as it was - this is the
 #   same list, checked against the code and sorted by what is finished.
@@ -55,6 +55,7 @@
 [x] #33! spending history table
 [x] #34! spending history chart
 [x] #35! make sure the optional description part of the bill is also sent to the email
+[x] #37! show password as it is typed  (a "Show password" tick box on log in, sign up and reset)
 [x] #38! implement a forgot password function
 [x] #39! implement a function that shows if a previous month's bill was paid or not,
          which shows a buildup of bills  (carried over amount, added by the month end job)
@@ -66,6 +67,10 @@
 [x] #45! find out why it keeps saving numbers wrongly  (money is whole cents now, never a float)
 [x] #47! manually reorder drag and drop, way to put certain bills next to each other  (sort = "My order")
 [x] #48! Add service fee part to store accounts
+[x] #49  Allow for multiple of the same "Username" but only one profile per email account
+         (a second David is David#0002 - numbered per name, oldest account first. log in with the
+          email or David#0002, or the plain name while only one account has it. Settings shows
+          yours. the database refuses a duplicate name + number. needs migrate_2026_11.py)
 [x] #50! make that one time payments dont reset monthly and stay on until you have marked them
          as paid, and then they can be "Archived"
 [x] #51! undo button for paid bills, that also subtracts the buddy xp gained for it
@@ -79,10 +84,28 @@
 [x] #57! visual bug where week 3 of the loan payment does not show a check marked
          (was integer division on odd amounts like 41.67, fixed and covered by a test)
 [x] #58  loan weekly payments need to reduce main bills left to pay at the top of page
+[x] #59  Add a page where normal reminders can also be added, such as
+         "remember to pick up prescription next wednesday"
+         (Reminders page: text, a date, and once / every week / every month. shows on the dashboard
+          from its date and is emailed that morning by the daily task, once. "Got it" moves a
+          repeat on to its next date and finishes a one-off)
 [x] #60! a loan paid weekly must read RED while no week is paid, AMBER once the first week is paid
          but the rest are still waiting, and GREEN only when every week of the month is done
          (new "partial" status, its own amber card and "part paid" badge, a Part paid filter,
           and the buddy / overdue reminders count the weeks still outstanding)
+
+[x] #61! give plain weekly bills (groceries, weekly debit orders) the same week boxes the weekly
+         loans have, so they get the red / amber / green treatment too
+         (every weekly bill has week boxes now. "Mark paid" on one ticks the next week, and the
+          Monday reset is gone - the monthly close-off starts the weeks again)
+[x] #62! a weekly loan can only be paid a whole week at a time, add a part of a week amount for
+         when only some of that week's instalment went through
+         ("Paid part of a week" box under the week boxes. the next box fills up as it's paid, any
+          money paid makes the bill amber, and ticking a part paid box only pays the rest of it)
+[x] #63! carry the red / amber / green over to the payment history page so a whole month can be
+         read at a glance
+         (each month has a coloured chip per bill: green paid, amber part paid, red nothing paid,
+          grey not due yet. past months are judged against the bill's amount as it is now)
 
 [x] #66! a weekly loan saved with a day of the MONTH (e.g. "the 15th") raised IndexError deep in
          due_phrase and aborted BOTH reminder jobs, so nobody got reminders at all
@@ -105,47 +128,43 @@
          single page load (now remembered in the session), the stylesheet was stat-ed on every
          request (read once at startup), and counting a bill's weeks built a date object for all
          28-31 days of the month (arithmetic now, checked identical for every month 2024-2028)
+[x] #72! the monthly close-off totalled LAST month one bill at a time, the one N+1 left
+         (one grouped query per account now: 6 selects with 2 weekly bills or with 20)
+[x] #73! bugs from the 28 September audit (details in claude-readme.txt)
+         - editing a bill threw away its amount, balance and fees, while saying "Updated"
+         - interest rates showed 100x too small (11.5% read as 0.12%)
+         - the daily task added loan interest twice if it ever ran twice; now each account is
+           recorded as done for that week / month, and a re-run only picks up anyone missed
+         - every date used the server's clock (UTC), two hours off; now SAST everywhere
+         - a typo in a money box ("R199", "12.5.6") crashed with an error page; now a message
+         - passwords need 8 characters; the password reset and sign up pages are rate limited
+         - the history chart printed cents as rands (R41670 for R416.70)
+         - a bill whose archive flag was empty vanished from the dashboard and the jobs
+         - a fully paid weekly loan stopped the buddy being happy after the Monday reset
+         - the live site's SECRET_KEY guard never fired, and the login cookie is https-only now
+           (both need BB_DEPLOYED=true in the server's .env)
+[x] #74! lower priority clean-ups from the same audit
+         - a batch of reminder emails shares one mail server login instead of one each, and
+           reconnects if the server drops it
+         - a failed email is written to the error log instead of printed where nobody sees it
+         - requirements.txt has version ranges, so a rebuild can't pull in a breaking release
+         - Settings / Reminders / History reuse the buddy's mood instead of loading every bill
+           (Settings 5 -> 3 queries), and it's forgotten the moment anything changes
 
 [x] webpage that houses all currently hatched buddies, cute poses on furniture, and where the
     displayed buddy can be chosen  (the /buddy page is the house: housemates lounge in the room,
-    "Bring out" picks who's displayed, new eggs arrive at levels 3/5/7/10, up to 4 buddies)
+    "Bring out" picks who's displayed, new eggs arrive at levels 3/5/7/10, up to 5 buddies)
 
 
 #----------------------- STILL TO DO -----------------------#
 
-[ ] #10  offline version that can run anywhere, mobile, pc, laptop etc
-[ ] #36  have budget buddy be installable and run on any device as an .exe file, or a web link?
-         (#30 is live now, so the web link half of this may already be covered)
-[ ] #37! show password as it is typed
-[ ] #49  Allow for multiple of the same "Username" but only one profile per email account,
-         make sure each username is linked to that corresponding email it was registered to with a
-         "hash"? or "pointer"? or give each username a unique suffix that can be seen in the
-         settings Tab, that way the username may look the same e.g. "David" and "David" but the
-         second david ACTUALLYYYYY looks like this "David#1234"
-         have suffixes be incremental when each new user makes a profile
-         (right now a second "David" is simply refused at registration)
-[ ] #59  Add a page where normal reminders can also be added, such as
-         "remember to pick up prescription next wednesday"
-
-
-#--------------------- NEW, STILL TO DO --------------------#
-
-[ ] #61! give plain weekly bills (groceries, weekly debit orders) the same week boxes the weekly
-         loans have, so they get the red / amber / green treatment too - right now they have one
-         "Mark paid" button that only clears one week and resets every Monday
-[ ] #62! a weekly loan can only be paid a whole week at a time, add a part of a week amount for
-         when only some of that week's instalment went through
-[ ] #63! carry the red / amber / green over to the payment history page so a whole month can be
-         read at a glance
 [ ] #64! the overdue reminder now says how many weeks of a loan are unpaid - read that wording
          in a real email and make sure it doesn't sound clumsy
 [ ] #65! now that the app is deployed (#30), check the scheduler actually fires on the host -
          the daily / weekly / monthly reminder jobs, and the emails that go with them
-         (more worth doing than ever: the jobs no longer die on one bad account, but nothing has
-          confirmed they run at all on a free tier that recycles its workers)
-[ ] #72! the monthly close-off still totals LAST month one bill at a time - it is a different
-         window so the shared map doesn't cover it. only runs once a month, so it is last on the
-         list, but it is the one N+1 left in the app
+         (mostly answered: reminder emails arrive with the PC off, so the daily task does run.
+          still worth seeing a Monday weekly email and a 1st-of-the-month one arrive, and the
+          new daily email for your own reminders (#59))
 
 
 #--------------------------- IDEAS -------------------------#

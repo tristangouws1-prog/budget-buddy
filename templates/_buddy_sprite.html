@@ -1,16 +1,17 @@
-{# The hatched buddy, shared by the dock and the buddy page.
-   The mood face is switched by the buddy-mood-* class on a parent, and the
-   colours by buddy-species-*. Cats share one drawing, frogs another.
-   Housemates pass sprite_species so they keep their own shape even though
-   `buddy` is the active one. Cosmetics layer on top when worn #}
+{# The buddy
+#}
 {% set sp = sprite_species if sprite_species is defined else (buddy.species if buddy is defined else "blobcat") %}
 {% set is_frog = sp in ("frog", "purplefrog") %}
 
 {# the view starts one row ABOVE the sprite so tall hats have room.
-   nothing is drawn below row 15, so it stays square #}
+   nothing is drawn below row 15,    Note to self Increase the row where stuff is viewed,
+    the which hat doesnt fit #}
+
+
+
 <svg viewBox="0 -1 16 16" shape-rendering="crispEdges" aria-hidden="true">
     {% if is_frog %}
-    <!--  the frog  -->
+    <!-- frog  -->
     <g class="buddy-fill">
         <rect x="3" y="0" width="2" height="3"/>
         <rect x="11" y="0" width="2" height="3"/>
@@ -21,12 +22,12 @@
         <rect x="11" y="14" width="4" height="1"/>
     </g>
 
-    <!-- pale belly patch -->
+    <!-- belly patch -->
     <g class="buddy-belly-fill">
         <rect x="5" y="10" width="6" height="3"/>
     </g>
 
-    <!-- bulging eyes, white with a pupil looking inward -->
+    <!--  eyes -->
     <g class="buddy-eyes">
         <g class="buddy-eyes-open">
             <g class="buddy-eye-fill">
@@ -39,7 +40,7 @@
             </g>
         </g>
         <g class="buddy-eyes-happy">
-            <!-- a glint in the inner corner of each closed eye -->
+            <!-- glint in eye -->
             <g class="buddy-eye-fill">
                 <rect x="4" y="2" width="1" height="1"/>
                 <rect x="11" y="2" width="1" height="1"/>
@@ -53,7 +54,7 @@
         </g>
     </g>
 
-    <!-- eyebrows, only when worried -->
+    <!-- eyebrows, when worried -->
     <g class="buddy-brows buddy-ink-fill">
         <rect x="3" y="0" width="2" height="1"/>
         <rect x="11" y="0" width="2" height="1"/>
@@ -65,13 +66,13 @@
         <rect x="9" y="5" width="1" height="1"/>
     </g>
 
-    <!-- blushy cheeks on the wide face -->
+    <!-- blushy cheeks  -->
     <g class="buddy-cheek-fill">
         <rect x="2" y="7" width="1" height="1"/>
         <rect x="13" y="7" width="1" height="1"/>
     </g>
 
-    <!-- the wide frog grin: one per mood -->
+    <!-- frog grin -->
     <g class="buddy-ink-fill">
         <g class="buddy-mouth-happy">
             <rect x="3" y="8" width="1" height="1"/>
@@ -89,8 +90,8 @@
     </g>
 
     {% else %}
-    <!--  the blob-cat  -->
-    <!-- ears: pointed triangles -->
+    <!-- blob-cat  -->
+    <!-- ears -->
     <g class="buddy-fill">
         <rect x="3" y="0" width="1" height="1"/>
         <rect x="3" y="1" width="2" height="1"/>
@@ -112,7 +113,7 @@
         <rect x="4" y="14" width="8" height="1"/>
     </g>
 
-    <!-- eyes, the mood class in CSS picks which set shows -->
+    <!-- eyes  -->
     <g class="buddy-eyes buddy-ink-fill">
         <g class="buddy-eyes-open">
             <rect x="5" y="7" width="1" height="2"/>
@@ -128,13 +129,13 @@
         </g>
     </g>
 
-    <!-- eyebrows, only when worried -->
+    <!-- eyebrows -->
     <g class="buddy-brows buddy-ink-fill">
         <rect x="4" y="5" width="2" height="1"/>
         <rect x="10" y="5" width="2" height="1"/>
     </g>
 
-    <!-- rosy cheeks -->
+    <!-- cheeks -->
     <g class="buddy-cheek-fill">
         <rect x="4" y="10" width="1" height="1"/>
         <rect x="11" y="10" width="1" height="1"/>
@@ -150,7 +151,7 @@
         <rect x="12" y="11" width="5" height="1"/>
     </g>
 
-    <!-- mouths: one per mood -->
+    <!-- mouth -->
     <g class="buddy-ink-fill">
         <g class="buddy-mouth-happy">
             <rect x="6" y="10" width="1" height="1"/>
@@ -169,7 +170,7 @@
     {% endif %}
 
     {% if buddy_equipped is defined %}
-    <!-- cosmetics, drawn over everything else -->
+    <!-- cosmetics  -->
     {% if "party_hat" in buddy_equipped %}
     <g class="cos-party-hat">
         <rect x="7" y="0" width="1" height="1" fill="#f2c14e"/>
@@ -180,7 +181,7 @@
     {% if "flower" in buddy_equipped %}
     <g class="cos-flower">
         {% if is_frog %}
-        <!-- frogs have no ear to tuck it behind, so it sits on the cheek -->
+        <!-- frogs flower on cheek -->
         <rect x="12" y="4" width="1" height="1" fill="#f2a0c0"/>
         <rect x="11" y="5" width="1" height="1" fill="#f2a0c0"/>
         <rect x="13" y="5" width="1" height="1" fill="#f2a0c0"/>
@@ -203,7 +204,7 @@
     </g>
     {% endif %}
     {% if "witch_hat" in buddy_equipped %}
-    <!-- sits one row higher than the other hats, up in the spare row -->
+    <!-- sits one row higher than the other hats note to self, make hat larger -->
     <g class="cos-witch-hat">
         <rect x="7" y="-1" width="1" height="1" fill="#2e2638"/>
         <rect x="6" y="0" width="3" height="1" fill="#2e2638"/>
@@ -222,7 +223,7 @@
     {% if "sunglasses" in buddy_equipped %}
     <g class="cos-sunglasses">
         {% if is_frog %}
-        <!-- a frog's eyes are up on the bumps, so the lenses go there -->
+        <!-- frog's eyes  -->
         <rect x="3" y="1" width="2" height="2" fill="#3a3a44"/>
         <rect x="11" y="1" width="2" height="2" fill="#3a3a44"/>
         <rect x="5" y="2" width="6" height="1" fill="#3a3a44"/>

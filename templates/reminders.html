@@ -1,6 +1,53 @@
 {% extends "base.html" %}
 {% block content %}
 
+<section class="form-card my-reminders">
+    <h2>Your own reminders</h2>
+    <p class="form-intro">Anything you don't want to forget. It shows on your dashboard and is emailed to you that morning.</p>
+
+    <form method="POST" action="{{ url_for('add_personal_reminder') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label for="text">Remind me to</label>
+        <input type="text" id="text" name="text" maxlength="200"
+               placeholder="e.g. Pick up prescription" required>
+
+        <label for="due_date">On</label>
+        <input type="date" id="due_date" name="due_date" value="{{ today.isoformat() }}" required>
+
+        <label for="repeat">Repeat</label>
+        <select id="repeat" name="repeat">
+            {% for key, label in repeats.items() %}
+                <option value="{{ key }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <button type="submit" class="btn-primary btn-block">Add reminder</button>
+    </form>
+
+    {% if mine %}
+        <div class="my-reminder-list">
+            {% for r in mine %}
+                <div class="reminder reminder-personal {{ 'is-due' if r.due_date <= today }}">
+                    <div>
+                        <span>{{ r.text }}</span>
+                        <div class="reminder-date">
+                            {{ 'Due' if r.due_date <= today else 'On' }}
+                            {{ r.due_date.strftime('%a') }} {{ r.due_date.day }} {{ r.due_date.strftime('%b %Y') }}
+                            &middot; {{ repeats[r.repeat] }}
+                        </div>
+                    </div>
+                    <form method="POST" class="soft-form"
+                          action="{{ url_for('delete_personal_reminder', reminder_id=r.id) }}"
+                          onsubmit="return confirm('Delete this reminder?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn-small btn-delete">Delete</button>
+                    </form>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</section>
+
 <div class="section-head">
     <h2>All reminders</h2>
 </div>
@@ -10,7 +57,7 @@
         {% for r in reminders %}
             <div class="reminder reminder-{{ r.category }} {{ 'is-read' if r.is_read else '' }}">
                 <div>
-                    <span>{{ r.message }}</span> 
+                    <span>{{ r.message }}</span>
                     <div class="reminder-date">
                         <span>{{ r.created_at.strftime('%d %b %Y') }}</span> &middot;
                         <span>{{ r.created_at.strftime('%H:%M') }}</span>

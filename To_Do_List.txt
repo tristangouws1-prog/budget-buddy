@@ -7,7 +7,7 @@
 !  #7!  TODO add currency option
 !  #8!  TODO split date and time into separate columns
 !  #9!  TODO add on the dashboard how much the total bill cost is
-#10  TODO offline version that can run anywhere, mobile,pc,laptop etc
+#10
 !  #11! TODO: Currencies
 !  #12! TODO double check what happens with months that have 30 days vs 31 vs 28 or 29
 !  #13! TODO payment history
@@ -33,8 +33,8 @@
 !  #33! TODO spending history table
 !  #34! TODO spending history chart
 !  #35! TODO make sure the optional description part of the bill is also sent to the email
-#36  TODO have bbudget buddy be installable and run on any device as an .exe file, or a web link?
-#37! TODO show password as it is typed
+#36  
+#37
 !  #38! TODO implement a forgot password function
 !  #39! TODO implemenet a function that shows if a previous month's bill was paid or not, which shows a buildup of bills
 !  #40! TODO add variable bill type such as water and electricity
@@ -46,7 +46,7 @@
 !  #48! TODO Add service fee part to store accounts
 
 
-#49  TODO Allow for multiple of the same "Username" but only one profile per email account, 
+!  #49! TODO Allow for multiple of the same "Username" but only one profile per email account, 
 make sure each username is linked to that corresponding email it was registereed to with a "hash'? or "pointer"?
 or give each username a unique suffix that can be seen in the settings Tab, that way the username may look the same e.g. 
 "David" and "David" but the second david ACTUALLYYYYY looks like this "David#1234"
@@ -64,12 +64,12 @@ have suffixes be incrementel when each new user makes a profile,
 !  #57! TODO visual bug where week 3 of the loan of the loan payment does not show a check marked
 !  #58  TODO loan weekly payments need to reduce main bills left to pay at the top of page
 
-#59  TODO Add a page where normal reminders can also be added, such as "remember to pick up prescription next wednesday"
+!  #59! TODO Add a page where normal reminders can also be added, such as "remember to pick up prescription next wednesday"
 
 !  #60! TODO a loan paid weekly must read RED while no week is paid, AMBER once the first week is paid but the rest are still waiting, and GREEN only when every week of the month is done
-#61! TODO give plain weekly bills (groceries, weekly debit orders) the same week boxes the weekly loans have, so they get the red / amber / green treatment too
-#62! TODO a weekly loan can only be paid a whole week at a time, add a part of a week amount for when only some of that week's instalment went through
-#63! TODO carry the red / amber / green over to the payment history page so a whole month can be read at a glance
+!  #61! TODO give plain weekly bills (groceries, weekly debit orders) the same week boxes the weekly loans have, so they get the red / amber / green treatment too
+!  #62! TODO a weekly loan can only be paid a whole week at a time, add a part of a week amount for when only some of that week's instalment went through
+!  #63! TODO carry the red / amber / green over to the payment history page so a whole month can be read at a glance
 #64! TODO read the new "x weeks of it are unpaid" overdue wording in a real email and make sure it doesn't sound clumsy
 #65! TODO now that the app is deployed, check the scheduler really fires on the host - the daily / weekly / monthly jobs and the emails with them
 !  #66! TODO a weekly loan saved with a day of the MONTH (e.g. the 15th) crashed both reminder jobs, so NOBODY got reminders - the day is now clamped when saved and when read, and each account runs on its own so one bad account cannot stop everyone else
@@ -77,6 +77,15 @@ have suffixes be incrementel when each new user makes a profile,
 !  #68! TODO every page cost a database query per weekly loan, even Settings which shows no bills - the buddy now shares what the page already loaded, so 20 loans costs the same as 2
 !  #69! TODO payment history loaded every row ever recorded (415ms at 10 000) - now 100 rows a page with the six month chart as one grouped query
 !  #70! TODO dragging a bill saved the order with one query per bill (61 queries for 30 bills) - now 3
+!  #71! TODO smaller ones from the same audit - the daily check-in, the stylesheet stamp and the week counting no longer cost anything per page
+!  #72! TODO the monthly close-off totalled LAST month one bill at a time - now one grouped query per account, 6 selects with 2 weekly bills or 20
+!  #73! TODO audit bug fixes - editing a bill saves its amount again, interest rates show as 11.5% not 0.12%, the daily task can't add loan interest twice, dates are SAST not UTC, bad numbers get a message not a crash, passwords need 8 characters, the history chart shows R417 not R41670
+!  #74! TODO lower priority audit clean-ups - reminder emails share one mail server login, failed emails are logged, requirements.txt has version ranges, pages without bills reuse the buddy's mood
+
+
+
+
+
 
 #future TODO add a small pixel buddy that motivates the user
 # to keep up to date with their budget info
@@ -89,24 +98,14 @@ have suffixes be incrementel when each new user makes a profile,
 
 
 
-! webpage that is house holds all currently hatched buddies , cute poses on furniture, and there the displayed buddy can be chosen
+! webpage that is "house" holds all currently hatched buddies , cute poses on furniture, and there the displayed buddy can be chosen
 that is dosplayed on the other pages
 (done - the /buddy page is the house: housemates lounge in the room, "Bring out" picks who's displayed,
-new eggs arrive at levels 3/5/7/10, up to 4 buddies)
-
-
-
-
-Your README.md file should be minimally multiple paragraphs in length, and should explain what your project is, 
-what each of the files you wrote for the project contains and does, and if you debated certain design choices, explaining why you made them. 
-Ensure you allocate sufficient time and energy to writing a README.md that documents your project thoroughly. 
-Be proud of it! A README.md in the neighborhood of 750 words is likely to be sufficient for describing your project and all aspects of its functionality. 
-If unable to reach that threshold, that probably means your project is insufficiently complex
+new eggs arrive at levels 3/5/7/10, up to 5 buddies)
 
 
 #---------------|||||||||||||||||||||||||||||---------------#
-                        README.md
-                ~2 minute video walkthrough
+
 #---------------|||||||||||||||||||||||||||||---------------#
 
 

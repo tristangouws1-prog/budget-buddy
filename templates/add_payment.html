@@ -9,11 +9,11 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="name">Short name</label>
         <input type="text" id="name" name="name"
-               placeholder="e.g. Spotify, Rent, Phone" required>
+               placeholder="e.g. Rent" required>
 
         <label for="description">Description (optional)</label>
         <input type="text" id="description" name="description"
-               placeholder="e.g. Spotify Premium Duo via Vodacom airtime">
+               placeholder="Debit Order">
 
        <label for="payment_method">Payment Method?</label>
        <select id="payment_method" name="payment_method">
@@ -29,8 +29,8 @@
 
         <label for="bill_type">Bill type</label>
         <select id="bill_type" name="bill_type" onchange="toggleBalanceFields(this.value)">
-            <option value="fixed">Fixed monthly (e.g. Spotify, rent)</option>
-            <option value="variable">Variable (amount changes, e.g. water, electricity)</option>
+            <option value="fixed">Fixed monthly (e.g. Rent)</option>
+            <option value="variable">Variable (e.g. water, electricity)</option>
             <option value="loan">Loan (gets paid down over time)</option>
             <option value="credit">Credit account (store account, credit card)</option>
             <option value="once_off"> Once-off (single payment, doesn't repeat)</option>
@@ -39,7 +39,7 @@
         <label for="frequency">How often?</label>
         <select id="frequency" name="frequency" onchange="toggleDueField(this.value)">
             <option value="monthly">Monthly</option>
-            <option value="weekly">Weekly (e.g. a weekly debit order)</option>
+            <option value="weekly">Weekly</option>
         </select>
 
         <div id="balance-fields" style="display:none">

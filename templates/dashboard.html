@@ -4,9 +4,7 @@
 {% set paid_count = payments_with_status | selectattr('status', 'equalto', 'paid') | list | length %}
 {% set total_count = payments_with_status | length %}
 
-{#  One bill's progress bar (#2). The bar is everything owed on the bill:
-    this month's cost first, then anything carried over from earlier months,
-    with a small dark divider marking where the old debt starts.  #}
+
 {% macro owed_bar(paid, month_cost, carried, kind='partial') %}
     {% set total = month_cost + carried %}
     {% if total > 0 %}
@@ -48,7 +46,7 @@
     {% endif %}
 
     {% if total_monthly > 0 %}
-        {# fill by money paid (total - what's left), capped at 100% so it can't overflow#}
+     
         {% set paid_percentage = [((total_monthly - total_unpaid) / total_monthly * 100)|round|int, 100]|min %}
         <div class="hero-progress">
             <div class="hero-progress-fill" style="width: {{ paid_percentage }}%">
@@ -138,9 +136,19 @@
 
 
 <!--  Reminders  -->
-{% if reminders %}
+{% if reminders or my_reminders %}
 <section class="reminders-box">
     <h2>Things to check</h2>
+    {% for r in my_reminders %}
+        <div class="reminder reminder-personal">
+            <span>{{ r.text }}</span>
+            <form method="POST" class="soft-form"
+                  action="{{ url_for('personal_reminder_done', reminder_id=r.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="reminder-done">Got it</button>
+            </form>
+        </div>
+    {% endfor %}
     {% for r in reminders %}
         <div class="reminder reminder-{{ r.category }}">
             <span>{{ r.message }}</span>
@@ -235,8 +243,6 @@
                         </span>
 
                         {% if item.payment.frequency == 'weekly' %}
-                            <!-- weekly bills tick off a week at a time,
-                                 each one clearing part of the monthly total -->
                             <span class="bill-balance-label">
                                 {{ current_user.currency }}{{ item.month_paid | money }} paid of
                                 {{ current_user.currency }}{{ item.month_cost | money }} this month
@@ -245,20 +251,30 @@
                             {{ owed_bar(item.paid_so_far, item.month_cost, item.carried) }}
 
                             {% if item.by_week %}
-                                <!-- one box per week the loan is due, ticked off as it's paid -->
                                 <div class="week-toggles">
                                     {% for week in range(1, item.weeks_total + 1) %}
+                                        {% set part = item.part_week if week == item.weeks_paid + 1 else 0 %}
                                         <form method="POST" class="soft-form"
                                               action="{{ url_for('toggle_week', payment_id=item.payment.id, week=week) }}">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                             <button type="submit"
-                                                    class="week-box {{ 'week-box-done' if week <= item.weeks_paid }}"
-                                                    title="{{ 'Undo week' if week <= item.weeks_paid else 'Mark week' }} {{ week }}">
+                                                    class="week-box {{ 'week-box-done' if week <= item.weeks_paid }}{{ ' week-box-part' if part }}"
+                                                    {% if part %}style="--part: {{ part }}%"{% endif %}
+                                                    title="{{ 'Undo week' if week <= item.weeks_paid else 'Mark week' }} {{ week }}{{ ' (%d%% paid)' % part if part }}">
                                                 {{ '✓' if week <= item.weeks_paid else week }}
                                             </button>
                                         </form>
                                     {% endfor %}
                                 </div>
+                                {% if item.status != 'paid' %}
+                                    <form method="POST" action="{{ url_for('pay_part_week', payment_id=item.payment.id) }}" class="update-balance-form">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <input type="number" name="part_amount" step="0.01" min="0.01"
+                                               max="{{ (item.month_cost - item.month_paid) | rands }}"
+                                               placeholder="Paid part of a week ({{ current_user.currency }})" required>
+                                        <button type="submit" class="btn-small btn-update">Add</button>
+                                    </form>
+                                {% endif %}
                             {% endif %}
                         {% endif %}
 
@@ -281,12 +297,11 @@
                                 {% set fill_percent = [((bill_total - bill_balance) / bill_total * 100)|round|int, 100]|min %}
                                 <span class="bill-balance-label">{{ current_user.currency }}{{ bill_balance | money }} remaining of {{ current_user.currency }}{{ bill_total | money }}</span>
                                 {% if item.payment.interest_rate %}
-                                    <span class="bill-balance-label">Interest Rate: {{ item.payment.interest_rate | money }}%</span>
+                                    <span class="bill-balance-label">Interest Rate: {{ item.payment.interest_rate | rate }}%</span>
                                 {% endif %}
                                 {% if item.payment.months_remaining %}
                                     <span class="bill-balance-label">{{ item.payment.months_remaining }} month{{ 's' if item.payment.months_remaining != 1 else '' }} remaining</span>
                                 {% endif %}
-                                {# month_cost is amount x weeks for a weekly loan, plain amount otherwise #}
                                 {% set monthly_extras = (item.payment.loan_insurance_cents or 0) + (item.payment.service_fee_cents or 0) %}
                                 {% if monthly_extras > 0 %}
                                     <span class="bill-balance-label">True monthly cost: {{ current_user.currency }}{{ (item.month_cost + monthly_extras) | money }} (incl.{% if item.payment.loan_insurance_cents %} {{ current_user.currency }}{{ item.payment.loan_insurance_cents | money }} insurance{% endif %}{% if item.payment.loan_insurance_cents and item.payment.service_fee_cents %},{% endif %}{% if item.payment.service_fee_cents %} {{ current_user.currency }}{{ item.payment.service_fee_cents | money }} service fee{% endif %})</span>
@@ -298,7 +313,7 @@
                                 {% set fill_percent = [(bill_balance / bill_total * 100)|round|int, 100]|min %}
                                 <span class="bill-balance-label">{{ current_user.currency }}{{ bill_balance | money }} used of {{ current_user.currency }}{{ bill_total | money }} limit</span>
                                 {% if item.payment.interest_rate %}
-                                    <span class="bill-balance-label">Interest rate: {{ item.payment.interest_rate | money }}%</span>
+                                    <span class="bill-balance-label">Interest rate: {{ item.payment.interest_rate | rate }}%</span>
                                 {% endif %}
                                 {% if item.payment.minimum_payment_percent and item.payment.current_balance_cents %}
                                     {% set min_payment = (item.payment.current_balance_cents * item.payment.minimum_payment_percent / 100) | round | int %}
@@ -325,7 +340,7 @@
                             </form>
                         {% endif %}
 
-                            {% if not item.payment.is_paid and item.payment.bill_type not in ('loan', 'credit') %}
+                            {% if not item.payment.is_paid and item.payment.bill_type not in ('loan', 'credit') and not item.by_week %}
                             {% set paid_so_far = item.payment.amount_paid_cents or 0 %}
                             {% if paid_so_far > 0 or item.carried > 0 %}
                                 {{ owed_bar(paid_so_far, item.payment.amount_cents, item.carried) }}
@@ -348,7 +363,6 @@
                         <span class="bill-amount">{{ current_user.currency }}{{ item.payment.amount_cents | money }}</span>
                         <div class="bill-actions">
                             {% if item.by_week %}
-                                <!-- weekly loans are ticked off weekly -->
                             {% elif item.payment.is_paid %}
                                 <form method="POST" class="soft-form"
                                       action="{{ url_for('mark_unpaid', payment_id=item.payment.id) }}">
@@ -356,7 +370,6 @@
                                     <button type="submit" class="btn-small btn-undo">Undo</button>
                                 </form>
                                 {% if item.payment.bill_type == 'once_off' %}
-                                    <!-- a paid once-off -->
                                     <form method="POST" class="soft-form"
                                           action="{{ url_for('archive_payment', payment_id=item.payment.id) }}">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -393,11 +406,7 @@
 
 {% if sort_by == 'custom' and payments_with_status %}
 <script>
-//drag and drop reordering: pick a bill up, drop it somewhere new,
-//and the order is saved straight away.
-//the listeners sit on the document and find the list when they fire, so a
-//bill swapped in by a soft refresh can still be dragged. bound once, or a
-//second refresh would save the new order twice
+
 if (!window.billDragBound) {
     window.billDragBound = true;
     let dragged = null;

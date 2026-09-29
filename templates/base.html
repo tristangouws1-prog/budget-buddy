@@ -8,8 +8,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=static_version) }}">
 
-    <!-- fonts load without blocking the first paint: the page shows straight
-         away in the fallback face, then upgrades when they arrive -->
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" media="print" onload="this.media='all'"
@@ -39,8 +38,6 @@
     </header>
 
     <main class="container">
-        <!-- always here, even with nothing in it, so a flash appearing after a
-             soft refresh doesn't shift every other block down by one -->
         <div class="flash-area">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -65,13 +62,9 @@
         const form = event.target.closest("form.soft-form");
         if (!form || event.defaultPrevented) return;
         event.preventDefault();
-        //the button says what it did straight away, so a slow connection
-        //doesn't look like nothing happened
+
         const button = form.querySelector("button");
         if (button) button.classList.add("is-working");
-        //redirect: "manual" stops the browser quietly loading the page the
-        //POST redirects to. that hidden load used to render the whole page
-        //for nothing AND swallow the flash message before it could be shown
         await fetch(form.action, {method: "POST", body: new FormData(form),
                                   cache: "no-store", redirect: "manual"});
         await softRefresh();
@@ -84,19 +77,14 @@
         const main = document.querySelector("main.container");
         const newMain = doc.querySelector("main.container");
         if (!main || !newMain) { window.location.reload(); return; }
-        //flag both sides: whether an element is kept or swapped in fresh, it
-        //carries the mark that stops the entry animations replaying
         main.dataset.swapped = "1";
         newMain.dataset.swapped = "1";
-        //update only what actually changed. replacing the lot made every bill,
-        //the hero and the buddy blink at once, which felt like a page reload
         morph(main, newMain);
         const dock = document.getElementById("buddy-dock");
         const newDock = doc.getElementById("buddy-dock");
         if (dock && newDock) morph(dock, newDock);
     }
 
-    //the text an element says itself, ignoring anything its children say
     function ownText(el) {
         return Array.from(el.childNodes)
                     .filter(node => node.nodeType === Node.TEXT_NODE)
@@ -104,20 +92,16 @@
     }
 
     function morph(oldEl, newEl) {
-        //identical subtree: leave it completely alone, no repaint, no replay
         if (oldEl.isEqualNode(newEl)) return;
-        //shape or wording changed, so this one is swapped whole
         if (oldEl.tagName !== newEl.tagName
             || oldEl.childElementCount === 0
             || oldEl.childElementCount !== newEl.childElementCount
             || ownText(oldEl) !== ownText(newEl)) {
             const fresh = newEl.cloneNode(true);
             oldEl.replaceWith(fresh);
-            //a swapped-in <script> is inert until it is rebuilt as a new one
             runScripts(fresh);
             return;
         }
-        //same shape: copy the attributes over and keep looking deeper
         for (const attr of Array.from(oldEl.attributes)) {
             if (!newEl.hasAttribute(attr.name)) oldEl.removeAttribute(attr.name);
         }

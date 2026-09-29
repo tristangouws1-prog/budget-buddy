@@ -1,19 +1,14 @@
 """
-Dev helper, for looking at or tweaking the test account's buddy.
-Saves paying hundreds of pretend bills just to test the shop or a sprite.
+Dev helper
 
-    python dev_buddy.py                        # show the current state
-    python dev_buddy.py --coins 5000           # money for the shop
-    python dev_buddy.py --level 5              # jump to level 5
-    python dev_buddy.py --xp 800               # or set xp exactly
-    python dev_buddy.py --species purplefrog   # preview another sprite
-    python dev_buddy.py --stage egg            # go back to being an egg
-    python dev_buddy.py --unlock-all           # own every cosmetic
+    python dev_buddy.py                        
+    python dev_buddy.py --coins 5000           
+    python dev_buddy.py --level 5              
+    python dev_buddy.py --xp 800               
+    python dev_buddy.py --species purplefrog   
+    python dev_buddy.py --stage egg            
+    python dev_buddy.py --unlock-all           
 
-They can be combined: --level 4 --coins 9999 --species blackcat
-
-Edits whichever database DATABASE_URL points at, locally instance/budget.db.
-It prints that database first, so check the line before running it anywhere odd.
 """
 import argparse
 import os
@@ -67,7 +62,6 @@ def main():
             print("Set DEV_ADMIN_PASSWORD in .env and run 'python app.py' once.")
             return
 
-        #the one out front, or any of them as a fallback
         buddy = (Buddy.query.filter_by(user_id=user.id, is_active=True).first()
                  or Buddy.query.filter_by(user_id=user.id).first())
         if buddy is None:
@@ -83,7 +77,6 @@ def main():
 
         changed = False
 
-        #--level first so an explicit --xp still wins
         if args.level is not None:
             buddy.xp = xp_for_level(max(1, args.level))
             changed = True

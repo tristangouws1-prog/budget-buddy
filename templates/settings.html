@@ -4,6 +4,10 @@
 <section class="form-card">
     <h2>Settings</h2>
     <p class="form-intro">Customise Budget Buddy</p>
+    <p class="settings-handle">
+        You're <strong>{{ current_user.handle }}</strong>
+        <span class="form-hint">Log in with this or your email address.</span>
+    </p>
     <form method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <!--Currency Symbol-->

@@ -5,7 +5,6 @@
     <h2>Payment history</h2>
 </div>
 
-<!--  Spending chart: last 6 months -->
 {% if chart_months | sum(attribute='total') > 0 %}
     <section class="chart-card">
         <h3>Last 6 months</h3>
@@ -13,10 +12,9 @@
             {% for month in chart_months %}
                 <div class="chart-col">
                     <div class="chart-bar-area">
-                        <!-- inline height is the bar's size as a % of the tallest month -->
                         <div class="chart-bar {{ 'chart-bar-current' if loop.last }}"
                              style="height: {{ month.height }}%">
-                            <span class="chart-value">{{ current_user.currency }}{{ "%.0f"|format(month.total) }}</span>
+                            <span class="chart-value">{{ current_user.currency }}{{ "%.0f"|format(month.total / 100) }}</span>
                         </div>
                     </div>
                     <span class="chart-label">{{ month.label }}</span>
@@ -33,6 +31,16 @@
                 <h3>{{ month.label }}</h3>
                 <span class="history-month-total">{{ current_user.currency }}{{ month.total | money }} paid</span>
             </div>
+            {% if month.chips %}
+                <div class="history-chips">
+                    {% for chip in month.chips %}
+                        <span class="status-badge badge-{{ chip.status }}"
+                              title="{{ current_user.currency }}{{ chip.paid | money }} of {{ current_user.currency }}{{ chip.owed | money }} paid">
+                            {{ {'paid': '✓ ', 'overdue': '✕ '}.get(chip.status, '') }}{{ chip.name }}
+                        </span>
+                    {% endfor %}
+                </div>
+            {% endif %}
             <div class="history-scroll">
             <table class="history-table">
                 <thead>
@@ -50,7 +58,6 @@
                             <td>{{ log.paid_at.strftime('%d %b %Y') }}</td>
                             <td>{{ log.paid_at.strftime('%H:%M') }}</td>
                             <td>{{ log.bill_name }}</td>
-                            <!-- a negative amount means a correction, e.g. fixing a typo -->
                             <td class="history-amount {{ 'history-negative' if log.amount_paid_cents < 0 }}">
                                 {{ current_user.currency }}{{ log.amount_paid_cents | money }}
                             </td>
@@ -62,7 +69,6 @@
         </section>
     {% endfor %}
 
-    <!-- the history is shown a page at a time, newest first -->
     {% if has_next or page > 1 %}
         <div class="pager">
             {% if page > 1 %}

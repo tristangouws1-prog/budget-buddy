@@ -20,7 +20,7 @@ client = bb.app.test_client()
 
 client.post("/register", data={
     "username": "borrower", "email": "loan@test.local",
-    "password": "pw12345", "confirm": "pw12345",
+    "password": "pw123456", "confirm": "pw123456",
 }, follow_redirects=True)
 with bb.app.app_context():
     b = bb.Buddy.query.first()
@@ -127,9 +127,9 @@ client.post("/add", data={
 with bb.app.app_context():
     gid = bb.Payment.query.filter_by(name="Groceries").first().id
 html = client.get("/").get_data(as_text=True)
-assert f"/pay/{gid}" in html, "ordinary weekly bills keep the Mark paid button"
-assert f"/week/{gid}/1" not in html, "week boxes are only for loans"
-print("ordinary weekly bill -> unchanged, still uses Mark paid")
+assert f"/week/{gid}/1" in html, "ordinary weekly bills get week boxes too (#61)"
+assert f"/pay/{gid}" not in html, "and no Mark paid button"
+print("ordinary weekly bill -> week boxes too, no Mark paid")
 
 print("\nALL LOAN WEEK CHECKS PASSED")
 
@@ -182,7 +182,7 @@ for weekly_amount in ("41.67", "333.33", "1666.67", "99.99", "7.77"):
         bb.db.create_all()
     client = bb.app.test_client()
     client.post("/register", data={"username": "t", "email": "t@t.local",
-                                   "password": "pw12345", "confirm": "pw12345"},
+                                   "password": "pw123456", "confirm": "pw123456"},
                 follow_redirects=True)
     client.post("/add", data={"name": "Loan", "description": "", "amount": weekly_amount,
                               "due_day": "1", "bill_type": "loan", "frequency": "weekly",

@@ -1,5 +1,5 @@
-{# The buddy's room on the /buddy page. Wall and floor are CSS, decor is
-   drawn when its key is in buddy_equipped. The buddy stands bottom centre #}
+{# The buddy's room on the /buddy page. 
+The buddy stands bottom centre #}
 <div class="buddy-room buddy-mood-{{ buddy_mood }} buddy-species-{{ buddy.species }}">
     {% if buddy_equipped is defined %}
 
@@ -80,7 +80,7 @@
 
     {% endif %}
 
-    {# the other buddies lounging around #}
+    {# the other buddies  #}
     {% if buddies is defined %}
     {% for mate in buddies if not mate.is_active %}
     {% if loop.index <= 4 %}

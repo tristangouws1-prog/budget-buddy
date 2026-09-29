@@ -7,9 +7,9 @@
 
     <form method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <label for="username">Username</label>
+        <label for="username">Email or username</label>
         <input type="text" id="username" name="username"
-               placeholder="Your username" required autofocus>
+               placeholder="you@example.com or Name#0001" required autofocus>
 
         <label for="password">Password</label>
         <input type="password" id="password" name="password"

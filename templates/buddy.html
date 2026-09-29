@@ -15,7 +15,7 @@
             </button>
         </form>
     {% elif buddy_level is defined and buddy_level < item.min_level %}
-        <span class="shop-locked">Unlocks at Lv {{ item.min_level }}</span>
+        <span class="shop-locked">Unlocks at Lvl {{ item.min_level }}</span>
     {% else %}
         <form action="{{ url_for('buy_cosmetic', item_key=key) }}" method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -30,14 +30,14 @@
 
 {% block content %}
 
-<!--The buddy at home: room, name, level, coins-->
+<!--The buddy at home-->
 <section class="buddy-card">
     {% include "_buddy_room.html" %}
 
     <div class="buddy-info">
         {% if buddy.stage == "egg" %}
             <h2>???</h2>
-            <p class="form-hint">Still an egg! It hatches once it has soaked up 100 XP.</p>
+            <p class="form-hint">Still an egg!</p>
         {% else %}
             <h2>{{ buddy.name }} <span class="buddy-species-tag">the {{ buddy.species }}</span></h2>
             <form action="{{ url_for('rename_buddy') }}" method="POST" class="buddy-rename">
