@@ -1,5 +1,4 @@
-# Database - don't upload, it'll be empty/different on every PC
-# (also covers backups like budget.db.bak2, which hold real personal data)
+# Database
 *.db
 *.db.*
 instance/
@@ -21,10 +20,5 @@ venv/
 
 Budget Buddy.code-workspace
 
-To_Do_List.txt
-TODO_List_updated.txt
-
-Buddy_Plan.md
-
-# Claude audit notes
-claude-readme.txt
+# Personal files
+git_excluded/
