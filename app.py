@@ -160,22 +160,22 @@ class Payment(db.Model):
     """One regular bill or subscription belonging to a user."""
     id = db.Column(db.Integer, primary_key=True)
 
-#short name of bill e.g. "Spotify"
+#short name of bill
     name = db.Column(db.String(100), nullable=False)
 
-#longer description e.g. "Spotify Premium Platinum Duo via Vodacom"
+#longer description
     description = db.Column(db.String(100), nullable=True)
 
-#how the bill is paid(airtime vs debit card etc)
+#how the bill is paid
     payment_method = db.Column(db.String(50), nullable = True)
 
-#cost of subscription or bill in float to allow for decimals
+#cost of subscription or bill
     amount_cents = db.Column(db.Integer, nullable=False)
 
-#day of the month which the next payment is due
+#day of the month when next payment is due
     due_day = db.Column(db.Integer, nullable=False)
 
-#true or false of whether payment has been made or not
+#whether payment has been made or not
     is_paid = db.Column(db.Boolean, default=False)
 
 #amount that has been paid
@@ -220,18 +220,17 @@ class Payment(db.Model):
 #custom drag-and-drop position on the dashboard
     sort_order = db.Column(db.Integer, nullable=True)
 
-#for once-off bills: paid and tucked away, off the dashboard for good (#50)
+#for once-off bills
     is_archived = db.Column(db.Boolean, default=False)
 
-#captures exactly when a new bill or subscription was added
+#captures when a new bill or subscription was added
     date_added = db.Column(db.DateTime, default=local_now)
 
 #which user owns this bill
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
 
 class Reminder(db.Model):
-    #send a message to user
-
+#send a message to user
     id = db.Column(db.Integer, primary_key=True)
 
 #reminder text
@@ -246,7 +245,6 @@ class Reminder(db.Model):
 #snap of when reminder was created
     created_at = db.Column(db.DateTime, default=local_now)
 
-#which bill this reminder is about, when it is about one (#53) -
 #lets paying a bill automatically tick off its reminders
     payment_id = db.Column(db.Integer, db.ForeignKey("payment.id"), nullable=True, index=True)
 
@@ -264,13 +262,13 @@ class Income(db.Model):
     #last known amount
     amount_cents = db.Column(db.Integer, nullable=False)
 
-    # fixed amount for a stable income
+    #fixed amount for a stable income
     income_type = db.Column(db.String(20), nullable=False, default="fixed")
 
-    #"monthly" (salary) or "weekly" (weekly wages)
+    #monthly or weekly
     frequency = db.Column(db.String(10), nullable=False, default="monthly")
 
-    #variable income, confirm if that months' amount has been confirmed.
+    #variable income
     #reset to False each month automatically
     is_confirmed = db.Column(db.Boolean, default=True)
 
@@ -287,7 +285,7 @@ class PaymentLog(db.Model):
 #name of the bill at the time it was paid
     bill_name = db.Column(db.String(100), nullable=False)
 
-#how much money was paid in this specific payment (not the running total)
+#how much money was paid in this specific payment
     amount_paid_cents = db.Column(db.Integer, nullable=False)
 
 #exactly when the payment was recorded
@@ -301,29 +299,29 @@ class PaymentLog(db.Model):
 
 
 class Buddy(db.Model):
-    """ A pixel companion. A user can own several, one shown at a time """
+    """pixel companion."""
 
     id = db.Column(db.Integer, primary_key=True)
 
 #what the user calls their buddy
     name = db.Column(db.String(50), nullable=False, default="Buddy")
 
-#which sprite it uses, one of BUDDY_SPECIES
+#which sprite it uses
     species = db.Column(db.String(30), nullable=False, default="blobcat")
 
-#"egg" until it has soaked up HATCH_XP, then "hatched"
+#"egg"
     stage = db.Column(db.String(10), nullable=False, default="hatched")
 
-#lifetime experience, never spent - the level is worked out from it
+#lifetime experience
     xp = db.Column(db.Integer, nullable=False, default=0)
 
-#spendable coins, earned alongside xp and spent in the shop
+#coins
     coins = db.Column(db.Integer, nullable=False, default=0)
 
 #when the buddy was created
     created_at = db.Column(db.DateTime, default=local_now)
 
-#is this the one shown on screen? only one per user
+#active buddy
     is_active = db.Column(db.Boolean, default=False)
 
 #who the buddy belongs to
@@ -331,15 +329,13 @@ class Buddy(db.Model):
 
 
 class XpEvent(db.Model):
-    """ One xp award. The unique rule stops the same action paying twice,
-    e.g. un-paying and re-paying a bill over and over """
 
     id = db.Column(db.Integer, primary_key=True)
 
-#what earned it: "register_bill", "pay_bill", "check_in", "clear_carryover"
+#what earned it
     kind = db.Column(db.String(30), nullable=False)
 
-#which exact action, e.g. "pay:14:2026-08" - one award per key, ever
+#which exact action
     ref_key = db.Column(db.String(60), nullable=False)
 
 #how much xp it earned
@@ -355,11 +351,10 @@ class XpEvent(db.Model):
 
 
 class OwnedCosmetic(db.Model):
-    """ A shop item a user has bought. The catalogue itself is BUDDY_SHOP """
 
     id = db.Column(db.Integer, primary_key=True)
 
-#which BUDDY_SHOP item, e.g. "party_hat"
+#which BUDDY_SHOP item
     item_key = db.Column(db.String(30), nullable=False)
 
 #worn/placed right now? one per slot
@@ -883,8 +878,8 @@ EGG_MESSAGES = [
     (75, "It's nearly hatching! Just a little more XP!"),
 ]
 
-#hitting these levels earns a new egg, up to MAX_BUDDIES.
-#the cap is one starting egg plus one per milestone, so none are wasted
+#hitting these levels earns a new egg, up
+#Note to self, update these to TO_DO_List #77 so that buddies are earned every 3 levels after level 10, and there is no buddy limit
 EGG_LEVELS = (3, 5, 7, 10)
 MAX_BUDDIES = 5
 
@@ -894,8 +889,7 @@ HISTORY_PER_PAGE = 100
 #repeat options
 REPEATS = {"none": "Once", "weekly": "Every week", "monthly": "Every month"}
 
-#everything the shop sells, one item per slot at a time.
-#the drawings live in templates/_buddy_sprite.html and _buddy_room.html
+#everything the shop sells
 BUDDY_SHOP = {
     "party_hat":  {"name": "Party hat",  "icon": "🎉", "price": 60,  "slot": "hat",       "min_level": 1},
     "flower":     {"name": "Flower",     "icon": "🌸", "price": 80,  "slot": "hat",       "min_level": 1},
@@ -904,7 +898,7 @@ BUDDY_SHOP = {
     "witch_hat":  {"name": "Witch hat",  "icon": "🧙", "price": 130, "slot": "hat",       "min_level": 2},
     "sunglasses": {"name": "Sunglasses", "icon": "🕶️", "price": 100, "slot": "accessory", "min_level": 2},
     "scarf":      {"name": "Scarf",      "icon": "🧣", "price": 120, "slot": "accessory", "min_level": 2},
-    #room decor. each corner is its own slot, so all four can be filled at once
+    #room decor
     "window":     {"name": "Window",     "icon": "🪟", "price": 140, "slot": "wall_left",   "min_level": 2},
     "poster":     {"name": "Poster",     "icon": "🖼️", "price": 90,  "slot": "wall_right",  "min_level": 1},
     "plant":      {"name": "Pot plant",  "icon": "🪴", "price": 80,  "slot": "floor_left",  "min_level": 1},
@@ -912,7 +906,7 @@ BUDDY_SHOP = {
     "rug":        {"name": "Cosy rug",   "icon": "🧶", "price": 100, "slot": "floor",       "min_level": 1},
 }
 
-#slot names for the shop - "wall_left" reads badly on screen
+#slot names for the shop
 SLOT_LABELS = {
     "hat": "hat",
     "accessory": "accessory",
@@ -923,23 +917,17 @@ SLOT_LABELS = {
     "floor": "floor",
 }
 
-#slots worn ON the buddy, everything else furnishes the room
+#slots worn ON the buddy
 WEARABLE_SLOTS = ("hat", "accessory")
 
 
 def buddy_says(mood, user, about=""):
-    """ Pick one of the buddy's lines for this mood.
-    Picked from a seed rather than at random, so the buddy keeps saying the
-    same thing until something actually changes. A fresh line on every page
-    load made the speech bubble jump about on every click """
     seed = f"{user.id}:{mood}:{about}:{local_today()}"
     return random.Random(seed).choice(BUDDY_MESSAGES[mood])
 
 
 def buddy_mood(user):
-    """ How the buddy feels about the bills, returns (mood, message) """
-    #the same bills and monthly totals the page itself loaded, so the buddy
-    #costs nothing extra instead of a SUM query per weekly loan, per page
+    #bills
     payments = bills_of(user.id)
     paid_map = paid_this_month_by_bill(user.id)
     statuses = {p.id: get_status(p, paid_map.get(p.id, 0)) for p in payments}

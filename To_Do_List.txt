@@ -82,6 +82,18 @@ have suffixes be incrementel when each new user makes a profile,
 !  #73! TODO audit bug fixes - editing a bill saves its amount again, interest rates show as 11.5% not 0.12%, the daily task can't add loan interest twice, dates are SAST not UTC, bad numbers get a message not a crash, passwords need 8 characters, the history chart shows R417 not R41670
 !  #74! TODO lower priority audit clean-ups - reminder emails share one mail server login, failed emails are logged, requirements.txt has version ranges, pages without bills reuse the buddy's mood
 
+#75 TODO currency isnt transferred between buddies when a new buddy is picked, this is a mistake, I must fix thiis
+#76 TODO drag and drop reordeing of bills doesnt save, it always reverts to the default order unless i click on MY ORDER everytime
+#77 TODO remove buddy limit, earn a new egg every 3 levels after level 10 and add the option to choose which buddy to display in the room
+
+#78 TODO, create a dynamic colouring system for the buddies, which means there are many different coloured buddies that can be got, with certain colours being rare
+
+
+
+
+
+
+
 
 
 

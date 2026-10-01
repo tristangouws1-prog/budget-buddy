@@ -3,8 +3,7 @@
 {% set sp = sprite_species if sprite_species is defined else (buddy.species if buddy is defined else "blobcat") %}
 {% set is_frog = sp in ("frog", "purplefrog") %}
 
-{# the view starts one row ABOVE the sprite so tall hats have room.
-   nothing is drawn below row 15,    Note to self Increase the row where stuff is viewed,
+{#Note to self Increase the row where stuff is viewed,
     the which hat doesnt fit #}
 
 
