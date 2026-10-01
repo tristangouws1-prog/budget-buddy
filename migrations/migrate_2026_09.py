@@ -2,11 +2,16 @@
 One-off migration for the September 2026 security batch.
 Safe to run twice.
 
-    python migrate_2026_09.py
+    python migrations/migrate_2026_09.py
 
 Adds the indexes every query filters by. New databases get them from
 the models; this catches databases made before then.
 """
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import sqlalchemy as sa
 
 from app import app, db

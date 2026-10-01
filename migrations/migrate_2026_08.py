@@ -2,7 +2,7 @@
 One-off migration for the August 2026 batch.
 Safe to run twice, every step checks before changing anything.
 
-    python migrate_2026_08.py
+    python migrations/migrate_2026_08.py
 
 What it does
     - adds reminder.payment_id, so paying a bill can tick off its reminders
@@ -11,6 +11,11 @@ What it does
       is_active (SQLite can't drop a UNIQUE rule, so the table is copied)
     - creates any tables that don't exist yet
 """
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import sqlalchemy as sa
 
 from app import app, db

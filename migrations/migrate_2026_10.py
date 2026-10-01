@@ -2,7 +2,7 @@
 Money is now stored as whole cents, not floating point.
 Run once, after pulling. Safe to run twice.
 
-    python migrate_2026_10.py
+    python migrations/migrate_2026_10.py
 
 Floats can't hold decimal money exactly, which is why 208.35 // 41.67 came
 out as 4 instead of 5. Every money column becomes an INTEGER of cents:
@@ -11,6 +11,11 @@ R41.67 is stored as 4167. Percentages stay as they were.
 Each table is rebuilt rather than altered in place, because older SQLite
 builds can't drop or retype a column.
 """
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import sqlalchemy as sa
 
 from app import app, db

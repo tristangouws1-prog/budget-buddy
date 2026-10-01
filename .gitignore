@@ -15,12 +15,13 @@ venv/
 # Environment variables / secrets
 .env
 
-# Editor / tool settings 
+# Editor / tool settings
 .vscode/
+.claude/
 
 Budget Buddy.code-workspace
 
-TO_DO_List.txt
+To_Do_List.txt
 TODO_List_updated.txt
 
 Buddy_Plan.md

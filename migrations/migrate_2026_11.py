@@ -2,7 +2,7 @@
 One-off migration for the October 2026 batch.
 Safe to run twice, every step checks before changing anything.
 
-    python migrate_2026_11.py
+    python migrations/migrate_2026_11.py
 
 What it does
     - adds user.tag and numbers every account per name, David#0001,
@@ -10,6 +10,11 @@ What it does
     - makes username + tag unique, so no two accounts share a handle
     - creates the new job_run and personal_reminder tables
 """
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import sqlalchemy as sa
 
 from app import app, db

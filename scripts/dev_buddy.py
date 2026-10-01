@@ -1,17 +1,20 @@
 """
 Dev helper
 
-    python dev_buddy.py                        
-    python dev_buddy.py --coins 5000           
-    python dev_buddy.py --level 5              
-    python dev_buddy.py --xp 800               
-    python dev_buddy.py --species purplefrog   
-    python dev_buddy.py --stage egg            
-    python dev_buddy.py --unlock-all           
+    python scripts/dev_buddy.py                        
+    python scripts/dev_buddy.py --coins 5000           
+    python scripts/dev_buddy.py --level 5              
+    python scripts/dev_buddy.py --xp 800               
+    python scripts/dev_buddy.py --species purplefrog   
+    python scripts/dev_buddy.py --stage egg            
+    python scripts/dev_buddy.py --unlock-all           
 
 """
 import argparse
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import (app, db, User, Buddy, OwnedCosmetic,
                  BUDDY_SPECIES, BUDDY_SHOP, MAX_BUDDIES,
