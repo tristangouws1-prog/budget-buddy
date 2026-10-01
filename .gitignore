@@ -8,18 +8,22 @@ instance/
 __pycache__/
 *.pyc
 
-# Virtual environment folder (if you use one)
+# Virtual environment folder 
 venv/
 .venv/
 
 # Environment variables / secrets
 .env
 
-# Editor / tool settings - personal to my machine, not part of the project
-.claude/
+# Editor / tool settings 
 .vscode/
 
+Budget Buddy.code-workspace
 
 TO_DO_List.txt
-# Claude audit notes - local working notes, not part of the project
+TODO_List_updated.txt
+
+Buddy_Plan.md
+
+# Claude audit notes
 claude-readme.txt
