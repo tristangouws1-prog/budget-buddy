@@ -953,12 +953,11 @@ def buddy_level(xp):
 
 
 def xp_for_level(level):
-    """ Xp needed to reach a level, the reverse of buddy_level """
+    """ Xp needed to reach a level"""
     return 50 * (level - 1) ** 2
 
 
 def pay_period_key(payment):
-    """ The one-award-per-period key: per month, or per week for weekly bills """
     today = local_today()
     if payment.frequency == "weekly":
         year, week, _ = today.isocalendar()
@@ -967,9 +966,7 @@ def pay_period_key(payment):
 
 
 def get_active_buddy(user):
-    """ The buddy shown on screen.
-    Older accounts get their first buddy promoted, and an account with none
-    at all gets a ready-hatched one made on the spot """
+    """ The buddy shown on screen. """
     buddy = Buddy.query.filter_by(user_id=user.id, is_active=True).first()
     if buddy is None:
         buddy = Buddy.query.filter_by(user_id=user.id).first()
@@ -991,9 +988,10 @@ def award_xp(user, kind, ref_key, amount):
     level_before = buddy_level(buddy.xp)
     db.session.add(XpEvent(user_id=user.id, kind=kind, ref_key=ref_key, amount=amount))
     buddy.xp += amount
-    buddy.coins += amount   #coins come alongside xp, and get spent in the shop
-
-    #enough xp hatches an egg, the species is a surprise until now
+    buddy.coins += amount   
+    
+    #coins come alongside xp, and get spent in the shop
+    #enough xp hatches an egg
     just_hatched = False
     if buddy.stage == "egg" and buddy.xp >= HATCH_XP:
         buddy.stage = "hatched"
@@ -1002,7 +1000,6 @@ def award_xp(user, kind, ref_key, amount):
     db.session.commit()
 
     if just_hatched:
-        #makes the next page play the hatch animation, once
         session["buddy_hatched"] = True
         flash(f"The egg hatched! Say hello to {buddy.name}!", "success")
     elif buddy.stage == "hatched" and buddy_level(buddy.xp) > level_before:
@@ -1018,8 +1015,7 @@ def award_xp(user, kind, ref_key, amount):
 
 
 def mark_bill_reminders_read(payment):
-    """ Tick off a bill's unread reminders when it gets paid.
-    New reminders carry the bill id, older ones match on the quoted name """
+    """ Tick off a bill's unread reminders when it gets paid. """
     unread = Reminder.query.filter_by(user_id=payment.user_id, is_read=False).all()
     for r in unread:
         if r.payment_id == payment.id or (
@@ -1028,10 +1024,7 @@ def mark_bill_reminders_read(payment):
 
 
 def parse_cents(raw):
-    """ Turn a form value into whole cents, None if empty.
-    Money is stored and added up as integer cents, never as a float:
-    0.1 + 0.2 is 0.30000000000000004, and 208.35 // 41.67 is 4 not 5.
-    Also accepts the comma decimal some phone keyboards type ("199,99") """
+    """ Turn a form value into whole cents, None if empty."""
     value = parse_number(raw)
     return None if value is None else int(round(value * 100))
 
@@ -1045,7 +1038,7 @@ def require_cents(raw):
 
 
 def parse_rate(raw):
-    """ A percentage stays a plain number - it isn't money """
+    """ A percentage stays a plain number """
     value = parse_number(raw)
     return None if value is None else round(value, 4)
 
@@ -1092,21 +1085,19 @@ def rands(cents):
 
 @app.template_filter("rate")
 def rate_text(value):
-    """ 11.5 -> "11.5" for a percentage. Not money, so never money() -
-    that divides by 100 and showed an 11.5% loan as 0.12% """
+    """ 11.5 -> "11.5" for a percentage. """
     if value is None:
         return ""
     return f"{value:.2f}".rstrip("0").rstrip(".")
 
 
 def percent_of(cents, rate):
-    """ A percentage of a money amount, rounded back to whole cents """
+    """ A percentage of a money amount """
     return int(round((cents or 0) * (rate or 0) / 100))
 
 
 def log_payment(payment, cents):
-    """ Save one row of payment history, in whole cents.
-    A negative amount is a correction, e.g. fixing a typo """
+    """ Save one row of payment history, in whole cents. """
     if not cents:
         return
     db.session.add(PaymentLog(
@@ -1115,7 +1106,7 @@ def log_payment(payment, cents):
         payment_id=payment.id,
         user_id=payment.user_id,
     ))
-    #this month's totals have just changed, so don't reuse the old ones
+
     forget_cached(f"paid_map:{payment.user_id}")
 
 
@@ -1125,16 +1116,14 @@ sent_emails = []
 
 
 def open_smtp():
-    """ One logged-in connection to the mail server.
-    The login comes from .env so no real password is ever written in the code """
+    """ One logged in connection to the mail server."""
     sender = os.environ.get("EMAIL_ADDRESS")
     password = os.environ.get("EMAIL_APP_PASSWORD")
 
-    #the mail server, can be pointed at another provider from .env
+    #the mail server
     host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
     port = int(os.environ.get("SMTP_PORT", 465))
 
-    #465 is encrypted from the start, 587 starts plain and upgrades
     if port == 587:
         server = smtplib.SMTP(host, port, timeout=30)
         server.starttls()
@@ -1149,8 +1138,7 @@ def open_smtp():
 
 
 class Mailer:
-    """ One mail server login shared by a batch of emails, instead of a new
-    connection per message. Use as `with Mailer() as mailer:` """
+    """ One mail server login shared by a batch of emails """
 
     def __init__(self):
         self.server = None
@@ -1177,11 +1165,9 @@ class Mailer:
 
 
 def send_email(to_address, subject, body, mailer=None):
-    """ Send one plain text email, Gmail by default.
-    Pass a Mailer to reuse its connection """
+    """ Send one plain text email, Gmail by default """
 
-    #never talk to a real mail server from a test. the developer's own .env
-    #is loaded on import, so without this a test run would send real email
+    #never talk to a real mail server from a test
     if app.config.get("TESTING"):
         sent_emails.append({"to": to_address, "subject": subject, "body": body})
         return
@@ -1191,7 +1177,7 @@ def send_email(to_address, subject, body, mailer=None):
     #the name people see in their inbox instead of the raw address
     from_name = os.environ.get("EMAIL_FROM_NAME", "Budget Buddy")
 
-    #email not set up, or no address to send to = quietly do nothing
+    #email not set up, or no address to send to =  do nothing
     if not sender or not os.environ.get("EMAIL_APP_PASSWORD") or not to_address:
         return
 
@@ -1217,16 +1203,14 @@ def send_email(to_address, subject, body, mailer=None):
                 mailer.close()
                 mailer.connection().send_message(msg)
     except Exception:
-        #logged, not raised, so one bad email doesn't stop the others
+        #logged, so one bad email doesn't stop the others
         app.logger.exception("Email failed for %s", to_address)
         if mailer is not None:
             mailer.close()
 
 
 def sample_reminder_lines(user):
-    """ One of every reminder wording, built from the user's own bills, so a
-    test email shows exactly what a real one will say (#31).
-    Nothing here is saved - these lines never become real reminders """
+    """ One of every reminder wording """
     payments = (Payment.query.filter_by(user_id=user.id)
                 .filter(Payment.is_archived.is_not(True))
                 .order_by(Payment.due_day).all())
@@ -1354,8 +1338,7 @@ def register():
             flash("That didn't save - please try again.", "warning")
             return redirect(url_for("register"))
 
-        #new accounts start with a mystery egg, older ones get a
-        #ready-hatched buddy from get_active_buddy instead
+        #new accounts start with a mystery egg
         db.session.add(Buddy(user_id=user.id, stage="egg", is_active=True))
         db.session.commit()
 
@@ -1428,13 +1411,11 @@ def logout():
 
 
 def get_reset_serializer():
-    """ Makes the signed, expiring tokens used in password reset links.
-    Signed with SECRET_KEY so it can't be faked, and nothing is stored """
+    """ Makes the signed, expiring tokens used in password reset links. """
     return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt="password-reset")
 
 
 @app.route("/forgot", methods=["GET", "POST"])
-#every POST sends a real email, so this one is throttled hardest
 @limiter.limit("5 per hour", methods=["POST"])
 def forgot_password():
     """ Ask for an email address and send a password reset link to it """
@@ -1468,7 +1449,7 @@ def reset_password(token):
         return redirect(url_for("dashboard"))
 
     try:
-        #max_age is in seconds, so the link stops working after an hour
+        #max_age is in seconds
         user_id = get_reset_serializer().loads(token, max_age=3600)
     except SignatureExpired:
         flash("That reset link has expired. Ask for a new one.", "warning")
@@ -1522,9 +1503,6 @@ def inject_static_version():
 
 
 def remembered_mood(user):
-    """ buddy_mood, kept in the session for the day so pages that show no
-    bills don't load them all just for the speech bubble (#10).
-    The dashboard always works it out fresh - it has the bills anyway """
     key = f"{user.id}:{local_today().isoformat()}"
     saved = session.get("buddy_mood")
     if request.endpoint != "dashboard" and saved and saved[0] == key:
@@ -1543,7 +1521,7 @@ def forget_mood():
 
 @app.context_processor
 def inject_buddy():
-    """ Give every template the active buddy, base.html shows it on all pages """
+    """ Give every template the active buddy """
     if not current_user.is_authenticated:
         return {}
     buddy = get_active_buddy(current_user)
@@ -1557,10 +1535,10 @@ def inject_buddy():
         award_xp(current_user, "check_in", f"day:{local_today().isoformat()}", 5)
         session["checked_in"] = today
 
-    #did that xp just hatch the egg? set by award_xp, played once
+    
     just_hatched = session.pop("buddy_hatched", False)
 
-    #what the buddy is wearing, drawn as extra layers on the sprite
+    #what the buddy is wearing
     equipped = [c.item_key for c in OwnedCosmetic.query.filter_by(
         user_id=current_user.id, equipped=True).all()]
 
@@ -1568,7 +1546,7 @@ def inject_buddy():
            "buddy_equipped": equipped}
 
     if buddy.stage == "egg":
-        #eggs have no mood, their message tracks hatching progress
+        #eggs have no mood
         pct = min(100, round(buddy.xp / HATCH_XP * 100))
         message = EGG_MESSAGES[0][1]
         for threshold, text in EGG_MESSAGES:

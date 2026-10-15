@@ -29,17 +29,17 @@
 
         <label for="bill_type">Bill type</label>
         <select id="bill_type" name="bill_type" onchange="toggleBalanceFields(this.value)">
-            <option value="fixed" {% if payment.bill_type == "fixed" %}selected{% endif %}>Fixed monthly (e.g. Spotify, rent)</option>
-            <option value="variable" {% if payment.bill_type == "variable" %}selected{% endif %}>Variable (amount changes, e.g. water, electricity)</option>
-            <option value="loan"  {% if payment.bill_type == "loan"  %}selected{% endif %}>Loan (gets paid down over time)</option>
-            <option value="credit" {% if payment.bill_type == "credit"%}selected{% endif %}>Credit account (store account, credit card)</option>
-            <option value="once_off" {% if payment.bill_type == "once_off" %}selected{% endif %}>Once-off (single payment, doesn't repeat)</option>
+            <option value="fixed" {% if payment.bill_type == "fixed" %}selected{% endif %}>Fixed Monthly</option>
+            <option value="variable" {% if payment.bill_type == "variable" %}selected{% endif %}>Variable</option>
+            <option value="loan"  {% if payment.bill_type == "loan"  %}selected{% endif %}>Loan</option>
+            <option value="credit" {% if payment.bill_type == "credit"%}selected{% endif %}>Credit account</option>
+            <option value="once_off" {% if payment.bill_type == "once_off" %}selected{% endif %}>Once-off</option>
         </select>
 
         <label for="frequency">How often?</label>
         <select id="frequency" name="frequency" onchange="toggleDueField(this.value)">
             <option value="monthly" {% if payment.frequency == "monthly" %}selected{% endif %}>Monthly</option>
-            <option value="weekly" {% if payment.frequency == "weekly" %}selected{% endif %}>Weekly (e.g. a weekly debit order)</option>
+            <option value="weekly" {% if payment.frequency == "weekly" %}selected{% endif %}>Weekly</option>
         </select>
 
 <div id="balance-fields" style="display:none">
