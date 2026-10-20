@@ -68,11 +68,9 @@
 <div class="shop-grid">
     {% for b in buddies %}
     <div class="shop-item{% if b.is_active %} shop-owned{% endif %}">
-        <span class="shop-icon">
-            {%- if b.stage == "egg" %}🥚
-            {%- elif b.species in ("frog", "purplefrog") %}🐸
-            {%- elif b.species == "blackcat" %}🐈‍⬛
-            {%- else %}🐱{% endif -%}
+        <span class="mate-icon buddy-species-{{ b.species }} buddy-mood-happy">
+            {%- if b.stage == "egg" %}{% include "_buddy_egg.html" %}
+            {%- else %}{% with buddy_equipped = [], sprite_species = b.species %}{% include "_buddy_sprite.html" %}{% endwith %}{% endif -%}
         </span>
         <span class="shop-name">{{ "???" if b.stage == "egg" else b.name }}</span>
         <span class="shop-slot">
@@ -100,8 +98,8 @@
 </div>
 
 <h2 class="shop-heading">For the room</h2>
-<p class="form-hint">Each corner of the room is its own spot, so all four can be
-filled at once.</p>
+<p class="form-hint">Each corner and the floor is its own spot, so all five can be
+out at once.</p>
 <div class="shop-grid">
     {% for key, item in shop.items() if item.slot not in wear_slots %}
         {{ shop_card(key, item) }}

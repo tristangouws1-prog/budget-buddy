@@ -14,7 +14,7 @@
                     <div class="chart-bar-area">
                         <div class="chart-bar {{ 'chart-bar-current' if loop.last }}"
                              style="height: {{ month.height }}%">
-                            <span class="chart-value">{{ current_user.currency }}{{ "%.0f"|format(month.total / 100) }}</span>
+                            <span class="chart-value">{{ current_user.currency }}{{ month.total | whole_rands }}</span>
                         </div>
                     </div>
                     <span class="chart-label">{{ month.label }}</span>
@@ -47,7 +47,7 @@
                     <tr>
                         <!-- date and time -->
                         <th>Date</th>
-                        <th>Time</th>
+                        <th class="history-time">Time</th>
                         <th>Bill</th>
                         <th class="history-amount">Amount</th>
                     </tr>
@@ -55,8 +55,8 @@
                 <tbody>
                     {% for log in month.logs %}
                         <tr>
-                            <td>{{ log.paid_at.strftime('%d %b %Y') }}</td>
-                            <td>{{ log.paid_at.strftime('%H:%M') }}</td>
+                            <td>{{ log.paid_at.day }} {{ log.paid_at.strftime('%b %Y') }}</td>
+                            <td class="history-time">{{ log.paid_at.strftime('%H:%M') }}</td>
                             <td>{{ log.bill_name }}</td>
                             <td class="history-amount {{ 'history-negative' if log.amount_paid_cents < 0 }}">
                                 {{ current_user.currency }}{{ log.amount_paid_cents | money }}

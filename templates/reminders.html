@@ -59,7 +59,7 @@
                 <div>
                     <span>{{ r.message }}</span>
                     <div class="reminder-date">
-                        <span>{{ r.created_at.strftime('%d %b %Y') }}</span> &middot;
+                        <span>{{ r.created_at.day }} {{ r.created_at.strftime('%b %Y') }}</span> &middot;
                         <span>{{ r.created_at.strftime('%H:%M') }}</span>
                     </div>
                 </div>
@@ -72,6 +72,22 @@
                 {% endif %}
             </div>
         {% endfor %}
+    </div>
+    {% if has_next or page > 1 %}
+        <div class="pager">
+            {% if page > 1 %}
+                <a class="btn-small btn-update" href="{{ url_for('reminders', page=page - 1) }}">&larr; Newer</a>
+            {% endif %}
+            <span class="pager-page">Page {{ page }}</span>
+            {% if has_next %}
+                <a class="btn-small btn-update" href="{{ url_for('reminders', page=page + 1) }}">Older &rarr;</a>
+            {% endif %}
+        </div>
+    {% endif %}
+{% elif page > 1 %}
+    <div class="empty">
+        <p>Nothing further back than this.</p>
+        <a class="btn-primary" href="{{ url_for('reminders') }}">Back to the latest</a>
     </div>
 {% else %}
     <div class="empty">

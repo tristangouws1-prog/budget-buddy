@@ -8,6 +8,7 @@
 #imports
 import os
 import secrets
+import hashlib
 
 import smtplib
 from email.message import EmailMessage
@@ -229,6 +230,9 @@ class Payment(db.Model):
 #which user owns this bill
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
 
+    #ids never reused
+    __table_args__ = {"sqlite_autoincrement": True}
+
 class Reminder(db.Model):
 #send a message to user
     id = db.Column(db.Integer, primary_key=True)
@@ -436,6 +440,7 @@ def days_until_due(due_day, is_paid=False):
 
     #make sure due day is not more than days in month
     days_in_month = calendar.monthrange(today.year, today.month)[1]
+    asked_day = due_day
     due_day = min(due_day, days_in_month)
 
     #due day still coming later in month
@@ -446,9 +451,12 @@ def days_until_due(due_day, is_paid=False):
         #negative number = days overdue
         return -(today.day - due_day)
     else:
-        #paid already, so next payment is next month
+        #paid already, so next payment is next month, on a day it has
         days_left_this_month = days_in_month - today.day
-        return days_left_this_month + due_day
+        next_year, next_month = ((today.year + 1, 1) if today.month == 12
+                                 else (today.year, today.month + 1))
+        next_days = calendar.monthrange(next_year, next_month)[1]
+        return days_left_this_month + min(asked_day, next_days)
 
 
 def days_until_due_weekly(due_weekday, is_paid=False):
@@ -478,7 +486,8 @@ def days_left_for(payment):
     """ Days until a bill is due, whatever its frequency """
     if payment.frequency == "weekly":
         return days_until_due_weekly(weekly_due_day(payment), payment.is_paid)
-    return days_until_due(payment.due_day, payment.is_paid)
+    #not owed yet: next month's
+    return days_until_due(payment.due_day, payment.is_paid or not due_in_month(payment))
 
 
 def due_date_for(payment):
@@ -488,6 +497,17 @@ def due_date_for(payment):
     return today + datetime.timedelta(days=days_left_for(payment))
 
 
+def due_sort_date(payment):
+    """ Where a bill falls in this month, for sorting by due date.
+    A weekly bill sorts at its next due day, not at weekday number 1-7 """
+    today = local_today()
+    if payment.frequency == "weekly":
+        ahead = (weekly_due_day(payment) - 1 - today.weekday()) % 7
+        return today + datetime.timedelta(days=ahead)
+    days = calendar.monthrange(today.year, today.month)[1]
+    return datetime.date(today.year, today.month, min(payment.due_day, days))
+
+
 def due_date_text(payment):
     """ The due date in full, e.g. "Friday 25 July 2026".
     Built piece by piece so the day isn't zero padded ("5 July", not "05 July") """
@@ -495,9 +515,11 @@ def due_date_text(payment):
     return f"{due.strftime('%A')} {due.day} {due.strftime('%B %Y')}"
 
 
-def description_note(payment):
-    """ The optional description, tacked onto reminder messages and emails """
-    return f" — {payment.description}" if payment.description else ""
+def clean_frequency(bill_type, raw):
+    """ Weekly or monthly. A once-off never repeats, so it's never weekly """
+    if bill_type == "once_off" or raw != "weekly":
+        return "monthly"
+    return "weekly"
 
 
 def clean_due_day(raw, frequency):
@@ -528,7 +550,8 @@ def due_phrase(payment):
 
 def monthly_equivalent(cents, frequency):
     """ A weekly amount as a monthly one (52 weeks / 12 months).
-    For INCOME only - bills use month_obligation, which counts real weeks """
+    For income and loan payoff estimates - bill totals use month_obligation,
+    which counts real weeks """
     if frequency == "weekly":
         return int(round(cents * 52 / 12))
     return cents
@@ -556,30 +579,61 @@ def weekdays_up_to(year, month, last_day, wanted):
     return (last_day - first_hit) // 7 + 1
 
 
-def weeks_in_month(payment, year=None, month=None):
-    """ How many times a weekly bill falls due in a month, really 4 or 5 """
+def counted_from(payment, year, month):
+    """ The day of a month a bill counts from: the 1st, or the day it was
+    added in its first month. None for a month before it existed """
+    added = payment.date_added
+    if added is None or (added.year, added.month) < (year, month):
+        return 1
+    if (added.year, added.month) == (year, month):
+        return added.day
+    return None
+
+
+def due_in_month(payment, year=None, month=None):
+    """ Whether a monthly bill falls due in a month. One added after its due
+    day had passed starts the month after """
     today = local_today()
     year = year or today.year
     month = month or today.month
+    start = counted_from(payment, year, month)
+    days = calendar.monthrange(year, month)[1]
+    return start is not None and start <= min(payment.due_day, days)
+
+
+def weeks_in_month(payment, year=None, month=None):
+    """ How many times a weekly bill falls due in a month, really 4 or 5.
+    In the month it was added, only from that day on """
+    today = local_today()
+    year = year or today.year
+    month = month or today.month
+    start = counted_from(payment, year, month)
+    if start is None:
+        return 0
     days = calendar.monthrange(year, month)[1]
     #due_day is 1=Monday..7=Sunday, weekday() is 0=Monday..6=Sunday
     wanted = weekly_due_day(payment) - 1
-    return weekdays_up_to(year, month, days, wanted)
+    return (weekdays_up_to(year, month, days, wanted)
+            - weekdays_up_to(year, month, start - 1, wanted))
 
 
 def weeks_due_so_far(payment, year=None, month=None):
-    """ How many of this month's due weekdays have already come around.
-    A weekly bill owes nothing until its first due day arrives, so this is
-    what says whether an unpaid week is really late """
+    """ How many of this month's due weekdays have already gone by.
+    Like a monthly bill, a week is only late once its due day has passed,
+    so this is what says whether an unpaid week is really late """
     today = local_today()
     year = year or today.year
     month = month or today.month
+    start = counted_from(payment, year, month)
+    if start is None:
+        return 0
     last_day = calendar.monthrange(year, month)[1]
-    #only count up to today when we're looking at the month we're in
+    #only count up to yesterday when we're looking at the month we're in
     if (year, month) == (today.year, today.month):
-        last_day = min(last_day, today.day)
+        last_day = min(last_day, today.day - 1)
     wanted = weekly_due_day(payment) - 1
-    return weekdays_up_to(year, month, last_day, wanted)
+    return max(0, weekdays_up_to(year, month, last_day, wanted)
+               - weekdays_up_to(year, month, start - 1, wanted))
 
 
 def month_obligation(payment, year=None, month=None):
@@ -588,7 +642,7 @@ def month_obligation(payment, year=None, month=None):
     week clears exactly one week of the monthly total """
     if payment.frequency == "weekly":
         return payment.amount_cents * weeks_in_month(payment, year, month)
-    return payment.amount_cents
+    return payment.amount_cents if due_in_month(payment, year, month) else 0
 
 
 def month_bounds(year, month):
@@ -683,7 +737,19 @@ def remaining_this_month(payment, paid=None):
         return max(0, month_obligation(payment) - paid)
     if payment.is_paid:
         return 0
-    return payment.amount_cents - (payment.amount_paid_cents or 0)
+    return max(0, month_obligation(payment) - (payment.amount_paid_cents or 0))
+
+
+def settle_amount(payment):
+    """ Paid or not again after a bill's amount changes: R80 paid on a bill
+    lowered to R50 is paid, R100 paid on one raised to R150 is part paid.
+    Weekly bills go by their ticked weeks instead """
+    paid = payment.amount_paid_cents or 0
+    #old rows
+    if payment.frequency == "weekly" or (payment.is_paid and not paid):
+        return
+    payment.is_paid = paid >= payment.amount_cents
+    payment.amount_paid_cents = min(paid, payment.amount_cents)
 
 
 def paid_towards_this_month(payment, paid=None):
@@ -746,7 +812,7 @@ def overdue_message(payment, user):
     weeks_note = (f" {behind} week{'s' if behind != 1 else ''} of it "
                   f"{'are' if behind != 1 else 'is'} unpaid.") if behind else ""
     return (f"'{payment.name}' ({user.currency}{money(payment.amount_cents)}) is overdue! "
-            f"Was due on {due_phrase(payment)}{description_note(payment)}{weeks_note}")
+            f"Was due on {due_phrase(payment)}{weeks_note}")
 
 
 def due_soon_message(payment, user):
@@ -758,13 +824,13 @@ def due_soon_message(payment, user):
     else:
         timing = f"is due in {days} day{'s' if days != 1 else ''}"
     return (f"'{payment.name}' ({user.currency}{money(payment.amount_cents)}) {timing}, "
-            f"{due_date_text(payment)}{description_note(payment)}")
+            f"{due_date_text(payment)}")
 
 
 def monthly_message(payment, user):
     """ The start-of-month "here's what's coming" line """
     return (f"Monthly reminder: '{payment.name}' ({user.currency}{money(payment.amount_cents)}) "
-            f"is due on {due_phrase(payment)}{description_note(payment)}")
+            f"is due on {due_phrase(payment)}")
 
 
 def monthly_summary_message(payments, user):
@@ -802,7 +868,8 @@ def get_status(payment, paid=None):
     if pays_by_week(payment):
         if paid is None:
             paid = paid_in_month(payment)
-        if weeks_paid_this_month(payment, paid) >= weeks_in_month(payment):
+        weeks = weeks_in_month(payment)
+        if weeks and weeks_paid_this_month(payment, paid) >= weeks:
             return "paid"
         #part weeks too
         if paid > 0:
@@ -828,6 +895,10 @@ def get_status(payment, paid=None):
             return "soon"
         return "upcoming"
 
+    #first one next month
+    if not due_in_month(payment):
+        return "soon" if days_left_for(payment) <= 5 else "upcoming"
+
     today = local_now()
     days_in_month = calendar.monthrange(today.year, today.month)[1]
     due_day = min(payment.due_day, days_in_month)
@@ -835,6 +906,10 @@ def get_status(payment, paid=None):
     #if today is past due day and bill is not paid = overdue
     if today.day > due_day:
         return "overdue"
+
+    #some of it paid
+    if payment.amount_paid_cents:
+        return "partial"
 
     #if due within 5 days = "soon"
     if days_until_due(payment.due_day, payment.is_paid) <= 5:
@@ -885,9 +960,14 @@ MAX_BUDDIES = 5
 
 #how many payment history rows one page of /history shows
 HISTORY_PER_PAGE = 100
+REMINDERS_PER_PAGE = 50
 
 #repeat options
 REPEATS = {"none": "Once", "weekly": "Every week", "monthly": "Every month"}
+
+#settings options
+CURRENCIES = ("R", "$", "€", "£")
+THEMES = ("pastel", "dark")
 
 #everything the shop sells
 BUDDY_SHOP = {
@@ -1040,21 +1120,17 @@ def require_cents(raw):
 def parse_rate(raw):
     """ A percentage stays a plain number """
     value = parse_number(raw)
-    return None if value is None else round(value, 4)
-
-
-def parse_whole(raw):
-    """ Whole number, e.g. months """
-    value = parse_number(raw)
-    if value is None:
-        return None
-    if value != int(value):
+    if value is not None and value > 100:
         raise BadNumber(raw)
-    return int(value)
+    return None if value is None else round(value, 4)
 
 
 class BadNumber(ValueError):
     """ Unreadable number """
+
+
+#upper limit
+MAX_NUMBER = 1_000_000_000
 
 
 def parse_number(raw):
@@ -1065,16 +1141,26 @@ def parse_number(raw):
         value = float(str(raw).replace(" ", "").replace(",", "."))
     except ValueError:
         raise BadNumber(raw) from None
-    #nan, inf
-    if not math.isfinite(value):
+    #nan, inf, negatives, huge
+    if not math.isfinite(value) or not 0 <= value <= MAX_NUMBER:
         raise BadNumber(raw)
     return value
 
 
+#non-breaking space
+THOUSANDS = " "
+
+
 @app.template_filter("money")
 def money(cents):
-    """ 41670 -> "416.70" for display """
-    return f"{(cents or 0) / 100:.2f}"
+    """ 1639700 -> "16 397.00" for display """
+    return f"{(cents or 0) / 100:,.2f}".replace(",", THOUSANDS)
+
+
+@app.template_filter("whole_rands")
+def whole_rands(cents):
+    """ 1229800 -> "12 298", for a chart label """
+    return f"{round((cents or 0) / 100):,}".replace(",", THOUSANDS)
 
 
 @app.template_filter("rands")
@@ -1096,18 +1182,47 @@ def percent_of(cents, rate):
     return int(round((cents or 0) * (rate or 0) / 100))
 
 
-def log_payment(payment, cents):
-    """ Save one row of payment history, in whole cents. """
+def log_payment(payment, cents, old_debt=False):
+    """ Save one row of payment history, in whole cents.
+    Old debt is money owed from earlier months, so it isn't tied to the bill:
+    otherwise it would count as paying this month (or vanish with an Undo) """
     if not cents:
         return
     db.session.add(PaymentLog(
-        bill_name=payment.name,
+        bill_name=f"{payment.name} (earlier months)" if old_debt else payment.name,
         amount_paid_cents=cents,
-        payment_id=payment.id,
+        payment_id=None if old_debt else payment.id,
         user_id=payment.user_id,
     ))
+    take_off_balance(payment, cents)
 
     forget_cached(f"paid_map:{payment.user_id}")
+
+
+def take_off_balance(payment, cents):
+    """ Paying a loan or credit account lowers what's owed on it.
+    Negative cents (an undo or correction) put it back """
+    if payment.bill_type in ("loan", "credit") and payment.current_balance_cents is not None:
+        payment.current_balance_cents = max(0, payment.current_balance_cents - cents)
+
+
+def months_to_pay_off(payment):
+    """ Months until a loan is cleared at its current instalment, or None if
+    the instalment doesn't even cover the monthly interest and fees """
+    balance = payment.current_balance_cents or 0
+    if balance <= 0:
+        return 0
+    #fees included
+    extras = (payment.loan_insurance_cents or 0) + (payment.service_fee_cents or 0)
+    towards_loan = monthly_equivalent(payment.amount_cents, payment.frequency) - extras
+    rate = (payment.interest_rate or 0) / 100 / 12
+    if towards_loan <= balance * rate:
+        return None
+    if rate == 0:
+        return math.ceil(balance / towards_loan)
+    months = -math.log(1 - rate * balance / towards_loan) / math.log(1 + rate)
+    #float noise
+    return math.ceil(round(months, 6))
 
 
 #what the tests would have sent, so they can check the wording without
@@ -1236,17 +1351,18 @@ def sample_reminder_lines(user):
     return lines
 
 
-def email_unread_reminders(user, subject, mailer=None):
+def email_unread_reminders(user, subject, mailer=None, since=None):
     """ Send a user's unread reminders as one summary email.
-    Called AFTER they are committed, so they can be read back """
+    Called AFTER they are committed, so they can be read back.
+    since keeps it to the ones a job has just made, so older unread ones
+    aren't sent again every week """
     if not user.email_reminders or not user.email:
         return
 
-    lines = [
-        r.message for r in Reminder.query.filter_by(
-            user_id=user.id, is_read=False
-        ).order_by(Reminder.created_at.desc()).all()
-    ]
+    query = Reminder.query.filter_by(user_id=user.id, is_read=False)
+    if since is not None:
+        query = query.filter(Reminder.created_at >= since)
+    lines = [r.message for r in query.order_by(Reminder.created_at.desc()).all()]
     if not lines:
         return
 
@@ -1277,6 +1393,8 @@ def bad_number(e):
 
 @app.errorhandler(500)
 def server_error(e):
+    #failed write
+    db.session.rollback()
     app.logger.exception("unhandled error")
     return render_template("error.html", code=500,
                            message="Something went wrong on our side."), 500
@@ -1322,7 +1440,7 @@ def register():
             return redirect(url_for("register"))
 
         #is the email already used by another account
-        if User.query.filter_by(email=email).first():
+        if user_by_email(email):
             flash("That email is already registered. Try logging in.", "warning")
             return redirect(url_for("register"))
 
@@ -1358,11 +1476,16 @@ def next_tag(username):
     return (top or 0) + 1
 
 
+def user_by_email(email):
+    """ The account with this email, however its capitals are typed """
+    return User.query.filter(db.func.lower(User.email) == email.strip().lower()).first()
+
+
 def find_login(name):
     """ The account for an email, a David#0002, or a name only one account has.
     Also says whether the plain name was shared """
     if "@" in name:
-        user = User.query.filter(db.func.lower(User.email) == name.lower()).first()
+        user = user_by_email(name)
         if user:
             return user, False
     base, hash_mark, tag = name.rpartition("#")
@@ -1415,6 +1538,16 @@ def get_reset_serializer():
     return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt="password-reset")
 
 
+def password_stamp(user):
+    """ Changes whenever the password does, so a used reset link stops working """
+    return hashlib.sha256(user.password_hash.encode()).hexdigest()[:16]
+
+
+def reset_token(user):
+    """ A reset link's token: whose it is, and which password it replaces """
+    return get_reset_serializer().dumps([user.id, password_stamp(user)])
+
+
 @app.route("/forgot", methods=["GET", "POST"])
 @limiter.limit("5 per hour", methods=["POST"])
 def forgot_password():
@@ -1424,10 +1557,9 @@ def forgot_password():
 
     if request.method == "POST":
         email = (request.form.get("email") or "").strip()
-        user = User.query.filter_by(email=email).first() if email else None
+        user = user_by_email(email) if email else None
         if user:
-            token = get_reset_serializer().dumps(user.id)
-            link = url_for("reset_password", token=token, _external=True)
+            link = url_for("reset_password", token=reset_token(user), _external=True)
             send_email(
                 user.email,
                 "Reset your Budget Buddy password",
@@ -1450,11 +1582,11 @@ def reset_password(token):
 
     try:
         #max_age is in seconds
-        user_id = get_reset_serializer().loads(token, max_age=3600)
+        user_id, stamp = get_reset_serializer().loads(token, max_age=3600)
     except SignatureExpired:
         flash("That reset link has expired. Ask for a new one.", "warning")
         return redirect(url_for("forgot_password"))
-    except BadSignature:
+    except (BadSignature, TypeError, ValueError):
         flash("That reset link is not valid.", "warning")
         return redirect(url_for("forgot_password"))
 
@@ -1462,6 +1594,10 @@ def reset_password(token):
     if user is None:
         flash("That account no longer exists.", "warning")
         return redirect(url_for("register"))
+    #already used
+    if stamp != password_stamp(user):
+        flash("That reset link has already been used. Ask for a new one.", "warning")
+        return redirect(url_for("forgot_password"))
 
     if request.method == "POST":
         password = request.form["password"]
@@ -1606,7 +1742,12 @@ def dashboard():
             #with a dark divider between them (#2)
             "paid_so_far": paid_towards_this_month(p, paid),
             "carried": p.carried_over_cents or 0,
+            "months_left": months_to_pay_off(p) if p.bill_type == "loan" else 0,
         })
+
+    #unfiltered
+    paid_count = sum(1 for item in payments_with_status if item["status"] == "paid")
+    total_count = len(payments_with_status)
 
     #filter
     if filter_status != "all":
@@ -1622,19 +1763,25 @@ def dashboard():
         payments_with_status.sort(
             key=lambda p: (p["payment"].sort_order is None, p["payment"].sort_order or 0)
         )
+    else:
+        #by date
+        payments_with_status.sort(
+            key=lambda p: (due_sort_date(p["payment"]), p["payment"].name.lower()))
 
     #monthly totals. a weekly bill counts every week of the month, and each
     #week marked paid comes off what's left
     total_monthly = sum(month_obligation(p) for p in payments)
     #left = this month's outstanding PLUS anything carried over from before
     still_owed = {p.id: remaining_this_month(p, paid_map.get(p.id, 0)) for p in payments}
-    total_unpaid = (
-        sum(still_owed.values())
-        + sum(p.carried_over_cents or 0 for p in payments)
-    )
+    carried = sum(p.carried_over_cents or 0 for p in payments)
+    total_unpaid = sum(still_owed.values()) + carried
     #a weekly bill stays "still to pay" until every week of the month is done
-    unpaid = [p for p in payments
-              if still_owed[p.id] > 0 or (p.carried_over_cents or 0) > 0]
+    unpaid = [p for p in payments if still_owed[p.id] > 0]
+    #paid share
+    owed_now = total_monthly + carried
+    paid_percent = 0
+    if owed_now:
+        paid_percent = max(0, min(100, round((owed_now - total_unpaid) / owed_now * 100)))
 
     #only this user's unread reminders
     unread_reminders = (
@@ -1660,8 +1807,12 @@ def dashboard():
     return render_template(
         "dashboard.html",
         payments_with_status=payments_with_status,
+        paid_count=paid_count,
+        total_count=total_count,
         total_monthly=total_monthly,
         total_unpaid=total_unpaid,
+        owed_now=owed_now,
+        paid_percent=paid_percent,
         unpaid_count=len(unpaid),
         reminders=unread_reminders,
         my_reminders=my_reminders,
@@ -1682,20 +1833,17 @@ def add_payment():
 #create the form the user will use
     if request.method == "POST":
 #name = short name e.g. "Spotify"
-#description = more detailed e.g. "Spotify Premium Platinum Duo via Vodacom airtime deduction"
         name = request.form["name"]
-        description = request.form["description"] or None
         amount_cents = require_cents(request.form["amount"])
         payment_method = request.form.get("payment_method") or None
         bill_type = request.form.get("bill_type", "fixed")
-        frequency = request.form.get("frequency", "monthly")
+        frequency = clean_frequency(bill_type, request.form.get("frequency"))
         #a weekly bill's day is a weekday, so 1..7 whatever the box said
         due_day = clean_due_day(request.form["due_day"], frequency)
         total_value_cents = parse_cents(request.form.get("total_value"))
         current_balance_cents = parse_cents(request.form.get("current_balance"))
 
         interest_rate = parse_rate(request.form.get("interest_rate"))
-        months_remaining = parse_whole(request.form.get("months_remaining"))
         loan_insurance_cents = parse_cents(request.form.get("loan_insurance"))
         service_fee_cents = parse_cents(request.form.get("service_fee"))
         initiation_fee_cents = parse_cents(request.form.get("initiation_fee"))
@@ -1706,7 +1854,6 @@ def add_payment():
 #create a new payment, one row of information, owned by the logged-in user
         new_payment = Payment(
             name=name,
-            description=description,
             amount_cents=amount_cents,
             due_day=due_day,
             payment_method=payment_method,
@@ -1717,7 +1864,6 @@ def add_payment():
             user_id=current_user.id,
             
             interest_rate=interest_rate,
-            months_remaining=months_remaining,
             loan_insurance_cents=loan_insurance_cents,
             initiation_fee_cents=initiation_fee_cents,
             service_fee_cents=service_fee_cents,
@@ -1776,11 +1922,10 @@ def edit_payment(payment_id):
     if request.method == "POST":
         #overwrite the bill's fields with new values
         payment.name = request.form["name"]
-        payment.description = request.form["description"] or None
         payment.amount_cents = require_cents(request.form["amount"])
         payment.payment_method = request.form.get("payment_method") or None
         payment.bill_type = request.form.get("bill_type", "fixed")
-        payment.frequency = request.form.get("frequency", "monthly")
+        payment.frequency = clean_frequency(payment.bill_type, request.form.get("frequency"))
         #switching a bill to weekly re-reads the day as a weekday, so it can
         #never keep "the 15th" from when it was monthly
         payment.due_day = clean_due_day(request.form["due_day"], payment.frequency)
@@ -1790,10 +1935,10 @@ def edit_payment(payment_id):
         payment.service_fee_cents = parse_cents(request.form.get("service_fee"))
 
         payment.interest_rate = parse_rate(request.form.get("interest_rate"))
-        payment.months_remaining = parse_whole(request.form.get("months_remaining"))
         payment.loan_insurance_cents = parse_cents(request.form.get("loan_insurance"))
         payment.initiation_fee_cents = parse_cents(request.form.get("initiation_fee"))
         payment.minimum_payment_percent = parse_rate(request.form.get("minimum_payment_percent"))
+        settle_amount(payment)
 
         db.session.commit()
         flash(f"Updated '{payment.name}' successfully", "success")
@@ -1854,7 +1999,7 @@ def clear_carryover(payment_id):
     cleared_something = False
     if payment.carried_over_cents:
         #it was real money paid, so it belongs in the payment history
-        log_payment(payment, payment.carried_over_cents)
+        log_payment(payment, payment.carried_over_cents, old_debt=True)
         payment.carried_over_cents = 0
         cleared_something = True
     db.session.commit()
@@ -1875,6 +2020,7 @@ def confirm_bill(payment_id):
     new_amount = parse_cents(request.form.get("new_amount"))
     if new_amount is not None:
         payment.amount_cents = new_amount
+        settle_amount(payment)
     payment.is_confirmed = True
     db.session.commit()
     flash(f"Amount confirmed for '{payment.name}'.", "success")
@@ -1906,14 +2052,18 @@ def reorder_bills():
 @login_required
 def settings():
     if request.method == "POST":
-        current_user.currency = request.form.get("currency", "R")
-        current_user.theme = request.form.get("theme", "pastel")
+        #only the offered ones
+        if request.form.get("currency") in CURRENCIES:
+            current_user.currency = request.form["currency"]
+        if request.form.get("theme") in THEMES:
+            current_user.theme = request.form["theme"]
 
         #email is required, so only change it if something was actually typed
         new_email = (request.form.get("email") or "").strip()
         if new_email and new_email != current_user.email:
             #don't let one account take an email another account already uses
-            if User.query.filter_by(email=new_email).first():
+            owner = user_by_email(new_email)
+            if owner and owner.id != current_user.id:
                 flash("That email is already used by another account.", "warning")
                 return redirect(url_for("settings"))
             current_user.email = new_email
@@ -1971,6 +2121,9 @@ def mark_paid(payment_id):
     payment = get_owned_payment_or_404(payment_id)
     #next week
     if pays_by_week(payment):
+        if not weeks_in_month(payment):
+            flash(f"Nothing is due on '{payment.name}' until next month.", "warning")
+            return redirect(url_for("dashboard"))
         paid = paid_in_month(payment)
         week = weeks_paid_this_month(payment, paid) + 1
         tick_weeks(payment, min(week, weeks_in_month(payment)), paid)
@@ -1998,6 +2151,9 @@ def toggle_week(payment_id, week):
     payment = get_owned_payment_or_404(payment_id)
     if not pays_by_week(payment):
         flash("Only weekly bills are paid off a week at a time.", "warning")
+        return redirect(url_for("dashboard"))
+    if not weeks_in_month(payment):
+        flash(f"Nothing is due on '{payment.name}' until next month.", "warning")
         return redirect(url_for("dashboard"))
 
     week = max(1, min(week, weeks_in_month(payment)))
@@ -2068,7 +2224,8 @@ def tick_weeks(payment, target, paid):
 
 def settle_weeks(payment, weeks_done):
     """ The bill only counts as "paid" once every week of the month is done """
-    payment.is_paid = weeks_done >= weeks_in_month(payment)
+    weeks = weeks_in_month(payment)
+    payment.is_paid = bool(weeks) and weeks_done >= weeks
     payment.amount_paid_cents = payment.amount_cents if payment.is_paid else 0
     if payment.is_paid:
         mark_bill_reminders_read(payment)
@@ -2105,11 +2262,14 @@ def mark_unpaid(payment_id):
             today - datetime.timedelta(days=today.weekday()), datetime.time.min)
     else:
         period_start = datetime.datetime(today.year, today.month, 1)
-    PaymentLog.query.filter(
+    undone = PaymentLog.query.filter(
         PaymentLog.payment_id == payment.id,
         PaymentLog.user_id == current_user.id,
         PaymentLog.paid_at >= period_start,
-    ).delete()
+    )
+    #balance back
+    take_off_balance(payment, -sum(row.amount_paid_cents for row in undone))
+    undone.delete()
     #undoing takes back the xp and coins it earned, and frees the key
     #so paying it again properly can earn them back
     event = XpEvent.query.filter_by(
@@ -2178,17 +2338,16 @@ def month_chips(bills, paid_by, year, month):
     Past months are judged on what was paid against the bill's amount now """
     today = local_today()
     current = (year, month) == (today.year, today.month)
-    month_end = datetime.datetime(year, month, calendar.monthrange(year, month)[1], 23, 59, 59)
     chips = []
     for p in bills:
         paid = paid_by.get((p.id, year, month), 0)
-        #not added yet
-        if p.date_added and p.date_added > month_end:
+        owed = month_obligation(p, year, month)
+        #not due yet
+        if not owed and not paid:
             continue
         #open once-offs
         if p.bill_type == "once_off" and not paid and not (current and not p.is_archived):
             continue
-        owed = month_obligation(p, year, month)
         status = get_status(p, paid) if current else None
         if status == "paid" or paid >= owed:
             status = "paid"
@@ -2288,16 +2447,21 @@ def history():
 @app.route("/reminders")
 @login_required
 def reminders():
-    """ Page showing all reminders (read and unread) sorted by newest first """
-    all_reminders = (
+    """ Page showing all reminders (read and unread) sorted by newest first,
+    a page at a time since they only ever grow """
+    page = max(1, request.args.get("page", 1, type=int))
+    rows = (
         Reminder.query.filter_by(user_id=current_user.id)
-        .order_by(Reminder.created_at.desc())
+        .order_by(Reminder.created_at.desc(), Reminder.id.desc())
+        .limit(REMINDERS_PER_PAGE + 1)
+        .offset((page - 1) * REMINDERS_PER_PAGE)
         .all()
     )
     mine = (PersonalReminder.query.filter_by(user_id=current_user.id)
             .order_by(PersonalReminder.due_date).all())
-    return render_template("reminders.html", reminders=all_reminders, mine=mine,
-                           repeats=REPEATS, today=local_today())
+    return render_template("reminders.html", reminders=rows[:REMINDERS_PER_PAGE], mine=mine,
+                           repeats=REPEATS, today=local_today(), page=page,
+                           has_next=len(rows) > REMINDERS_PER_PAGE)
 
 
 @app.route("/reminders/mine", methods=["POST"])
@@ -2475,7 +2639,10 @@ def run_daily_tasks():
     """ Run whichever scheduled jobs are due today.
     Called daily by an outside scheduler, because a BackgroundScheduler
     can't survive on a host whose web worker sleeps between visits.
-    A secret token stops a stranger triggering it """
+    A secret token stops a stranger triggering it.
+    The monthly job goes first, so a Monday the 1st's weekly job already sees
+    the new month. Off their own day they still catch up anyone a missed run
+    left out, so one skipped call never skips a month """
 
     expected = os.environ.get("TASK_TOKEN")
 
@@ -2492,16 +2659,19 @@ def run_daily_tasks():
     email_personal_reminders()
     ran.append("personal")
 
-    #weekday() is 0 for Monday, so the weekly job still only runs weekly
-    if today.weekday() == 0:
-        year, week, _ = today.isocalendar()
-        create_weekly_reminder(period=f"{year}-W{week:02d}")
-        ran.append("weekly")
-
-    #and the monthly job only on the 1st
-    if today.day == 1:
-        create_monthly_reminders(period=today.strftime("%Y-%m"))
+    #the 1st, or catch-up
+    last_year, last_month = previous_month(today.date())
+    if create_monthly_reminders(period=today.strftime("%Y-%m"),
+                                after=None if today.day == 1 else f"{last_year}-{last_month:02d}"):
         ran.append("monthly")
+
+    #Monday, or catch-up
+    year, week, _ = today.isocalendar()
+    last_week = (today - datetime.timedelta(days=7)).isocalendar()
+    if create_weekly_reminder(period=f"{year}-W{week:02d}",
+                              after=None if today.weekday() == 0
+                              else f"{last_week[0]}-W{last_week[1]:02d}"):
+        ran.append("weekly")
 
     return f"ran: {', '.join(ran) if ran else 'nothing due today'}", 200
 
@@ -2513,21 +2683,30 @@ automated reminders that run once a week or once a month etc.
 they loop over every user so everyone gets their own reminders.
 """
 
-def for_each_user(job_name, work, subject=None, period=None):
+def for_each_user(job_name, work, subject=None, period=None, after=None):
     """ Run one job for every user, each on their own.
     One account with odd data used to raise and abandon the whole run, so
     nobody got their reminders. Now a bad account is logged and skipped, and
     everyone else still gets theirs. The email goes out after the commit,
-    because the reminders have to be in the database to be read back """
+    because the reminders have to be in the database to be read back.
+    after makes it a catch-up: only users who had that earlier period's run
+    but not this one, so nobody who joined since is reset mid-month.
+    Returns how many users it ran for """
     done = set()
     if period:
         done = {uid for (uid,) in db.session.query(JobRun.user_id)
                 .filter_by(job=job_name, period=period)}
+    ready = None
+    if after:
+        ready = {uid for (uid,) in db.session.query(JobRun.user_id)
+                 .filter_by(job=job_name, period=after)}
+    ran = 0
     with Mailer() as mailer:
         for user in User.query.all():
             #already done
-            if user.id in done:
+            if user.id in done or (ready is not None and user.id not in ready):
                 continue
+            started = local_now()
             try:
                 work(user)
                 if period:
@@ -2537,32 +2716,58 @@ def for_each_user(job_name, work, subject=None, period=None):
                 db.session.rollback()
                 app.logger.exception("%s failed for user %s", job_name, user.id)
                 continue
+            ran += 1
             if subject:
-                email_unread_reminders(user, subject, mailer)
+                email_unread_reminders(user, subject, mailer, since=started)
+    return ran
 
 
-def create_weekly_reminder(period=None):
+#a bill's newer news replaces its older news
+REPLACES = {"overdue": ("overdue", "soon"), "soon": ("overdue", "soon")}
+
+
+def unread_before(user):
+    """ A user's unread reminders, fetched once as a job starts """
+    return Reminder.query.filter_by(user_id=user.id, is_read=False).all()
+
+
+def add_reminder(user, message, category, payment=None, unread=()):
+    """ Add a job's reminder, ticking off the older unread one it replaces,
+    so the same reminder doesn't pile up week after week. unread is what
+    unread_before() found, so this costs no query per reminder """
+    replaces = REPLACES.get(category, (category,))
+    for r in unread:
+        if payment is not None:
+            same = r.payment_id == payment.id and r.category in replaces
+        elif category == "monthly":
+            #last summary
+            same = r.payment_id is None and r.category == "monthly"
+        else:
+            same = r.payment_id is None and r.message == message
+        if same:
+            r.is_read = True
+    db.session.add(Reminder(message=message, category=category,
+                            payment_id=payment.id if payment else None, user_id=user.id))
+
+
+def create_weekly_reminder(period=None, after=None):
     #runs once a week
 
     with app.app_context():
         def one_user(user):
-            db.session.add(Reminder(
-                message=("Weekly Check in! Have you added any new bills or subscriptions this week? Click on + to add"),
-                category="weekly",
-                user_id=user.id,
-            ))
+            unread = unread_before(user)
+            add_reminder(user, "Weekly Check in! Have you added any new bills or "
+                               "subscriptions this week? Click on + to add",
+                         "weekly", unread=unread)
             #reminder for variable income(weekly)
             variable_incomes = Income.query.filter_by(
-                user_id=user.id, 
+                user_id=user.id,
                 income_type="variable",
                 is_confirmed=False
             ).all()
             for income in variable_incomes:
-                db.session.add(Reminder(
-                    message=(f"Have you received your '{income.name}' income this month?"),
-                    category="weekly",
-                    user_id=user.id,
-                ))
+                add_reminder(user, f"Have you received your '{income.name}' income this month?",
+                             "weekly", unread=unread)
             #archived once-off bills are done, no reminders for them
             user_payments = (Payment.query.filter_by(user_id=user.id)
                              .filter(Payment.is_archived.is_not(True)).all())
@@ -2571,12 +2776,7 @@ def create_weekly_reminder(period=None):
             #month's amount is confirmed, this goes in the email too
             for p in user_payments:
                 if p.bill_type == "variable" and not p.is_confirmed:
-                    db.session.add(Reminder(
-                        message=confirm_amount_message(p, user),
-                        category="weekly",
-                        payment_id=p.id,
-                        user_id=user.id,
-                    ))
+                    add_reminder(user, confirm_amount_message(p, user), "weekly", p, unread)
 
             #remind about overdue and upcoming bills
             #one grouped query for the whole account, rather than a SUM per
@@ -2587,29 +2787,21 @@ def create_weekly_reminder(period=None):
                 status = get_status(p, paid)
                 #a part paid weekly loan still nags while a week is outstanding
                 if status == "overdue" or weeks_behind(p, paid):
-                    db.session.add(Reminder(
-                        message=overdue_message(p, user),
-                        category="overdue",
-                        payment_id=p.id,
-                        user_id=user.id,
-                    ))
-                elif status == "soon":
-                    db.session.add(Reminder(
-                        message=due_soon_message(p, user),
-                        category="soon",
-                        payment_id=p.id,
-                        user_id=user.id,
-                    ))
+                    add_reminder(user, overdue_message(p, user), "overdue", p, unread)
+                #the coming week, Sunday included
+                elif status != "paid" and 0 <= days_left_for(p) <= 6:
+                    add_reminder(user, due_soon_message(p, user), "soon", p, unread)
 
-        for_each_user("weekly reminders", one_user,
-                      "Your Budget Buddy weekly reminders", period)
+        return for_each_user("weekly reminders", one_user,
+                             "Your Budget Buddy weekly reminders", period, after)
 
 
-def create_monthly_reminders(period=None):
+def create_monthly_reminders(period=None, after=None):
     #runs once a month, resets every bill back to not paid for every user
 
     with app.app_context():
         def one_user(user):
+            unread = unread_before(user)
             #archived once-off bills are done, leave them out entirely
             payments = (Payment.query.filter_by(user_id=user.id)
                         .filter(Payment.is_archived.is_not(True)).all())
@@ -2632,9 +2824,13 @@ def create_monthly_reminders(period=None):
                     continue
                 #once-off bills never reset, they stay until paid and archived
                 if p.bill_type == "once_off":
+                    #done with
+                    if p.is_paid:
+                        p.is_archived = True
                     continue
                 #whatever wasn't paid rolls over instead of being forgotten
-                shortfall = p.amount_cents - (p.amount_paid_cents or 0)
+                shortfall = (month_obligation(p, last_year, last_month)
+                             - (p.amount_paid_cents or 0))
                 if not p.is_paid and shortfall > 0:
                     p.carried_over_cents = (p.carried_over_cents or 0) + shortfall
                 p.is_paid = False
@@ -2642,6 +2838,7 @@ def create_monthly_reminders(period=None):
                 #variable bills need their new month's amount checked
                 if p.bill_type == "variable":
                     p.is_confirmed = False
+            payments = [p for p in payments if not p.is_archived]
 
             #loans and store accounts: a new month means the bank adds its
             #charges, so grow the balance by interest + insurance + service fee,
@@ -2664,13 +2861,11 @@ def create_monthly_reminders(period=None):
                         charges.append(f"{user.currency}{money(p.service_fee_cents)} service fee")
                     if increase:
                         p.current_balance_cents += increase
-                        db.session.add(Reminder(
-                            message=(f"'{p.name}': added {', '.join(charges)} to the balance for the new month "
-                                     f"(now {user.currency}{money(p.current_balance_cents)}). Please make sure this matches your statement."),
-                            category="monthly",
-                            payment_id=p.id,
-                            user_id=user.id,
-                        ))
+                        add_reminder(user, (
+                            f"'{p.name}': added {', '.join(charges)} to the balance for the new month "
+                            f"(now {user.currency}{money(p.current_balance_cents)}). "
+                            "Please make sure this matches your statement."),
+                            "monthly", p, unread)
 
             #variable income reminder(monthly)
             variable_incomes = Income.query.filter_by(
@@ -2682,23 +2877,15 @@ def create_monthly_reminders(period=None):
 
             # create a reminder for each bill
             for p in payments:
-                db.session.add(Reminder(
-                    message=monthly_message(p, user),
-                    category="monthly",
-                    payment_id=p.id,
-                    user_id=user.id,
-                ))
+                add_reminder(user, monthly_message(p, user), "monthly", p, unread)
 
             #add a reminder that gives a summary of the monthly bills (if there are bills)
             if payments:
-                db.session.add(Reminder(
-                    message=monthly_summary_message(payments, user),
-                    category="monthly",
-                    user_id=user.id,
-                ))
+                add_reminder(user, monthly_summary_message(payments, user), "monthly",
+                             unread=unread)
 
-        for_each_user("monthly reminders", one_user,
-                      "Your Budget Buddy monthly reminders", period)
+        return for_each_user("monthly reminders", one_user,
+                             "Your Budget Buddy monthly reminders", period, after)
 
 
 def email_personal_reminders():
@@ -2721,7 +2908,9 @@ def email_personal_reminders():
                     user = db.session.get(User, user_id)
                     lines = []
                     for r in items:
-                        late = "" if r.due_date == today else f" (from {r.due_date.strftime('%a %d %b')})"
+                        due = r.due_date
+                        late = ("" if due == today else
+                                f" (from {due.strftime('%a')} {due.day} {due.strftime('%b')})")
                         lines.append(f"- {r.text}{late}")
                         r.emailed_for = r.due_date
                     #before sending
@@ -2809,7 +2998,7 @@ def seed_dev_admin():
     email = os.environ.get("DEV_ADMIN_EMAIL", "budgetbuddysite@gmail.com")
     username = os.environ.get("DEV_ADMIN_USER", "Buddy")
 
-    user = User.query.filter_by(email=email).first()
+    user = user_by_email(email)
     action = "password reset for"
     if user is None:
         user = User(username=username, email=email, tag=next_tag(username))

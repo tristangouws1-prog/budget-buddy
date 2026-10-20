@@ -1,10 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
 
-{% set paid_count = payments_with_status | selectattr('status', 'equalto', 'paid') | list | length %}
-{% set total_count = payments_with_status | length %}
-
-
 {% macro owed_bar(paid, month_cost, carried, kind='partial') %}
     {% set total = month_cost + carried %}
     {% if total > 0 %}
@@ -45,11 +41,9 @@
         </p>
     {% endif %}
 
-    {% if total_monthly > 0 %}
-     
-        {% set paid_percentage = [((total_monthly - total_unpaid) / total_monthly * 100)|round|int, 100]|min %}
+    {% if owed_now > 0 %}
         <div class="hero-progress">
-            <div class="hero-progress-fill" style="width: {{ paid_percentage }}%">
+            <div class="hero-progress-fill" style="width: {{ paid_percent }}%">
             </div>
         </div>
     {% endif %}
@@ -79,7 +73,7 @@
 
 
 <!-- Income sources-->
-<section>
+<section class="income-section">
     <div class="section-head">
         <h2>Income</h2>
         <a class="btn-primary" href="{{ url_for('add_income') }}">+ Add income</a>
@@ -179,7 +173,7 @@
     </div>
 
     {% if sort_by == 'custom' %}
-        <p class="form-hint">Drag bills up or down to arrange them your way — the order saves automatically.</p>
+        <p class="form-hint">Drag bills, or use the arrows, to arrange them your way — the order saves automatically.</p>
     {% endif %}
 
 
@@ -194,11 +188,16 @@
             {% for item in payments_with_status %}
                 <div class="bill bill-{{ item.status }}" data-id="{{ item.payment.id }}"
                      {% if sort_by == 'custom' %}draggable="true"{% endif %}>
+                    {% if sort_by == 'custom' %}
+                        <div class="move-buttons">
+                            <button type="button" class="btn-small btn-move" data-move="-1"
+                                    aria-label="Move {{ item.payment.name }} up">&uarr;</button>
+                            <button type="button" class="btn-small btn-move" data-move="1"
+                                    aria-label="Move {{ item.payment.name }} down">&darr;</button>
+                        </div>
+                    {% endif %}
                     <div class="bill-main">
                         <span class="bill-name">{{ item.payment.name }}</span>
-                        {% if item.payment.description %}
-                            <span class="bill-description">{{ item.payment.description }}</span>
-                        {% endif %}
                         {% if item.payment.payment_method %}
                             <span class="method-badge">Paid via {{ item.payment.payment_method }}</span>
                         {% endif %}
@@ -228,17 +227,19 @@
                             {% if item.payment.frequency == 'weekly' %}Due every {{ item.payment.due_day | weekday_name }}{% else %}Due {{ item.payment.due_day | ordinal }}{% endif %} &middot;
                             {% if item.by_week %}
                                 {# a weekly loan is measured over the whole month, not this one week #}
-                                {{ item.weeks_paid }} of {{ item.weeks_total }} week{{ 's' if item.weeks_total != 1 else '' }} paid
+                                {% if item.weeks_total %}
+                                    {{ item.weeks_paid }} of {{ item.weeks_total }} week{{ 's' if item.weeks_total != 1 else '' }} paid
+                                {% else %}
+                                    First one next month
+                                {% endif %}
                             {% elif item.status == 'paid' %}
                                 Paid this month
                             {% elif item.status == 'overdue' %}
                                 {{ (-item.days_left) }} day{{ 's' if item.days_left != -1 else '' }} overdue
-                            {% elif item.status == 'soon' %}
-                                {% if item.days_left == 0 %}Due today
-                                {% else %}Due in {{ item.days_left }} day{{ 's' if item.days_left != 1 else '' }}
-                                {% endif %}
+                            {% elif item.days_left == 0 %}
+                                Due today
                             {% else %}
-                                Due in {{ item.days_left }} days
+                                Due in {{ item.days_left }} day{{ 's' if item.days_left != 1 else '' }}
                             {% endif %}
                         </span>
 
@@ -246,7 +247,6 @@
                             <span class="bill-balance-label">
                                 {{ current_user.currency }}{{ item.month_paid | money }} paid of
                                 {{ current_user.currency }}{{ item.month_cost | money }} this month
-                                &middot; {{ item.weeks_paid }} of {{ item.weeks_total }} weeks
                             </span>
                             {{ owed_bar(item.paid_so_far, item.month_cost, item.carried) }}
 
@@ -266,7 +266,7 @@
                                         </form>
                                     {% endfor %}
                                 </div>
-                                {% if item.status != 'paid' %}
+                                {% if item.status != 'paid' and item.weeks_total %}
                                     <form method="POST" action="{{ url_for('pay_part_week', payment_id=item.payment.id) }}" class="update-balance-form">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <input type="number" name="part_amount" step="0.01" min="0.01"
@@ -294,17 +294,21 @@
                             {% set bill_balance = item.payment.current_balance_cents or 0 %}
                             {% set bill_total = item.payment.total_value_cents %}
                             {% if item.payment.bill_type == 'loan' %}
-                                {% set fill_percent = [((bill_total - bill_balance) / bill_total * 100)|round|int, 100]|min %}
+                                {# never negative #}
+                                {% set fill_percent = [[((bill_total - bill_balance) / bill_total * 100)|round|int, 100]|min, 0]|max %}
                                 <span class="bill-balance-label">{{ current_user.currency }}{{ bill_balance | money }} remaining of {{ current_user.currency }}{{ bill_total | money }}</span>
                                 {% if item.payment.interest_rate %}
-                                    <span class="bill-balance-label">Interest Rate: {{ item.payment.interest_rate | rate }}%</span>
+                                    <span class="bill-balance-label">Interest rate: {{ item.payment.interest_rate | rate }}%</span>
                                 {% endif %}
-                                {% if item.payment.months_remaining %}
-                                    <span class="bill-balance-label">{{ item.payment.months_remaining }} month{{ 's' if item.payment.months_remaining != 1 else '' }} remaining</span>
+                                {% if item.months_left is none %}
+                                    <span class="bill-balance-label bill-balance-warning">This payment doesn't cover the monthly interest and fees, so the balance won't go down</span>
+                                {% elif item.months_left %}
+                                    <span class="bill-balance-label">About {{ item.months_left }} month{{ 's' if item.months_left != 1 else '' }} left to pay off</span>
                                 {% endif %}
+                                {# fees included #}
                                 {% set monthly_extras = (item.payment.loan_insurance_cents or 0) + (item.payment.service_fee_cents or 0) %}
                                 {% if monthly_extras > 0 %}
-                                    <span class="bill-balance-label">True monthly cost: {{ current_user.currency }}{{ (item.month_cost + monthly_extras) | money }} (incl.{% if item.payment.loan_insurance_cents %} {{ current_user.currency }}{{ item.payment.loan_insurance_cents | money }} insurance{% endif %}{% if item.payment.loan_insurance_cents and item.payment.service_fee_cents %},{% endif %}{% if item.payment.service_fee_cents %} {{ current_user.currency }}{{ item.payment.service_fee_cents | money }} service fee{% endif %})</span>
+                                    <span class="bill-balance-label">Monthly cost: {{ current_user.currency }}{{ item.month_cost | money }} (incl.{% if item.payment.loan_insurance_cents %} {{ current_user.currency }}{{ item.payment.loan_insurance_cents | money }} insurance{% endif %}{% if item.payment.loan_insurance_cents and item.payment.service_fee_cents %},{% endif %}{% if item.payment.service_fee_cents %} {{ current_user.currency }}{{ item.payment.service_fee_cents | money }} service fee{% endif %})</span>
                                 {% endif %}
                                 {% if item.payment.initiation_fee_cents %}
                                     <span class="bill-balance-label">Initiation fee: {{ current_user.currency }}{{ item.payment.initiation_fee_cents | money }}</span>
@@ -350,8 +354,8 @@
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <input type="number" name="paid_amount" step="0.01" min="0"
                                        max="{{ item.payment.amount_cents | rands }}"
-                                       placeholder="Amount paid so far"
-                                       value="{{ item.payment.amount_paid_cents | rands }}">
+                                       placeholder="Amount paid so far ({{ current_user.currency }})"
+                                       value="{{ item.payment.amount_paid_cents | rands if item.payment.amount_paid_cents }}">
                                 <button type="submit" class="btn-small btn-update">Update</button>
                             </form>
                         {% endif %}
@@ -360,7 +364,7 @@
                     </div>
 
                     <div class="bill-right">
-                        <span class="bill-amount">{{ current_user.currency }}{{ item.payment.amount_cents | money }}</span>
+                        <span class="bill-amount">{{ current_user.currency }}{{ item.payment.amount_cents | money }}{% if item.payment.frequency == 'weekly' %}<span class="bill-per">/week</span>{% endif %}</span>
                         <div class="bill-actions">
                             {% if item.by_week %}
                             {% elif item.payment.is_paid %}
@@ -412,6 +416,15 @@ if (!window.billDragBound) {
     let dragged = null;
     const list = () => document.getElementById('bills-list');
 
+    const saveOrder = () => fetch('{{ url_for("reorder_bills") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+        },
+        body: JSON.stringify([...list().querySelectorAll('.bill')].map(b => Number(b.dataset.id))),
+    });
+
     document.addEventListener('dragstart', event => {
         const bill = event.target.closest && event.target.closest('.bill');
         if (!bill || !list()) return;
@@ -423,15 +436,20 @@ if (!window.billDragBound) {
         const bill = event.target.closest && event.target.closest('.bill');
         if (!bill || !list()) return;
         bill.classList.remove('dragging');
-        const ids = [...list().querySelectorAll('.bill')].map(b => Number(b.dataset.id));
-        await fetch('{{ url_for("reorder_bills") }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
-            },
-            body: JSON.stringify(ids),
-        });
+        await saveOrder();
+    });
+
+    // phones, keyboards
+    document.addEventListener('click', async event => {
+        const button = event.target.closest && event.target.closest('.btn-move');
+        const bill = button && button.closest('.bill');
+        if (!bill || !list()) return;
+        const up = button.dataset.move === '-1';
+        const other = up ? bill.previousElementSibling : bill.nextElementSibling;
+        if (!other) return;
+        list().insertBefore(up ? bill : other, up ? other : bill);
+        button.focus();
+        await saveOrder();
     });
 
     document.addEventListener('dragover', event => {

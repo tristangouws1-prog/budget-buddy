@@ -1,3 +1,4 @@
+import datetime
 import os
 import sys
 
@@ -19,6 +20,16 @@ bb.app.config["RATELIMIT_ENABLED"] = False
 bb.limiter.enabled = False
 client = bb.app.test_client()
 
+
+def from_the_1st():
+    """ Bills count as added on the 1st, so the whole month is owed """
+    with bb.app.app_context():
+        today = bb.local_today()
+        for p in bb.Payment.query.all():
+            p.date_added = datetime.datetime(today.year, today.month, 1)
+        bb.db.session.commit()
+
+
 client.post("/register", data={
     "username": "borrower", "email": "loan@test.local",
     "password": "pw123456", "confirm": "pw123456",
@@ -33,6 +44,7 @@ client.post("/add", data={
     "due_day": "1", "bill_type": "loan", "frequency": "weekly",
     "total_value": "60000", "current_balance": "42000",
 }, follow_redirects=True)
+from_the_1st()
 with bb.app.app_context():
     loan = bb.Payment.query.first()
     loan_id = loan.id
@@ -109,6 +121,7 @@ client.post("/add", data={
     "due_day": "2", "bill_type": "loan", "frequency": "weekly",
     "total_value": "9000", "current_balance": "5000",
 }, follow_redirects=True)
+from_the_1st()
 with bb.app.app_context():
     second_id = bb.Payment.query.filter_by(name="Phone loan").first().id
     egg = bb.Buddy.query.filter_by(is_active=True).first()
@@ -125,6 +138,7 @@ client.post("/add", data={
     "name": "Groceries", "description": "", "amount": "100",
     "due_day": "1", "bill_type": "fixed", "frequency": "weekly",
 }, follow_redirects=True)
+from_the_1st()
 with bb.app.app_context():
     gid = bb.Payment.query.filter_by(name="Groceries").first().id
 html = client.get("/").get_data(as_text=True)
@@ -135,23 +149,24 @@ print("ordinary weekly bill -> week boxes too, no Mark paid")
 print("\nALL LOAN WEEK CHECKS PASSED")
 
 
-# ---- a weekly loan's "true monthly cost" uses the month, not one week ----
+# ---- a weekly loan's monthly cost uses the month, not one week ----
 client.post("/add", data={
     "name": "Van loan", "description": "", "amount": "300",
     "due_day": "4", "bill_type": "loan", "frequency": "weekly",
     "total_value": "80000", "current_balance": "50000",
     "service_fee": "60", "loan_insurance": "40",
 }, follow_redirects=True)
+from_the_1st()
 with bb.app.app_context():
     van = bb.Payment.query.filter_by(name="Van loan").first()
     van_weeks = bb.weeks_in_month(van)
-    expected = 300 * van_weeks + 60 + 40          # rands, for the page text
+    expected = 300 * van_weeks          # rands, the fees are inside it
 html = client.get("/").get_data(as_text=True)
-assert f"True monthly cost: R{expected:.2f}" in html, \
-    f"expected R{expected:.2f} (R300 x {van_weeks} weeks + R100 fees)"
-assert f"True monthly cost: R{300 + 100:.2f}" not in html, \
+assert f"Monthly cost: R{bb.money(expected * 100)}" in html, \
+    f"expected R{expected:.2f} (R300 x {van_weeks} weeks)"
+assert f"Monthly cost: R{300:.2f}" not in html, \
     "one week's payment must not be mistaken for the month's"
-print(f"weekly loan cost -> R{expected:.2f} = R300 x {van_weeks} weeks + R100 fees")
+print(f"weekly loan cost -> R{expected:.2f} = R300 x {van_weeks} weeks, fees included")
 
 # ---- a monthly loan is unchanged ----
 client.post("/add", data={
@@ -160,9 +175,11 @@ client.post("/add", data={
     "total_value": "20000", "current_balance": "12000",
     "service_fee": "50", "loan_insurance": "25",
 }, follow_redirects=True)
+from_the_1st()
 html = client.get("/").get_data(as_text=True)
-assert f"True monthly cost: R{900 + 75:.2f}" in html
-print("monthly loan cost -> R975.00 = R900 + R75 fees, unchanged")
+assert f"Monthly cost: R{bb.money(90000)}" in html
+assert f"R{900 + 75:.2f}" not in html, "the fees are already in the instalment"
+print("monthly loan cost -> R900.00, the R75 fees not added twice")
 
 # ---- both forms offer weekly, and label the amount to match ----
 for page in ("/add", f"/edit/{loan_id}"):
@@ -189,6 +206,7 @@ for weekly_amount in ("41.67", "333.33", "1666.67", "99.99", "7.77"):
                               "due_day": "1", "bill_type": "loan", "frequency": "weekly",
                               "total_value": "60000", "current_balance": "42000"},
                 follow_redirects=True)
+    from_the_1st()
     with bb.app.app_context():
         p = bb.Payment.query.first()
         pid, n_weeks = p.id, bb.weeks_in_month(p)
@@ -202,3 +220,79 @@ for weekly_amount in ("41.67", "333.33", "1666.67", "99.99", "7.77"):
 print("every week ticks visibly for awkward amounts, and clears the month")
 
 print("\nALL WEEK COUNTING CHECKS PASSED")
+
+
+# ---- paying a loan brings its balance down, undo puts it back ----
+with bb.app.app_context():
+    bb.db.drop_all()
+    bb.db.create_all()
+client = bb.app.test_client()
+client.post("/register", data={"username": "payer", "email": "payer@test.local",
+                               "password": "pw123456", "confirm": "pw123456"},
+            follow_redirects=True)
+client.post("/add", data={
+    "name": "Car", "amount": "1000", "due_day": "5",
+    "bill_type": "loan", "frequency": "monthly",
+    "total_value": "20000", "current_balance": "10000", "interest_rate": "12",
+    "service_fee": "50", "loan_insurance": "50",
+}, follow_redirects=True)
+client.post("/add", data={
+    "name": "Bike", "amount": "100", "due_day": "1",
+    "bill_type": "loan", "frequency": "weekly",
+    "total_value": "5000", "current_balance": "3000",
+}, follow_redirects=True)
+from_the_1st()
+
+
+def loan(name):
+    with bb.app.app_context():
+        bb.db.session.expire_all()
+        p = bb.Payment.query.filter_by(name=name).first()
+        bb.db.session.expunge(p)
+        return p
+
+
+car_id, bike_id = loan("Car").id, loan("Bike").id
+client.post(f"/pay/{car_id}")
+assert loan("Car").current_balance_cents == 900000, loan("Car").current_balance_cents
+client.post(f"/unpaid/{car_id}")
+assert loan("Car").current_balance_cents == 1000000, "undo must put the balance back"
+print("pay a loan -> R10000.00 down to R9000.00, undo -> back to R10000.00")
+
+client.post(f"/week/{bike_id}/1")
+assert loan("Bike").current_balance_cents == 290000, loan("Bike").current_balance_cents
+client.post(f"/week/{bike_id}/1")
+assert loan("Bike").current_balance_cents == 300000, "unticking a week puts it back"
+print("tick a week -> R3000.00 down to R2900.00, untick -> back to R3000.00")
+
+# ---- months to pay off are worked out, not typed ----
+car = loan("Car")
+# R900 after fees
+assert bb.months_to_pay_off(car) == 12, bb.months_to_pay_off(car)
+balance, months = car.current_balance_cents, 0
+while balance > 0:
+    balance += bb.percent_of(balance, 1) + 10000 - 100000
+    months += 1
+assert months == 12, "the formula must agree with the month-end job, month by month"
+assert "About 12 months left to pay off" in client.get("/").get_data(as_text=True)
+print("R10000.00 at 12%, R900.00 a month after fees -> 12 months, same as month by month")
+
+# R433.33 a month
+assert bb.months_to_pay_off(loan("Bike")) == 7, bb.months_to_pay_off(loan("Bike"))
+print("R3000.00 at 0%, R100.00 a week -> 7 months")
+
+with bb.app.app_context():
+    p = bb.db.session.get(bb.Payment, car_id)
+    p.amount_cents = 15000          # below interest
+    bb.db.session.commit()
+assert bb.months_to_pay_off(loan("Car")) is None
+assert "won't go down" in client.get("/").get_data(as_text=True)
+print("instalment below the interest and fees -> warned it never pays off")
+
+with bb.app.app_context():
+    bb.db.session.get(bb.Payment, car_id).current_balance_cents = 0
+    bb.db.session.commit()
+assert bb.months_to_pay_off(loan("Car")) == 0
+print("paid off -> 0 months")
+
+print("\nALL LOAN BALANCE CHECKS PASSED")

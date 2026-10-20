@@ -86,7 +86,7 @@ The buddy stands bottom centre #}
     {% if loop.index <= 4 %}
     <div class="room-mate room-mate-{{ loop.index }} buddy-species-{{ mate.species }} buddy-mood-happy">
         {% if mate.stage == "egg" %}
-        <span class="mate-egg">🥚</span>
+        {% include "_buddy_egg.html" %}
         {% else %}
         {% with buddy_equipped = [], sprite_species = mate.species %}{% include "_buddy_sprite.html" %}{% endwith %}
         {% endif %}
@@ -96,7 +96,7 @@ The buddy stands bottom centre #}
     {% endif %}
 
     {% if buddy.stage == "egg" %}
-    <span class="room-egg">🥚</span>
+    <div class="room-egg">{% include "_buddy_egg.html" %}</div>
     {% else %}
     <div class="room-sprite">{% include "_buddy_sprite.html" %}</div>
     {% endif %}

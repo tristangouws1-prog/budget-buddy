@@ -11,10 +11,6 @@
         <input type="text" id="name" name="name"
                value="{{ payment.name }}" required>
 
-        <label for="description">Description (optional)</label>
-        <input type="text" id="description" name="description"
-               value="{{ payment.description or '' }}">
-
         <label for="payment_method">Payment Method?</label>
         <select id="payment_method" name="payment_method">
             <option value="">- choose -</option>
@@ -36,11 +32,13 @@
             <option value="once_off" {% if payment.bill_type == "once_off" %}selected{% endif %}>Once-off</option>
         </select>
 
-        <label for="frequency">How often?</label>
-        <select id="frequency" name="frequency" onchange="toggleDueField(this.value)">
-            <option value="monthly" {% if payment.frequency == "monthly" %}selected{% endif %}>Monthly</option>
-            <option value="weekly" {% if payment.frequency == "weekly" %}selected{% endif %}>Weekly</option>
-        </select>
+        <div id="frequency-field">
+            <label for="frequency">How often?</label>
+            <select id="frequency" name="frequency" onchange="toggleDueField(this.value)">
+                <option value="monthly" {% if payment.frequency == "monthly" %}selected{% endif %}>Monthly</option>
+                <option value="weekly" {% if payment.frequency == "weekly" %}selected{% endif %}>Weekly</option>
+            </select>
+        </div>
 
 <div id="balance-fields" style="display:none">
     <label for="total_value" id="total-label">Total loan amount ({{ current_user.currency }})</label>
@@ -58,9 +56,6 @@
            value="{{ payment.service_fee_cents | rands }}">
 
     <div id="loan-only-fields" style="display:none">
-        <label for="months_remaining">Months remaining</label>
-        <input type="number" id="months_remaining" name="months_remaining" min="0"
-               value="{{ payment.months_remaining or '' }}">
         <label for="loan_insurance">Monthly insurance/protection ({{ current_user.currency }})</label>
         <input type="number" id="loan_insurance" name="loan_insurance" step="0.01" min="0"
                value="{{ payment.loan_insurance_cents | rands }}">
@@ -80,11 +75,12 @@
 
 
         <label for="amount" id="amount-label">Monthly payment amount ({{ current_user.currency }})</label>
+        <p class="form-hint" id="amount-hint" style="display:none">The whole instalment, including insurance and fees.</p>
         <input type="number" id="amount" name="amount" step="0.01" min="0"
                value="{{ payment.amount_cents | rands }}" required>
 
         <div id="monthly-due">
-            <label for="due_day">Due day of the month</label>
+            <label for="due_day" id="due-label">Due day of the month</label>
             <input type="number" id="due_day" name="due_day" min="1" max="31"
                    value="{{ payment.due_day if payment.frequency != 'weekly' else '' }}">
         </div>
@@ -132,6 +128,15 @@ function toggleBalanceFields(type) {
         totalLabel.textContent = 'Credit limit ({{ current_user.currency }})';
         balanceLabel.textContent = 'Current balance used ({{ current_user.currency }})';
     }
+
+    // never weekly
+    const onceOff = type === 'once_off';
+    document.getElementById('frequency-field').style.display = onceOff ? 'none' : 'block';
+    if (onceOff) {
+        document.getElementById('frequency').value = 'monthly';
+    }
+    toggleDueField(document.getElementById('frequency').value);
+    document.getElementById('amount-hint').style.display = type === 'loan' ? 'block' : 'none';
 }
 
 function toggleDueField(frequency) {
@@ -141,9 +146,11 @@ function toggleDueField(frequency) {
     const weekdaySelect = document.getElementById('due_weekday');
     const amountLabel = document.getElementById('amount-label');
     const isWeekly = frequency === 'weekly';
+    const onceOff = document.getElementById('bill_type').value === 'once_off';
 
-    amountLabel.textContent = (isWeekly ? 'Weekly' : 'Monthly')
-        + ' payment amount ({{ current_user.currency }})';
+    amountLabel.textContent = (onceOff ? 'Amount' : (isWeekly ? 'Weekly' : 'Monthly') + ' payment amount')
+        + ' ({{ current_user.currency }})';
+    document.getElementById('due-label').textContent = onceOff ? "Day it's due" : 'Due day of the month';
 
     monthly.style.display = isWeekly ? 'none' : 'block';
     weekly.style.display = isWeekly ? 'block' : 'none';

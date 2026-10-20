@@ -9,6 +9,7 @@ import datetime
 import os
 import re
 import sys
+import types
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -51,13 +52,45 @@ def fresh(hatched=True):
     return client
 
 
-def add_bill(client, name, amount, day=5, kind="fixed", freq="monthly", **extra):
+def add_bill(client, name, amount, day=5, kind="fixed", freq="monthly", since=None, **extra):
+    """ Add a bill through the form. It counts as added on the 1st, so the
+    whole month is owed, unless since says when ("now" keeps today) """
     data = {"name": name, "description": "", "amount": str(amount),
             "due_day": str(day), "bill_type": kind, "frequency": freq}
     data.update({k: str(v) for k, v in extra.items()})
     client.post("/add", data=data, follow_redirects=True)
     with bb.app.app_context():
-        return bb.Payment.query.filter_by(name=name).first().id
+        p = bb.Payment.query.filter_by(name=name).first()
+        if since != "now":
+            today = bb.local_today()
+            p.date_added = since or datetime.datetime(today.year, today.month, 1)
+            bb.db.session.commit()
+        return p.id
+
+
+class at:
+    """ Pin the app's clock to one moment, stored timestamps included """
+
+    def __init__(self, *when):
+        self.when = datetime.datetime(*when)
+
+    def __enter__(self):
+        when = self.when
+
+        class Pinned(datetime.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return when.replace(tzinfo=tz) if tz else when
+
+        pinned = types.ModuleType("datetime")
+        pinned.__dict__.update(datetime.__dict__)
+        pinned.datetime = Pinned
+        self.real, bb.datetime = bb.datetime, pinned
+        return self
+
+    def __exit__(self, *exc):
+        bb.datetime = self.real
+        return False
 
 
 def buddy():
@@ -217,6 +250,13 @@ def test_species_and_sprites():
     assert "buddy-whisker" in html and '<rect x="2" y="4" width="12" height="9"/>' in html
     check("the black cat is still a cat")
 
+    #own colours
+    with open(os.path.join(bb.app.static_folder, "style.css"), encoding="utf-8") as f:
+        css = f.read()
+    for species in bb.BUDDY_SPECIES:
+        assert f".buddy-species-{species}" in css, f"{species} has no colours of its own"
+    check("every species keeps its own colours in the room")
+
     
     as_species("frog")
     for item in ("witch_hat", "top_hat", "party_hat"):
@@ -373,10 +413,15 @@ def test_money_is_exact_integer_cents():
 def test_weekly_loan_traffic_lights():
     """ A loan paid weekly is red while nothing is paid, amber part way
     through the month, and green only once every week is ticked off """
+    #a Wednesday
+    with at(2026, 10, 14, 10):
+        weekly_loan_traffic_lights()
+
+
+def weekly_loan_traffic_lights():
     client = fresh()
-    #due on today's weekday, so at least one week is always already due
-    today_weekday = bb.local_today().weekday() + 1
-    loan = add_bill(client, "Weekly loan", 250, day=today_weekday,
+    monday = 1
+    loan = add_bill(client, "Weekly loan", 250, day=monday,
                     kind="loan", freq="weekly",
                     total_value=60000, current_balance=42000)
     with bb.app.app_context():
@@ -424,7 +469,7 @@ def test_weekly_loan_traffic_lights():
     check("undoing the last week goes back to amber")
 
     #plain weekly bills get the same boxes and colours now (#61)
-    plain = add_bill(client, "Groceries", 100, day=today_weekday, freq="weekly")
+    plain = add_bill(client, "Groceries", 100, day=monday, freq="weekly")
     with bb.app.app_context():
         assert bb.get_status(bb.db.session.get(bb.Payment, plain)) == "overdue"
     client.post(f"/pay/{plain}")
@@ -512,7 +557,8 @@ def test_weekly_bills_cost_the_whole_month():
 
 def test_month_end_carries_the_shortfall_over():
     client = fresh()
-    bill = add_bill(client, "Transport", 50, day=3, freq="weekly")
+    bill = add_bill(client, "Transport", 50, day=3, freq="weekly",
+                    since=datetime.datetime(2000, 1, 1))
     with bb.app.app_context():
         year, month = bb.previous_month()
         p = bb.db.session.get(bb.Payment, bill)
@@ -591,11 +637,8 @@ def test_the_reminder_messages_say_the_right_thing():
         user.email_reminders = True
         bb.db.session.commit()
 
-    #a bill that is already overdue, with a description on it
-    client.post("/add", data={"name": "Rent", "description": "the flat",
-                              "amount": "5500", "due_day": "1",
-                              "bill_type": "fixed", "frequency": "monthly"},
-                follow_redirects=True)
+    #a bill that is already overdue
+    add_bill(client, "Rent", 5500, day=1)
     with bb.app.app_context():
         user = bb.User.query.first()
         p = bb.Payment.query.filter_by(name="Rent").first()
@@ -603,22 +646,21 @@ def test_the_reminder_messages_say_the_right_thing():
         soon = bb.due_soon_message(p, user)
         monthly = bb.monthly_message(p, user)
 
-        assert overdue.startswith("'Rent' (R5500.00) is overdue!"), overdue
-        assert "the flat" in overdue, "the bill's description must reach the message"
+        assert overdue.startswith("'Rent' (R5\u00a0500.00) is overdue!"), overdue
         assert "1st" in overdue, "the due day is written 1st, not 1"
         assert "R550000" not in overdue, "cents must never be printed raw"
-        assert "'Rent' (R5500.00)" in soon and "the flat" in soon
-        assert monthly.startswith("Monthly reminder: 'Rent' (R5500.00)")
-    check("every message names the bill, its real amount and its description")
+        assert "'Rent' (R5\u00a0500.00)" in soon
+        assert monthly.startswith("Monthly reminder: 'Rent' (R5\u00a0500.00)")
+    check("every message names the bill and its real amount")
 
     #the summary line used to print cents as rands - R550000.00 for one bill
     with bb.app.app_context():
         user = bb.User.query.first()
         payments = bb.Payment.query.all()
         summary = bb.monthly_summary_message(payments, user)
-        assert "R5500.00" in summary, summary
+        assert "R5\u00a0500.00" in summary, summary
         assert "R550000" not in summary, "the month total was printed in cents"
-    check("the monthly total reads R5500.00, not R550000.00")
+    check("the monthly total reads R5 500.00, not R550000.00")
 
     #a variable bill asks to be confirmed, in the user's own currency
     with bb.app.app_context():
@@ -646,7 +688,6 @@ def test_the_reminder_messages_say_the_right_thing():
     body = bb.sent_emails[-1]["body"]
     assert all(m in body for m in messages if "Rent" in m), \
         "every reminder must appear in the email, word for word"
-    assert "the flat" in body, "the description has to survive into the email"
     check("the scheduled job writes and emails exactly those messages")
 
     #the test email button: one real send, showing every wording
@@ -699,6 +740,18 @@ def test_once_off_bills_persist_then_archive():
     client.post(f"/archive/{bill}", follow_redirects=True)
     assert f'data-id="{bill}"' not in client.get("/").get_data(as_text=True)
     check("a paid once-off archives away off the dashboard")
+
+    #stale form
+    concert = add_bill(client, "Concert", 600, day=3, kind="once_off", freq="weekly")
+    client.post(f"/edit/{concert}", data={"name": "Concert", "amount": "600",
+                                          "due_day": "3", "bill_type": "once_off",
+                                          "frequency": "weekly"})
+    with bb.app.app_context():
+        p = bb.db.session.get(bb.Payment, concert)
+        assert p.frequency == "monthly", "a once-off is never weekly"
+        assert bb.month_obligation(p) == 60000, "counted once, not once a week"
+    assert f"/week/{concert}/1" not in client.get("/").get_data(as_text=True)
+    check("a once-off is saved monthly even when weekly is sent")
 
 
 def test_your_own_reminders():
@@ -1213,7 +1266,8 @@ def test_a_bad_weekly_day_does_not_break_the_page():
 # ----------- audit fixes
 def test_bad_numbers_are_turned_away():
     client = fresh()
-    for raw in ("abc", "12.5.6", "R199", "nan", "inf", ""):
+    for raw in ("abc", "12.5.6", "R199", "nan", "inf", "", "-50", "1e308",
+                "99999999999999999999"):
         r = client.post("/add", data={"name": f"Bad {raw}", "description": "",
                                       "amount": raw, "due_day": "5",
                                       "bill_type": "fixed", "frequency": "monthly"})
@@ -1239,13 +1293,19 @@ def test_bad_numbers_are_turned_away():
                                      "budget_limit": "lots"}),
                       ("/add", {"name": "Car", "description": "", "amount": "300",
                                 "due_day": "5", "bill_type": "loan",
-                                "frequency": "monthly", "months_remaining": "2.5"})):
+                                "frequency": "monthly", "interest_rate": "abc"})):
         assert client.post(url, data=data).status_code == 302, url
     with bb.app.app_context():
         assert bb.Payment.query.filter_by(name="Car").first() is None
-    assert bb.parse_whole("12") == 12 and bb.parse_whole("") is None
     assert bb.parse_cents("199,99") == 19999, "comma decimals still work"
-    check("every money, rate and months box refuses junk the same way")
+    assert bb.money(1639700) == "16\u00a0397.00" and bb.money(-3000) == "-30.00"
+    assert bb.whole_rands(1229800) == "12\u00a0298"
+    try:
+        bb.parse_rate("150")
+        raise AssertionError("a rate over 100% must be refused")
+    except bb.BadNumber:
+        pass
+    check("every money and rate box refuses junk the same way")
 
 
 def test_passwords_need_eight_characters():
@@ -1264,8 +1324,7 @@ def test_passwords_need_eight_characters():
     client = fresh()
     client.get("/logout")
     with bb.app.app_context():
-        uid = bb.User.query.first().id
-    link = f"/reset/{bb.get_reset_serializer().dumps(uid)}"
+        link = f"/reset/{bb.reset_token(bb.User.query.first())}"
     html = client.post(link, data={"password": "tiny", "confirm": "tiny"},
                        follow_redirects=True).get_data(as_text=True)
     assert "at least 8 characters" in html
@@ -1410,6 +1469,297 @@ def test_a_fully_paid_weekly_loan_keeps_the_buddy_happy():
     assert "buddy-mood-happy" in client.get("/").get_data(as_text=True), \
         "the buddy must follow the status, not is_paid"
     check("a loan paid for the month keeps the buddy happy after Monday")
+
+
+# ----------- audit of October 2026
+def test_old_debt_is_not_this_months_payment():
+    with at(2026, 9, 30, 10):
+        client = fresh()
+        rent = add_bill(client, "Rent", 250, day=1, freq="weekly")
+        tv = add_bill(client, "TV", 300, day=20)
+    with at(2026, 10, 1, 9):
+        bb.create_monthly_reminders(period="2026-10")
+    with at(2026, 10, 2, 10):
+        with bb.app.app_context():
+            assert bb.db.session.get(bb.Payment, rent).carried_over_cents == 100000
+        client.post(f"/carryover_paid/{rent}")
+        with bb.app.app_context():
+            p = bb.db.session.get(bb.Payment, rent)
+            assert bb.weeks_paid_this_month(p) == 0 and bb.get_status(p) != "paid"
+            assert bb.remaining_this_month(p) == 25000 * bb.weeks_in_month(p)
+        check("paying September's weeks off doesn't tick October's")
+
+        client.post(f"/carryover_paid/{tv}")
+        client.post(f"/pay/{tv}")
+        client.post(f"/unpaid/{tv}")
+        with bb.app.app_context():
+            names = [log.bill_name for log in bb.PaymentLog.query.all()]
+        assert "TV (earlier months)" in names and "TV" not in names, names
+        html = client.get("/history").get_data(as_text=True)
+        chip = re.search(r'badge-(\w+)"[^>]*>\s*(?:✓ |✕ )?TV\s*<', html)
+        assert chip and chip.group(1) != "paid", "old debt doesn't make this month green"
+    check("Undo takes back the bill, but the old debt payment stays in the history")
+
+
+def test_a_deleted_bill_takes_its_history_with_it():
+    client = fresh()
+    add_bill(client, "Water", 100, day=25)
+    gym = add_bill(client, "Gym", 400, day=1, freq="weekly")
+    client.post(f"/week/{gym}/2")
+    client.post(f"/delete/{gym}")
+    new = add_bill(client, "Netflix", 400, day=1, freq="weekly")
+    assert new != gym, "a deleted bill's id must never be handed out again"
+    with bb.app.app_context():
+        assert bb.weeks_paid_this_month(bb.db.session.get(bb.Payment, new)) == 0
+    check("a new bill never inherits a deleted bill's payments")
+
+
+def test_bars_and_totals_stay_in_range():
+    client = fresh()
+    car = add_bill(client, "Car", 100, day=28)
+    with bb.app.app_context():
+        bb.db.session.get(bb.Payment, car).carried_over_cents = 50000
+        bb.db.session.commit()
+    add_bill(client, "Loan", 1000, day=28, kind="loan", total_value=1000, current_balance=1200)
+    html = client.get("/").get_data(as_text=True)
+    assert 'hero-progress-fill" style="width: 0%"' in html, "nothing paid is an empty bar"
+    assert 'bill-progress-loan" style="width: 0%"' in html, "above the loan amount is 0%"
+    check("old debt and a loan above its amount draw empty bars, not full ones")
+
+    gas = add_bill(client, "Gas", 100, day=28)
+    form = {"name": "Gas", "due_day": "28", "bill_type": "fixed", "frequency": "monthly"}
+    client.post(f"/partial_pay/{gas}", data={"paid_amount": "80"})
+    client.post(f"/edit/{gas}", data={**form, "amount": "50"})
+    with bb.app.app_context():
+        p = bb.db.session.get(bb.Payment, gas)
+        assert p.is_paid and bb.remaining_this_month(p) == 0
+    client.post(f"/edit/{gas}", data={**form, "amount": "150"})
+    with bb.app.app_context():
+        p = bb.db.session.get(bb.Payment, gas)
+        assert not p.is_paid and bb.remaining_this_month(p) == 10000
+    check("lowering an amount past what's paid settles it, raising it reopens it")
+
+
+def test_once_offs_and_new_bills_wait_their_turn():
+    with at(2026, 9, 18, 10):
+        client = fresh()
+        fridge = add_bill(client, "Fridge", 8000, day=20, kind="once_off")
+        client.post(f"/pay/{fridge}")
+    with at(2026, 10, 1, 9):
+        bb.create_monthly_reminders(period="2026-10")
+        with bb.app.app_context():
+            assert bb.db.session.get(bb.Payment, fridge).is_archived
+            assert not any("Fridge" in r.message for r in bb.Reminder.query.all())
+    check("a once-off paid last month is archived at the new month, with no reminder")
+
+    with at(2026, 10, 15, 10):
+        spotify = add_bill(client, "Spotify", 60, day=3, since="now")
+        taxi = add_bill(client, "Taxi", 50, day=1, freq="weekly", since="now")
+        with bb.app.app_context():
+            s = bb.db.session.get(bb.Payment, spotify)
+            assert bb.get_status(s) == "upcoming" and bb.days_left_for(s) == 19
+            assert bb.month_obligation(s) == 0
+            t = bb.db.session.get(bb.Payment, taxi)
+            assert bb.weeks_in_month(t) == 2 and bb.get_status(t) == "upcoming"
+    check("a bill added after its due day waits for next month, weekly ones count from today")
+    with at(2026, 11, 1, 9):
+        bb.create_monthly_reminders(period="2026-11")
+        with bb.app.app_context():
+            assert not bb.db.session.get(bb.Payment, spotify).carried_over_cents
+            assert bb.db.session.get(bb.Payment, taxi).carried_over_cents == 10000
+    check("the month end only rolls over what was really owed")
+
+
+def test_due_today_is_not_overdue():
+    with at(2026, 10, 5, 8):
+        client = fresh()
+        weekly = add_bill(client, "Taxi", 50, day=1, freq="weekly")
+        monthly = add_bill(client, "Rent", 500, day=5)
+        sunday = add_bill(client, "Gym", 100, day=11)
+        with bb.app.app_context():
+            p = bb.db.session.get(bb.Payment, weekly)
+            assert bb.get_status(p) == "soon" and not bb.weeks_behind(p)
+            assert bb.get_status(bb.db.session.get(bb.Payment, monthly)) == "soon"
+        check("on its day a weekly bill is due, like a monthly one, not overdue")
+
+        bb.create_weekly_reminder(period="2026-W41")
+        with bb.app.app_context():
+            soon = {r.payment_id for r in bb.Reminder.query.filter_by(category="soon")}
+            late = {r.payment_id for r in bb.Reminder.query.filter_by(category="overdue")}
+        assert {weekly, monthly, sunday} <= soon and not late, (soon, late)
+        check("Monday's reminders cover the whole week ahead, Sunday included")
+    with at(2026, 10, 6, 8):
+        with bb.app.app_context():
+            assert bb.get_status(bb.db.session.get(bb.Payment, weekly)) == "overdue"
+    check("the day after, it's overdue")
+
+
+def test_a_missed_month_end_catches_up():
+    os.environ["TASK_TOKEN"] = "t0ken"
+    try:
+        with at(2026, 9, 1, 9):
+            client = fresh()
+            rent = add_bill(client, "Rent", 500, day=5)
+            bb.create_monthly_reminders(period="2026-09")
+        with at(2026, 9, 10, 10):
+            client.post(f"/pay/{rent}")
+        #missed the 1st
+        with at(2026, 10, 2, 9):
+            late = bb.app.test_client()
+            late.post("/register", data={"username": "late", "email": "late@t.local",
+                                         "password": "pw123456", "confirm": "pw123456"})
+            bill = add_bill(late, "Late bill", 10, day=9)
+            late.post(f"/pay/{bill}")
+            runner = bb.app.test_client()
+            assert "monthly" in runner.get("/tasks/run-daily?token=t0ken").get_data(as_text=True)
+            with bb.app.app_context():
+                assert not bb.db.session.get(bb.Payment, rent).is_paid, "October starts unpaid"
+                assert bb.db.session.get(bb.Payment, bill).is_paid, "a newcomer isn't reset"
+            again = runner.get("/tasks/run-daily?token=t0ken").get_data(as_text=True)
+            assert "monthly" not in again, again
+    finally:
+        os.environ.pop("TASK_TOKEN")
+    check("a day late, the month still rolls over, once, for the right people")
+
+
+def test_sorting_filters_and_the_hero_line():
+    with at(2026, 10, 12, 10):
+        client = fresh()
+        for name, day in (("Alpha", 3), ("Bravo", 14), ("Charlie", 20)):
+            add_bill(client, name, 100, day=day)
+        add_bill(client, "Weekly", 100, day=3, freq="weekly")
+        html = client.get("/").get_data(as_text=True)
+        order = re.findall(r'class="bill-name">([^<]+)<', html)
+        assert order == ["Alpha", "Bravo", "Weekly", "Charlie"], order
+        check("a weekly bill sorts by its next due day, not as the 3rd")
+
+        delta = add_bill(client, "Delta", 100, day=25)
+        client.post(f"/partial_pay/{delta}", data={"paid_amount": "40"})
+        assert f'data-id="{delta}"' in client.get("/?filter=partial").get_data(as_text=True)
+        check("a part paid monthly bill shows under Part paid")
+
+        def bills_paid(view):
+            page = client.get(f"/?filter={view}").get_data(as_text=True)
+            return re.search(r'Bills paid</div>\s*<div class="stat-value">([^<]+)<', page).group(1)
+        assert bills_paid("all") == bills_paid("overdue") == bills_paid("paid")
+        check("the Bills paid count doesn't change with the filter")
+
+    client = fresh()
+    gym = add_bill(client, "Gym", 300, day=5)
+    client.post(f"/pay/{gym}")
+    with bb.app.app_context():
+        bb.db.session.get(bb.Payment, gym).carried_over_cents = 30000
+        bb.db.session.commit()
+    assert "carried over from before" in client.get("/").get_data(as_text=True)
+    check("with only old debt left, the hero says so")
+
+
+def test_the_next_due_date_fits_a_short_month():
+    with at(2027, 1, 31, 10):
+        client = fresh()
+        bill = add_bill(client, "Insurance", 500, day=30)
+        client.post(f"/pay/{bill}")
+        with bb.app.app_context():
+            due = bb.due_date_for(bb.db.session.get(bb.Payment, bill))
+    assert due.date() == datetime.date(2027, 2, 28), due
+    check("paid on 31 January, the 30th's next one is 28 February")
+
+
+def test_the_error_page_survives_a_database_error():
+    client = fresh()
+    real = bb.require_cents
+    #too big to store
+    bb.require_cents = lambda raw: 10 ** 20
+    bb.app.config["PROPAGATE_EXCEPTIONS"] = False
+    bb.app.logger.disabled = True
+    try:
+        r = client.post("/add", data={"name": "Huge", "amount": "1", "due_day": "5",
+                                      "bill_type": "fixed", "frequency": "monthly"})
+    finally:
+        bb.require_cents = real
+        bb.app.config["PROPAGATE_EXCEPTIONS"] = None
+        bb.app.logger.disabled = False
+    assert r.status_code == 500
+    assert "Something went wrong on our side" in r.get_data(as_text=True)
+    assert client.get("/").status_code == 200, "the next page still works"
+    check("a failed database write still shows the friendly error page")
+
+
+def test_emails_match_whatever_the_capitals():
+    fresh()
+    c = bb.app.test_client()
+    html = c.post("/register", data={"username": "copy", "email": EMAIL.upper(),
+                                     "password": "pw123456", "confirm": "pw123456"},
+                  follow_redirects=True).get_data(as_text=True)
+    assert "already registered" in html
+    before = len(bb.sent_emails)
+    c.post("/forgot", data={"email": EMAIL.title()})
+    assert len(bb.sent_emails) == before + 1, "the reset email went nowhere"
+    check("an email is the same account whatever its capitals")
+
+
+def test_reminders_dont_pile_up():
+    client = fresh()
+    add_bill(client, "Water", 100, day=28)
+    for _ in range(3):
+        bb.create_weekly_reminder()
+    with bb.app.app_context():
+        unread = [r.message for r in bb.Reminder.query.filter_by(is_read=False)]
+    assert sum("Weekly Check in!" in m for m in unread) == 1, unread
+    assert bb.sent_emails[-1]["body"].count("Weekly Check in!") == 1
+    check("a new week's check-in replaces last week's, in the app and the email")
+
+    with bb.app.app_context():
+        uid = bb.User.query.first().id
+        for i in range(bb.REMINDERS_PER_PAGE + 5):
+            bb.db.session.add(bb.Reminder(message=f"Old {i}", category="weekly",
+                                          is_read=True, user_id=uid))
+        bb.db.session.commit()
+    assert "Older" in client.get("/reminders").get_data(as_text=True)
+    assert "Newer" in client.get("/reminders?page=2").get_data(as_text=True)
+    check("the reminders page is paged")
+
+
+def test_a_reset_link_works_once():
+    client = fresh()
+    client.get("/logout")
+    with bb.app.app_context():
+        link = f"/reset/{bb.reset_token(bb.User.query.first())}"
+    client.post(link, data={"password": "newpass123", "confirm": "newpass123"})
+    html = client.post(link, data={"password": "again12345", "confirm": "again12345"},
+                       follow_redirects=True).get_data(as_text=True)
+    assert "already been used" in html
+    with bb.app.app_context():
+        assert bb.User.query.first().check_password("newpass123")
+    old_style = f"/reset/{bb.get_reset_serializer().dumps(1)}"
+    assert "not valid" in client.get(old_style, follow_redirects=True).get_data(as_text=True)
+    check("a reset link stops working once the password has changed")
+
+
+def test_settings_only_take_the_offered_choices():
+    client = fresh()
+    client.post("/settings", data={"currency": "<b>R</b>", "theme": "neon", "email": EMAIL})
+    with bb.app.app_context():
+        user = bb.User.query.first()
+        assert user.currency == "R" and user.theme == "pastel"
+    client.post("/settings", data={"currency": "€", "theme": "dark", "email": EMAIL})
+    with bb.app.app_context():
+        user = bb.User.query.first()
+        assert user.currency == "€" and user.theme == "dark"
+    check("only the offered currencies and themes are saved")
+
+
+def test_housemates_are_drawn_in_pixels():
+    client = fresh()
+    with bb.app.app_context():
+        uid = bb.User.query.first().id
+        bb.db.session.add(bb.Buddy(user_id=uid, species="frog", stage="hatched"))
+        bb.db.session.add(bb.Buddy(user_id=uid, stage="egg"))
+        bb.db.session.commit()
+    html = client.get("/buddy").get_data(as_text=True)
+    assert "🥚" not in html and "🐱" not in html and "🐸" not in html
+    assert html.count('class="mate-icon') == 3
+    check("housemates and eggs are pixel art, not emoji")
 
 
 # ----------- dev account
