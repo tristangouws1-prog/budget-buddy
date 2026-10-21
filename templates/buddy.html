@@ -20,7 +20,7 @@
         <form action="{{ url_for('buy_cosmetic', item_key=key) }}" method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn-primary btn-shop" type="submit"
-                    {% if buddy.coins < item.price %}disabled{% endif %}>
+                    {% if current_user.coins < item.price %}disabled{% endif %}>
                 Buy · 🪙 {{ item.price }}
             </button>
         </form>
@@ -39,7 +39,9 @@
             <h2>???</h2>
             <p class="form-hint">Still an egg!</p>
         {% else %}
-            <h2>{{ buddy.name }} <span class="buddy-species-tag">the {{ buddy.species }}</span></h2>
+            {% set tier = buddy_rarity(buddy.species) %}
+            <h2>{{ buddy.name }} <span class="buddy-species-tag">the {{ buddy.species }}</span>
+                <span class="rarity rarity-{{ tier }}">{{ tier }}</span></h2>
             <form action="{{ url_for('rename_buddy') }}" method="POST" class="buddy-rename">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="text" name="name" maxlength="50" placeholder="New name" required>
@@ -49,7 +51,7 @@
 
         <div class="buddy-stats">
             <span class="buddy-level">{{ "Egg" if buddy.stage == "egg" else "Lv " ~ buddy_level }}</span>
-            <span class="buddy-coins">🪙 {{ buddy.coins }}</span>
+            <span class="buddy-coins" title="Shared by all your buddies">🪙 {{ current_user.coins }}</span>
             <span class="buddy-xp-total">{{ buddy.xp }} XP</span>
         </div>
         {% if buddy_xp_pct is defined %}
@@ -65,10 +67,11 @@
 <!--The housemates-->
 {% if buddies is defined and buddies|length > 1 %}
 <h2 class="shop-heading">Housemates</h2>
+<p class="form-hint">Up to {{ room_spots }} housemates can hang out in the room at once.</p>
 <div class="shop-grid">
     {% for b in buddies %}
     <div class="shop-item{% if b.is_active %} shop-owned{% endif %}">
-        <span class="mate-icon buddy-species-{{ b.species }} buddy-mood-happy">
+        <span class="mate-icon buddy-mood-happy" style="{{ buddy_style(b.species) }}">
             {%- if b.stage == "egg" %}{% include "_buddy_egg.html" %}
             {%- else %}{% with buddy_equipped = [], sprite_species = b.species %}{% include "_buddy_sprite.html" %}{% endwith %}{% endif -%}
         </span>
@@ -76,12 +79,22 @@
         <span class="shop-slot">
             {{ "mystery egg" if b.stage == "egg" else b.species ~ " · Lv " ~ levels[b.id] }}
         </span>
+        {% if b.stage != "egg" %}
+            {% set tier = buddy_rarity(b.species) %}
+            <span class="rarity rarity-{{ tier }}">{{ tier }}</span>
+        {% endif %}
         {% if b.is_active %}
             <span class="shop-locked">Out front</span>
         {% else %}
             <form action="{{ url_for('activate_buddy', buddy_id=b.id) }}" method="POST">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn-primary btn-shop" type="submit">Bring out</button>
+            </form>
+            <form action="{{ url_for('toggle_room', buddy_id=b.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn-small btn-update" type="submit">
+                    {{ "Take out of room" if b.in_room else "Put in room" }}
+                </button>
             </form>
         {% endif %}
     </div>

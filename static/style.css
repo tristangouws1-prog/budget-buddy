@@ -797,8 +797,8 @@ main[data-swapped] .flash { animation: none !important; }
 }
 
 /* ── The Buddy ── */
-/* blobcat housemates */
-.buddy-dock, .buddy-room, .buddy-species-blobcat {
+/* defaults */
+.buddy-dock, .buddy-room {
     --buddy-body: #c9aee6;
     --buddy-ink: #4a3a68;
     --buddy-cheek: #f0a8c0;
@@ -816,14 +816,6 @@ main[data-swapped] .flash { animation: none !important; }
     gap: 6px;
     width: 170px;
 }
-body.theme-dark .buddy-dock, body.theme-dark .buddy-room, body.theme-dark .buddy-species-blobcat {
-    --buddy-body: #8f74bf;
-    --buddy-ink: #221a38;
-    --buddy-cheek: #c887a2;
-    --buddy-eye: #ded8ea;
-    --buddy-belly: #a98cd0;
-}
-
 .buddy-bubble {
     background: var(--surface);
     border: 1.5px solid var(--border);
@@ -862,7 +854,10 @@ body.theme-dark .buddy-dock, body.theme-dark .buddy-room, body.theme-dark .buddy
     width: 100%;
     height: 100%;
     animation: buddy-bob 3s ease-in-out infinite;
+    /* tall hats */
+    overflow: visible;
 }
+.buddy-dock.tall-hat .buddy-sprite { margin-top: 14px; }
 .buddy-mood-worried .buddy-sprite svg { animation-duration: 1.2s; }
 
 .buddy-fill rect       { fill: var(--buddy-body); }
@@ -872,42 +867,38 @@ body.theme-dark .buddy-dock, body.theme-dark .buddy-room, body.theme-dark .buddy
 .buddy-belly-fill rect { fill: var(--buddy-belly); }
 .buddy-whisker rect    { fill: var(--buddy-ink); opacity: 0.5; }
 
-/* species recolours */
-.buddy-species-mintcat {
-    --buddy-body: #a9dcc3; --buddy-ink: #2e5c46; --buddy-cheek: #f2c48f;
-}
-.buddy-species-peachcat {
-    --buddy-body: #f4c7a5; --buddy-ink: #77452b; --buddy-cheek: #ee9f9f;
-}
+/* dark dimming */
+body.theme-dark .buddy-fill rect       { fill: color-mix(in srgb, var(--buddy-body) 72%, #1a1a22); }
+body.theme-dark .buddy-ink-fill rect   { fill: color-mix(in srgb, var(--buddy-ink) 80%, #1a1a22); }
+body.theme-dark .buddy-cheek-fill rect { fill: color-mix(in srgb, var(--buddy-cheek) 75%, #1a1a22); }
+body.theme-dark .buddy-eye-fill rect   { fill: color-mix(in srgb, var(--buddy-eye) 85%, #1a1a22); }
+body.theme-dark .buddy-belly-fill rect { fill: color-mix(in srgb, var(--buddy-belly) 72%, #1a1a22); }
+body.theme-dark .buddy-whisker rect    { fill: color-mix(in srgb, var(--buddy-ink) 80%, #1a1a22); }
+/* dark hat */
+body.theme-dark .witch-shade { fill: #6a6288; }
 
-.buddy-species-blackcat {
-    --buddy-body: #3d3745; --buddy-ink: #f0d878; --buddy-cheek: #7a6280;
+/* rarity badges */
+.rarity {
+    display: inline-block;
+    font-family: 'Nunito Sans', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    vertical-align: middle;
 }
-.buddy-species-frog {
-    --buddy-body: #86c661; --buddy-ink: #2c4a1a; --buddy-cheek: #f2a891;
-    --buddy-eye: #ffffff;  --buddy-belly: #c2e3a2;
-}
-.buddy-species-purplefrog {
-    --buddy-body: #b48ae0; --buddy-ink: #3a2158; --buddy-cheek: #f0a8c0;
-    --buddy-eye: #ffffff;  --buddy-belly: #dcc0f2;
-}
-body.theme-dark .buddy-species-mintcat {
-    --buddy-body: #6fa98a; --buddy-ink: #163526; --buddy-cheek: #c79a6a;
-}
-body.theme-dark .buddy-species-peachcat {
-    --buddy-body: #c29676; --buddy-ink: #3f2416; --buddy-cheek: #b87878;
-}
-body.theme-dark .buddy-species-blackcat {
-    --buddy-body: #2b2733; --buddy-ink: #dcc45e; --buddy-cheek: #5c4a63;
-}
-body.theme-dark .buddy-species-frog {
-    --buddy-body: #629a44; --buddy-ink: #142807; --buddy-cheek: #c48472;
-    --buddy-eye: #ece9e0;  --buddy-belly: #8cbb6c;
-}
-body.theme-dark .buddy-species-purplefrog {
-    --buddy-body: #8f68bd; --buddy-ink: #251140; --buddy-cheek: #c17f9a;
-    --buddy-eye: #e6e0ee;  --buddy-belly: #ab86cf;
-}
+.rarity-common    { background: #ecebf0; color: #4f5263; }
+.rarity-uncommon  { background: #dff3e6; color: #24613f; }
+.rarity-rare      { background: #dbe8fb; color: #234b86; }
+.rarity-epic      { background: #ecdffa; color: #5b2a91; }
+.rarity-legendary { background: #fbecc4; color: #6b4a00; }
+body.theme-dark .rarity-common    { background: #33333f; color: #c9cad6; }
+body.theme-dark .rarity-uncommon  { background: #1e3a2e; color: #8fddb3; }
+body.theme-dark .rarity-rare      { background: #1e2a3f; color: #a8c4e8; }
+body.theme-dark .rarity-epic      { background: #2c2545; color: #cdb4f0; }
+body.theme-dark .rarity-legendary { background: #3a3020; color: #f0cf6a; }
 
 /* the egg */
 .buddy-egg-fill rect      { fill: #f5eede; }
@@ -1067,7 +1058,7 @@ body.theme-dark .buddy-egg-spot-fill rect { fill: #8f7fb0; }
     aspect-ratio: 1;
     z-index: 3;
 }
-.room-sprite svg { width: 100%; height: 100%; animation: buddy-bob 3s ease-in-out infinite; }
+.room-sprite svg { width: 100%; height: 100%; animation: buddy-bob 3s ease-in-out infinite; overflow: visible; }
 .room-egg {
     position: absolute;
     bottom: 4%;

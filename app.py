@@ -138,6 +138,12 @@ class User(db.Model, UserMixin):
 
     budget_limit_cents = db.Column(db.Integer, nullable=True)
 
+#shared purse (#75)
+    coins = db.Column(db.Integer, nullable=False, default=0)
+
+#dashboard sort (#76)
+    bill_sort = db.Column(db.String(10), nullable=True)
+
     payments = db.relationship("Payment", backref="user", lazy=True)
     reminders = db.relationship("Reminder", backref="user", lazy=True)
     incomes = db.relationship("Income", backref="user", lazy=True)
@@ -319,7 +325,7 @@ class Buddy(db.Model):
 #lifetime experience
     xp = db.Column(db.Integer, nullable=False, default=0)
 
-#coins
+#old purse
     coins = db.Column(db.Integer, nullable=False, default=0)
 
 #when the buddy was created
@@ -327,6 +333,9 @@ class Buddy(db.Model):
 
 #active buddy
     is_active = db.Column(db.Boolean, default=False)
+
+#room spot
+    in_room = db.Column(db.Boolean, nullable=False, default=False)
 
 #who the buddy belongs to
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
@@ -939,11 +948,84 @@ BUDDY_MESSAGES = {
 #an egg hatches once it has soaked up this much xp
 HATCH_XP = 100
 
-#what an egg can hatch into. cats are recolours of one drawing, frogs of another
-BUDDY_SPECIES = ["blobcat", "mintcat", "peachcat", "blackcat", "frog", "purplefrog"]
+#buddy colours (#78)
+BUDDY_COLOURS = {
+    "blob":     {"rarity": "common", "body": "#c9aee6", "ink": "#4a3a68", "cheek": "#f0a8c0", "belly": "#dcc8f0"},
+    "mint":     {"rarity": "common", "body": "#a9dcc3", "ink": "#2e5c46", "cheek": "#f2c48f", "belly": "#cdeedd"},
+    "peach":    {"rarity": "common", "body": "#f4c7a5", "ink": "#77452b", "cheek": "#ee9f9f", "belly": "#f9dfcb"},
+    "leaf":     {"rarity": "common", "body": "#86c661", "ink": "#2c4a1a", "cheek": "#f2a891", "belly": "#c2e3a2"},
+    "purple":   {"rarity": "common", "body": "#b48ae0", "ink": "#3a2158", "cheek": "#f0a8c0", "belly": "#dcc0f2"},
+    "sky":      {"rarity": "uncommon", "body": "#a9d3f0", "ink": "#24486a", "cheek": "#f2b0c0", "belly": "#d3e9f8"},
+    "lemon":    {"rarity": "uncommon", "body": "#f3e08c", "ink": "#6a5410", "cheek": "#f2a891", "belly": "#f9efc4"},
+    "rose":     {"rarity": "uncommon", "body": "#f2b3c9", "ink": "#6e2a44", "cheek": "#e07a9a", "belly": "#f9d6e2"},
+    "cocoa":    {"rarity": "uncommon", "body": "#b08a6e", "ink": "#3b2416", "cheek": "#e0a090", "belly": "#d6bfae"},
+    "black":    {"rarity": "rare", "body": "#3d3745", "ink": "#f0d878", "cheek": "#7a6280", "belly": "#5a5263"},
+    "snow":     {"rarity": "rare", "body": "#f4f2f8", "ink": "#5a5670", "cheek": "#f2b6c8", "belly": "#ffffff"},
+    "teal":     {"rarity": "rare", "body": "#5fbfb6", "ink": "#123f3b", "cheek": "#f2b49a", "belly": "#a6e0da"},
+    "ruby":     {"rarity": "epic", "body": "#d9536b", "ink": "#4a0f1c", "cheek": "#f5b0a0", "belly": "#ee98a6"},
+    "sapphire": {"rarity": "epic", "body": "#4a78d6", "ink": "#0f1f4a", "cheek": "#f2a0c0", "belly": "#94b2ec"},
+    "amethyst": {"rarity": "epic", "body": "#8a52c9", "ink": "#22093f", "cheek": "#f0a0d0", "belly": "#c4a0ea"},
+    "gold":     {"rarity": "legendary", "body": "#f2c94c", "ink": "#6b4a00", "cheek": "#f29b6b", "belly": "#f8e3a0"},
+    "silver":   {"rarity": "legendary", "body": "#c7ccd6", "ink": "#2f3542", "cheek": "#f0a8c0", "belly": "#e6e9ef"},
+}
 
-#which species use the frog drawing
-FROG_SPECIES = ("frog", "purplefrog")
+#hatch odds
+RARITY_ODDS = {"common": 55, "uncommon": 25, "rare": 12, "epic": 6, "legendary": 2}
+
+#buddy shapes
+BUDDY_SHAPES = ("cat", "frog")
+FROG_ODDS = 1 / 3
+
+
+def species_name(colour, shape):
+    """ "mint" + "cat" -> "mintcat". The green frog keeps its first name, "frog" """
+    return "frog" if (colour, shape) == ("leaf", "frog") else colour + shape
+
+
+#species lookup
+BUDDY_SPECIES = {species_name(c, s): (c, s) for c in BUDDY_COLOURS for s in BUDDY_SHAPES}
+
+
+def species_look(species):
+    """ (colour, shape) of a species, a blob cat for anything unknown """
+    return BUDDY_SPECIES.get(species, ("blob", "cat"))
+
+
+@app.template_global()
+def buddy_shape(species):
+    """ Which drawing a species uses, "cat" or "frog" """
+    return species_look(species)[1]
+
+
+@app.template_global()
+def buddy_rarity(species):
+    """ A species' tier, common to legendary """
+    return BUDDY_COLOURS[species_look(species)[0]]["rarity"]
+
+
+@app.template_global()
+def buddy_style(species):
+    """ A species' colours as CSS variables, for a style attribute """
+    colour = BUDDY_COLOURS[species_look(species)[0]]
+    return (f"--buddy-body: {colour['body']}; --buddy-ink: {colour['ink']}; "
+            f"--buddy-cheek: {colour['cheek']}; --buddy-belly: {colour['belly']}; "
+            f"--buddy-eye: #ffffff")
+
+
+def roll_species(rng=random):
+    """ A hatching egg's species: a tier by the odds, a colour in it, then cat or frog """
+    tier = rng.choices(list(RARITY_ODDS), weights=list(RARITY_ODDS.values()))[0]
+    colour = rng.choice([c for c, v in BUDDY_COLOURS.items() if v["rarity"] == tier])
+    return species_name(colour, "frog" if rng.random() < FROG_ODDS else "cat")
+
+
+def hatch_message(buddy):
+    """ "The egg hatched! Say hello to Mochi, a rare snowcat!" """
+    tier = buddy_rarity(buddy.species)
+    if tier == "common":
+        return f"The egg hatched! Say hello to {buddy.name} the {buddy.species}!"
+    article = "an" if tier[0] in "aeiou" else "a"
+    return f"The egg hatched! Say hello to {buddy.name}, {article} {tier} {buddy.species}!"
 
 #what the egg says at each % of hatching progress
 EGG_MESSAGES = [
@@ -953,10 +1035,15 @@ EGG_MESSAGES = [
     (75, "It's nearly hatching! Just a little more XP!"),
 ]
 
-#hitting these levels earns a new egg, up
-#Note to self, update these to TO_DO_List #77 so that buddies are earned every 3 levels after level 10, and there is no buddy limit
+#egg levels (#77)
 EGG_LEVELS = (3, 5, 7, 10)
-MAX_BUDDIES = 5
+EGG_EVERY = 3
+
+#room spots
+ROOM_SPOTS = 4
+
+#dashboard sorts
+SORTS = ("due_day", "amount", "name", "custom")
 
 #how many payment history rows one page of /history shows
 HISTORY_PER_PAGE = 100
@@ -1053,7 +1140,8 @@ def get_active_buddy(user):
         if buddy is None:
             buddy = Buddy(user_id=user.id, is_active=True)
         else:
-            buddy.is_active = True
+            #out front, not in the room
+            buddy.is_active, buddy.in_room = True, False
         db.session.add(buddy)
         db.session.commit()
     return buddy
@@ -1068,30 +1156,42 @@ def award_xp(user, kind, ref_key, amount):
     level_before = buddy_level(buddy.xp)
     db.session.add(XpEvent(user_id=user.id, kind=kind, ref_key=ref_key, amount=amount))
     buddy.xp += amount
-    buddy.coins += amount   
-    
+    user.coins += amount
+
     #coins come alongside xp, and get spent in the shop
     #enough xp hatches an egg
     just_hatched = False
     if buddy.stage == "egg" and buddy.xp >= HATCH_XP:
         buddy.stage = "hatched"
-        buddy.species = random.choice(BUDDY_SPECIES)
+        buddy.species = roll_species()
         just_hatched = True
     db.session.commit()
 
     if just_hatched:
         session["buddy_hatched"] = True
-        flash(f"The egg hatched! Say hello to {buddy.name}!", "success")
+        flash(hatch_message(buddy), "success")
     elif buddy.stage == "hatched" and buddy_level(buddy.xp) > level_before:
         new_level = buddy_level(buddy.xp)
         flash(f"{buddy.name} reached level {new_level}!", "success")
         #milestone levels earn a new egg for the house
-        if (new_level in EGG_LEVELS
-                and Buddy.query.filter_by(user_id=user.id).count() < MAX_BUDDIES):
-            db.session.add(Buddy(user_id=user.id, stage="egg", is_active=False))
+        if earns_egg(new_level):
+            db.session.add(Buddy(user_id=user.id, stage="egg", is_active=False,
+                                 in_room=room_has_space(user.id)))
             db.session.commit()
             flash("You found a new egg! It's waiting in the house.", "success")
     return True
+
+
+def earns_egg(level):
+    """ Whether reaching a level finds an egg: 3, 5, 7, 10, then every 3 """
+    last = EGG_LEVELS[-1]
+    return level in EGG_LEVELS or (level > last and (level - last) % EGG_EVERY == 0)
+
+
+def room_has_space(user_id):
+    """ Whether the room has a free spot for a housemate """
+    return (Buddy.query.filter_by(user_id=user_id, in_room=True, is_active=False).count()
+            < ROOM_SPOTS)
 
 
 def mark_bill_reminders_read(payment):
@@ -1711,7 +1811,12 @@ def dashboard():
     """ Home Page: Show totals,upcoming reminders and overdues, list of bills"""
 
     filter_status = request.args.get("filter", "all")
-    sort_by = request.args.get("sort", "due_day")
+    #remembered (#76)
+    asked = request.args.get("sort")
+    if asked in SORTS and asked != current_user.bill_sort:
+        current_user.bill_sort = asked
+        db.session.commit()
+    sort_by = current_user.bill_sort if current_user.bill_sort in SORTS else "due_day"
 
     #only this user's payments, sorted by due day. archived once-off
     #bills are finished with, so they stay out of sight.
@@ -2217,7 +2322,7 @@ def tick_weeks(payment, target, paid):
                 ref_key=week_xp_key(payment, w)).first()
             if event:
                 buddy.xp = max(0, buddy.xp - event.amount)
-                buddy.coins = max(0, buddy.coins - event.amount)
+                current_user.coins = max(0, current_user.coins - event.amount)
                 db.session.delete(event)
     settle_weeks(payment, target)
 
@@ -2278,7 +2383,7 @@ def mark_unpaid(payment_id):
     if event:
         buddy = get_active_buddy(current_user)
         buddy.xp = max(0, buddy.xp - event.amount)
-        buddy.coins = max(0, buddy.coins - event.amount)
+        current_user.coins = max(0, current_user.coins - event.amount)
         db.session.delete(event)
     db.session.commit()
     flash(f"'{payment.name}' has not been paid yet.", "warning") # yellow
@@ -2549,7 +2654,7 @@ def buddy_page():
                .order_by(Buddy.created_at).all())
     levels = {b.id: buddy_level(b.xp) for b in buddies}
     return render_template("buddy.html", shop=BUDDY_SHOP, owned=owned,
-                           buddies=buddies, levels=levels,
+                           buddies=buddies, levels=levels, room_spots=ROOM_SPOTS,
                            slot_labels=SLOT_LABELS, wear_slots=WEARABLE_SLOTS)
 
 
@@ -2558,11 +2663,33 @@ def buddy_page():
 def activate_buddy(buddy_id):
     """ Choose which buddy or egg is shown on every page """
     target = Buddy.query.filter_by(id=buddy_id, user_id=current_user.id).first_or_404()
+    old = Buddy.query.filter_by(user_id=current_user.id, is_active=True).first()
     for b in Buddy.query.filter_by(user_id=current_user.id).all():
         b.is_active = (b.id == target.id)
+    #swap spots
+    target.in_room = False
+    if old and old.id != target.id and room_has_space(current_user.id):
+        old.in_room = True
     db.session.commit()
     who = "The egg" if target.stage == "egg" else target.name
     flash(f"{who} is now out front!", "success")
+    return redirect(url_for("buddy_page"))
+
+
+@app.route("/buddy/room/<int:buddy_id>", methods=["POST"])
+@login_required
+def toggle_room(buddy_id):
+    """ Put a housemate in the room, or take them out (#77) """
+    mate = Buddy.query.filter_by(id=buddy_id, user_id=current_user.id).first_or_404()
+    if mate.is_active:
+        flash("That buddy is out front already.", "warning")
+    elif mate.in_room:
+        mate.in_room = False
+    elif room_has_space(current_user.id):
+        mate.in_room = True
+    else:
+        flash(f"The room fits {ROOM_SPOTS} housemates - take someone out first.", "warning")
+    db.session.commit()
     return redirect(url_for("buddy_page"))
 
 
@@ -2597,11 +2724,11 @@ def buy_cosmetic(item_key):
     if buddy_level(buddy.xp) < item["min_level"]:
         flash(f"{item['name']} unlocks at level {item['min_level']}.", "warning")
         return redirect(url_for("buddy_page"))
-    if buddy.coins < item["price"]:
+    if current_user.coins < item["price"]:
         flash(f"Not enough coins - {item['name']} costs {item['price']}.", "warning")
         return redirect(url_for("buddy_page"))
 
-    buddy.coins -= item["price"]
+    current_user.coins -= item["price"]
     #wearing the new item bumps whatever was in the same slot
     for other in OwnedCosmetic.query.filter_by(user_id=current_user.id, equipped=True).all():
         if BUDDY_SHOP.get(other.item_key, {}).get("slot") == item["slot"]:

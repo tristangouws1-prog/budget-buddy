@@ -17,17 +17,18 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import (app, db, User, Buddy, OwnedCosmetic,
-                 BUDDY_SPECIES, BUDDY_SHOP, MAX_BUDDIES,
-                 buddy_level, xp_for_level)
+                 BUDDY_SPECIES, BUDDY_SHOP,
+                 buddy_level, buddy_rarity, xp_for_level)
 
 
-def describe(label, buddy):
+def describe(label, buddy, user):
     """ One line summary of a buddy """
     level = buddy_level(buddy.xp)
     nxt = xp_for_level(level + 1)
-    print(f"  {label:<7} {buddy.name!r} the {buddy.species} [{buddy.stage}] - "
+    print(f"  {label:<7} {buddy.name!r} the {buddy.species} "
+          f"({buddy_rarity(buddy.species)}) [{buddy.stage}] - "
           f"Lv {level} ({buddy.xp} XP, {nxt - buddy.xp} to Lv {level + 1}), "
-          f"{buddy.coins} coins")
+          f"{user.coins} coins in the purse")
 
 
 def main():
@@ -36,8 +37,9 @@ def main():
     parser.add_argument("--xp", type=int, help="set lifetime xp exactly")
     parser.add_argument("--level", type=int,
                         help="set xp to the minimum for this level")
-    parser.add_argument("--coins", type=int, help="set spendable coins")
-    parser.add_argument("--species", choices=BUDDY_SPECIES, help="swap the sprite")
+    parser.add_argument("--coins", type=int, help="set the account's shared coins")
+    parser.add_argument("--species", choices=BUDDY_SPECIES, metavar="SPECIES",
+                        help="swap the sprite: colour + cat or frog, e.g. goldfrog")
     parser.add_argument("--stage", choices=["egg", "hatched"])
     parser.add_argument("--name", help="rename the buddy")
     parser.add_argument("--unlock-all", action="store_true",
@@ -74,9 +76,8 @@ def main():
 
         others = Buddy.query.filter_by(user_id=user.id).count() - 1
         print(f"account:  {user.username} <{user.email}>"
-              + (f"  (+{others} more in the house, max {MAX_BUDDIES})"
-                 if others > 0 else ""))
-        describe("before", buddy)
+              + (f"  (+{others} more in the house)" if others > 0 else ""))
+        describe("before", buddy, user)
 
         changed = False
 
@@ -87,7 +88,7 @@ def main():
             buddy.xp = max(0, args.xp)
             changed = True
         if args.coins is not None:
-            buddy.coins = max(0, args.coins)
+            user.coins = max(0, args.coins)
             changed = True
         if args.species:
             buddy.species = args.species
@@ -116,7 +117,7 @@ def main():
             return
 
         db.session.commit()
-        describe("after", buddy)
+        describe("after", buddy, user)
         print("\nRefresh the page in your browser to see it.")
         if args.xp is not None or args.level is not None:
             print("Note: setting xp by hand doesn't hand out the milestone "

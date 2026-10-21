@@ -1,7 +1,7 @@
 {% if current_user.is_authenticated and buddy is defined and buddy %}
 {% set is_egg = buddy.stage == "egg" %}
-<div class="buddy-dock buddy-mood-{{ buddy_mood }} buddy-species-{{ buddy.species }}{% if is_egg %} buddy-egg buddy-crack-{{ 3 if buddy_xp_pct >= 75 else (2 if buddy_xp_pct >= 50 else (1 if buddy_xp_pct >= 25 else 0)) }}{% endif %}{% if buddy_just_hatched is defined and buddy_just_hatched %} buddy-hatching{% endif %}"
-     id="buddy-dock">
+<div class="buddy-dock buddy-mood-{{ buddy_mood }}{% if not is_egg and 'witch_hat' in buddy_equipped %} tall-hat{% endif %}{% if is_egg %} buddy-egg buddy-crack-{{ 3 if buddy_xp_pct >= 75 else (2 if buddy_xp_pct >= 50 else (1 if buddy_xp_pct >= 25 else 0)) }}{% endif %}{% if buddy_just_hatched is defined and buddy_just_hatched %} buddy-hatching{% endif %}"
+     style="{{ buddy_style(buddy.species) }}" id="buddy-dock">
 
     <div class="buddy-bubble">{{ buddy_message }}</div>
 

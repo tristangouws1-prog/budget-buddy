@@ -57,7 +57,7 @@ def state():
         p = bb.db.session.get(bb.Payment, loan_id)
         buddy = bb.Buddy.query.filter_by(is_active=True).first()
         return (bb.weeks_paid_this_month(p), bb.remaining_this_month(p),
-                p.is_paid, buddy.xp, buddy.coins)
+                p.is_paid, buddy.xp, bb.User.query.first().coins)
 
 
 paid, left, is_paid, xp0, coins0 = state()

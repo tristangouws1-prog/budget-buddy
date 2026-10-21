@@ -7,6 +7,7 @@ Regression tests for Budget Buddy.
 """
 import datetime
 import os
+import random
 import re
 import sys
 import types
@@ -97,6 +98,13 @@ def buddy():
     with bb.app.app_context():
         bb.db.session.expire_all()
         return bb.Buddy.query.filter_by(is_active=True).first()
+
+
+def purse():
+    """ The first user's coins, shared by all their buddies """
+    with bb.app.app_context():
+        bb.db.session.expire_all()
+        return bb.User.query.first().coins
 
 
 def check(name):
@@ -223,17 +231,26 @@ def test_eggs_hatch():
 
 
 def test_species_and_sprites():
-    assert bb.BUDDY_SPECIES == ["blobcat", "mintcat", "peachcat", "blackcat",
-                                "frog", "purplefrog"]
-    assert bb.FROG_SPECIES == ("frog", "purplefrog")
-    check("six species, two of them frogs")
+    first_six = {"blobcat": "#c9aee6", "mintcat": "#a9dcc3", "peachcat": "#f4c7a5",
+                 "blackcat": "#3d3745", "frog": "#86c661", "purplefrog": "#b48ae0"}
+    for species, body in first_six.items():
+        assert species in bb.BUDDY_SPECIES, f"{species} must still hatch"
+        assert f"--buddy-body: {body};" in bb.buddy_style(species), species
+    assert bb.buddy_shape("frog") == bb.buddy_shape("purplefrog") == "frog"
+    assert bb.buddy_shape("blackcat") == "cat"
+    check("the first six species keep their names, shapes and colours")
+
+    assert bb.buddy_style("nonsense") == bb.buddy_style("blobcat")
+    assert bb.buddy_shape("nonsense") == "cat"
+    check("an unknown species is drawn as a blob cat")
 
     client = fresh()
 
     def as_species(name):
         with bb.app.app_context():
             b = bb.Buddy.query.first()
-            b.species, b.xp, b.coins = name, 300, 900
+            b.species, b.xp = name, 300
+            bb.User.query.first().coins = 900
             bb.db.session.commit()
         return client.get("/").get_data(as_text=True)
 
@@ -250,14 +267,24 @@ def test_species_and_sprites():
     assert "buddy-whisker" in html and '<rect x="2" y="4" width="12" height="9"/>' in html
     check("the black cat is still a cat")
 
-    #own colours
-    with open(os.path.join(bb.app.static_folder, "style.css"), encoding="utf-8") as f:
-        css = f.read()
-    for species in bb.BUDDY_SPECIES:
-        assert f".buddy-species-{species}" in css, f"{species} has no colours of its own"
-    check("every species keeps its own colours in the room")
+    html = as_species("goldfrog")
+    assert '<rect x="1" y="4" width="14" height="9"/>' in html, "a gold frog is a frog"
+    assert f'style="{bb.buddy_style("goldfrog")}"' in html, "and wears gold"
+    check("a new colour paints the dock with its own colours")
 
-    
+    with bb.app.app_context():
+        uid = bb.User.query.first().id
+        bb.db.session.add(bb.Buddy(user_id=uid, species="snowcat", in_room=True))
+        bb.db.session.commit()
+    html = client.get("/buddy").get_data(as_text=True)
+    assert f'style="{bb.buddy_style("snowcat")}"' in html
+    assert f'class="buddy-room buddy-mood-' in html and bb.buddy_style("goldfrog") in html
+    check("each buddy in the room keeps its own colours")
+    with bb.app.app_context():
+        bb.Buddy.query.filter_by(species="snowcat").delete()
+        bb.db.session.commit()
+
+
     as_species("frog")
     for item in ("witch_hat", "top_hat", "party_hat"):
         with bb.app.app_context():
@@ -272,8 +299,8 @@ def test_species_and_sprites():
 def test_shop_and_room():
     client = fresh()
     with bb.app.app_context():
-        b = bb.Buddy.query.first()
-        b.xp, b.coins = 300, 1000
+        bb.Buddy.query.first().xp = 300
+        bb.User.query.first().coins = 1000
         bb.db.session.commit()
 
     def worn():
@@ -282,11 +309,11 @@ def test_shop_and_room():
                           bb.OwnedCosmetic.query.filter_by(equipped=True).all())
 
     client.post("/buddy/buy/party_hat", follow_redirects=True)
-    assert worn() == ["party_hat"] and buddy().coins == 1000 - 60
+    assert worn() == ["party_hat"] and purse() == 1000 - 60
     check("buying wears the item and charges the coins")
 
     html = client.post("/buddy/buy/party_hat", follow_redirects=True).get_data(as_text=True)
-    assert "already own" in html and buddy().coins == 1000 - 60
+    assert "already own" in html and purse() == 1000 - 60
     check("buying twice is refused and costs nothing")
 
     client.post("/buddy/buy/flower", follow_redirects=True)
@@ -317,11 +344,11 @@ def test_shop_and_room():
 
 
 def test_the_house():
-    client = fresh()
-    assert bb.MAX_BUDDIES == 1 + len(bb.EGG_LEVELS), \
-        "the cap should fit the starting egg plus every milestone egg"
-    check(f"house cap {bb.MAX_BUDDIES} wastes no milestone egg")
+    found = [level for level in range(1, 23) if bb.earns_egg(level)]
+    assert found == [3, 5, 7, 10, 13, 16, 19, 22], found
+    check("eggs turn up at levels 3, 5, 7 and 10, then every 3 levels")
 
+    client = fresh()
     with bb.app.app_context():
         bb.Buddy.query.first().xp = 195       # just below level 3
         bb.db.session.commit()
@@ -330,7 +357,8 @@ def test_the_house():
         buddies = bb.Buddy.query.order_by(bb.Buddy.id).all()
     assert len(buddies) == 2 and buddies[1].stage == "egg"
     assert buddies[0].is_active, "the original buddy stays out front"
-    check("a milestone level earns a new egg")
+    assert buddies[1].in_room, "a new egg waits in the room while there's space"
+    check("a milestone level earns a new egg, and it waits in the room")
 
     egg_id = buddies[1].id
     client.post(f"/buddy/activate/{egg_id}", follow_redirects=True)
@@ -352,6 +380,178 @@ def test_the_house():
                 follow_redirects=True)
     assert client.post(f"/buddy/activate/{egg_id}").status_code == 404
     check("you cannot bring out someone else's buddy")
+
+
+def test_the_room_fits_four():
+    client = fresh()
+    with bb.app.app_context():
+        uid = bb.User.query.first().id
+        for _ in range(5):
+            bb.db.session.add(bb.Buddy(user_id=uid, species="mintcat"))
+        bb.db.session.commit()
+        ids = [b.id for b in bb.Buddy.query.filter_by(is_active=False).order_by(bb.Buddy.id)]
+    first = buddy().id
+
+    def in_room():
+        with bb.app.app_context():
+            return sorted(b.id for b in
+                          bb.Buddy.query.filter_by(in_room=True, is_active=False))
+
+    for mate in ids[:4]:
+        client.post(f"/buddy/room/{mate}")
+    assert in_room() == ids[:4]
+    html = client.post(f"/buddy/room/{ids[4]}", follow_redirects=True).get_data(as_text=True)
+    assert "fits 4 housemates" in html and in_room() == ids[:4]
+    assert html.count('class="room-mate room-mate-') == 4
+    check("four housemates fit in the room, a fifth is turned away")
+
+    client.post(f"/buddy/room/{ids[0]}")
+    client.post(f"/buddy/room/{ids[4]}")
+    assert in_room() == ids[1:5]
+    check("taking one out makes space for another")
+
+    client.post(f"/buddy/activate/{ids[2]}")
+    assert buddy().id == ids[2]
+    assert in_room() == sorted([first, ids[1], ids[3], ids[4]])
+    check("bringing a housemate out front swaps their spots")
+
+    client.post(f"/buddy/activate/{ids[0]}")
+    assert in_room() == sorted([first, ids[1], ids[3], ids[4]]), \
+        "a full room has no spot for the one who stepped back"
+    html = client.post(f"/buddy/room/{ids[0]}", follow_redirects=True).get_data(as_text=True)
+    assert "out front already" in html and ids[0] not in in_room()
+    check("a full room stays full, and the buddy out front stays out front")
+
+    with bb.app.app_context():
+        bb.db.session.get(bb.Buddy, ids[0]).xp = bb.xp_for_level(13) - 5
+        bb.db.session.commit()
+        before = bb.Buddy.query.count()
+    add_bill(client, "Gym", 300)              # +10 reaches level 13
+    with bb.app.app_context():
+        assert bb.Buddy.query.count() == before + 1, "the house has no cap"
+        egg = bb.Buddy.query.order_by(bb.Buddy.id.desc()).first()
+        assert egg.stage == "egg" and not egg.in_room, "a full room leaves it outside"
+    check("eggs keep coming past level 10, and wait outside a full room")
+
+    client.get("/logout")
+    client.post("/register", data={"username": "other", "email": "other@test.local",
+                                   "password": "pw123456", "confirm": "pw123456"},
+                follow_redirects=True)
+    assert client.post(f"/buddy/room/{ids[1]}").status_code == 404
+    assert ids[1] in in_room()
+    check("you cannot move someone else's buddy")
+
+
+def test_one_purse_for_the_whole_house():
+    client = fresh()
+    start = purse()
+    bill = add_bill(client, "Rent", 6000)
+    assert purse() == start + 10, "coins land in the shared purse"
+
+    with bb.app.app_context():
+        uid = bb.User.query.first().id
+        frog = bb.Buddy(user_id=uid, species="frog", xp=300)
+        bb.db.session.add(frog)
+        bb.db.session.commit()
+        frog = frog.id
+    client.post(f"/buddy/activate/{frog}")
+    assert buddy().id == frog and purse() == start + 10
+    assert f"🪙 {start + 10}<" in client.get("/buddy").get_data(as_text=True)
+    check("bringing out another buddy keeps the same coins")
+
+    client.post(f"/pay/{bill}")
+    assert purse() == start + 25
+    client.post(f"/unpaid/{bill}")
+    assert purse() == start + 10
+    check("paying and undoing move coins in and out of the one purse")
+
+    with bb.app.app_context():
+        bb.User.query.first().coins = 100
+        bb.db.session.commit()
+    client.post("/buddy/buy/party_hat", follow_redirects=True)
+    assert purse() == 40
+    html = client.post("/buddy/buy/witch_hat", follow_redirects=True).get_data(as_text=True)
+    assert "Not enough coins" in html and purse() == 40
+    check("any buddy spends from it, and it never goes below what's there")
+
+
+def test_rarer_colours_hatch_less_often():
+    tiers = ["common", "uncommon", "rare", "epic", "legendary"]
+    assert list(bb.RARITY_ODDS) == tiers and sum(bb.RARITY_ODDS.values()) == 100
+    for tier in tiers:
+        assert any(c["rarity"] == tier for c in bb.BUDDY_COLOURS.values()), tier
+    assert {c["rarity"] for c in bb.BUDDY_COLOURS.values()} == set(tiers)
+    check("five tiers, common to legendary, each with colours")
+
+    rng = random.Random(78)
+    rolls = [bb.roll_species(rng) for _ in range(20000)]
+    assert all(r in bb.BUDDY_SPECIES for r in rolls)
+    for tier, odds in bb.RARITY_ODDS.items():
+        share = sum(bb.buddy_rarity(r) == tier for r in rolls) / len(rolls)
+        assert abs(share - odds / 100) < 0.01, (tier, share)
+    frogs = sum(bb.buddy_shape(r) == "frog" for r in rolls) / len(rolls)
+    assert abs(frogs - bb.FROG_ODDS) < 0.015, frogs
+    check("hatching follows the odds, and about a third are frogs")
+
+    def hello(species):
+        return bb.hatch_message(bb.Buddy(name="Mochi", species=species))
+    assert hello("mintcat") == "The egg hatched! Say hello to Mochi the mintcat!"
+    assert hello("snowcat") == "The egg hatched! Say hello to Mochi, a rare snowcat!"
+    assert hello("rubyfrog") == "The egg hatched! Say hello to Mochi, an epic rubyfrog!"
+    check("the hatch message names the tier, unless it's common")
+
+    client = fresh()
+    with bb.app.app_context():
+        bb.Buddy.query.first().species = "goldcat"
+        bb.db.session.commit()
+    html = client.get("/buddy").get_data(as_text=True)
+    assert 'class="rarity rarity-legendary">legendary<' in html
+    check("the buddy page shows the tier")
+
+
+def test_the_witch_hat_has_room():
+    client = fresh()
+    with bb.app.app_context():
+        bb.Buddy.query.first().xp = 300
+        bb.User.query.first().coins = 500
+        bb.db.session.commit()
+    assert "tall-hat" not in client.get("/").get_data(as_text=True)
+    client.post("/buddy/buy/witch_hat", follow_redirects=True)
+    html = client.get("/").get_data(as_text=True)
+    assert 'class="cos-witch-hat"' in html and 'y="-4"' in html, "the hat is taller"
+    assert re.search(r'class="buddy-dock [^"]*tall-hat', html), "the dock makes room"
+    check("the witch hat stands tall, and the dock makes room for it")
+
+    client.post("/buddy/equip/witch_hat", follow_redirects=True)
+    assert "tall-hat" not in client.get("/").get_data(as_text=True)
+    check("taking it off gives the room back")
+
+
+def test_the_sort_is_remembered():
+    with at(2026, 10, 1, 10):
+        client = fresh()
+        for name, amount, day in (("Cheap", 50, 3), ("Dear", 900, 9), ("Mid", 300, 20)):
+            add_bill(client, name, amount, day=day)
+
+        def order(url="/"):
+            html = client.get(url).get_data(as_text=True)
+            return re.findall(r'class="bill-name">([^<]+)<', html)
+
+        assert order() == ["Cheap", "Dear", "Mid"], "due date comes first"
+        assert order("/?sort=amount") == ["Dear", "Mid", "Cheap"]
+        assert order() == order("/?filter=all") == ["Dear", "Mid", "Cheap"]
+        check("the dashboard remembers the last sort")
+
+        assert order("/?sort=bogus") == ["Dear", "Mid", "Cheap"]
+        with bb.app.app_context():
+            assert bb.User.query.first().bill_sort == "amount"
+        check("an unknown sort is ignored, not saved")
+
+        client.get("/logout")
+        client.post("/login", data={"username": "tester", "password": "pw123456"},
+                    follow_redirects=True)
+        assert order() == ["Dear", "Mid", "Cheap"]
+        check("it is still there after logging back in")
 
 
 def test_reminders_are_built_but_never_posted():
