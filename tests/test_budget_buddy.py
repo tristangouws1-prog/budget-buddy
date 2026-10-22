@@ -280,6 +280,9 @@ def test_species_and_sprites():
     assert f'style="{bb.buddy_style("snowcat")}"' in html
     assert f'class="buddy-room buddy-mood-' in html and bb.buddy_style("goldfrog") in html
     check("each buddy in the room keeps its own colours")
+    assert html.count('class="buddy-outlined"') == 2, "the snow cat, in the room and its card"
+    assert 'id="buddy-outline"' in html
+    check("a white buddy gets an outline, the gold frog doesn't")
     with bb.app.app_context():
         bb.Buddy.query.filter_by(species="snowcat").delete()
         bb.db.session.commit()
@@ -1355,7 +1358,7 @@ def test_history_is_paged_and_cheap():
     #the chart still adds up, even though it no longer loads every row
     with bb.app.app_context():
         this_month = bb.paid_in_month(bb.db.session.get(bb.Payment, bill))
-    assert f'{this_month // 100}' in html or this_month == 0
+    assert bb.whole_rands(this_month) in html or this_month == 0
     check("the six month chart still totals from one grouped query")
 
 

@@ -950,23 +950,23 @@ HATCH_XP = 100
 
 #buddy colours (#78)
 BUDDY_COLOURS = {
-    "blob":     {"rarity": "common", "body": "#c9aee6", "ink": "#4a3a68", "cheek": "#f0a8c0", "belly": "#dcc8f0"},
-    "mint":     {"rarity": "common", "body": "#a9dcc3", "ink": "#2e5c46", "cheek": "#f2c48f", "belly": "#cdeedd"},
-    "peach":    {"rarity": "common", "body": "#f4c7a5", "ink": "#77452b", "cheek": "#ee9f9f", "belly": "#f9dfcb"},
-    "leaf":     {"rarity": "common", "body": "#86c661", "ink": "#2c4a1a", "cheek": "#f2a891", "belly": "#c2e3a2"},
-    "purple":   {"rarity": "common", "body": "#b48ae0", "ink": "#3a2158", "cheek": "#f0a8c0", "belly": "#dcc0f2"},
-    "sky":      {"rarity": "uncommon", "body": "#a9d3f0", "ink": "#24486a", "cheek": "#f2b0c0", "belly": "#d3e9f8"},
-    "lemon":    {"rarity": "uncommon", "body": "#f3e08c", "ink": "#6a5410", "cheek": "#f2a891", "belly": "#f9efc4"},
-    "rose":     {"rarity": "uncommon", "body": "#f2b3c9", "ink": "#6e2a44", "cheek": "#e07a9a", "belly": "#f9d6e2"},
-    "cocoa":    {"rarity": "uncommon", "body": "#b08a6e", "ink": "#3b2416", "cheek": "#e0a090", "belly": "#d6bfae"},
+    "blob":     {"rarity": "common", "body": "#c9aee6", "ink": "#130c1e", "cheek": "#f0a8c0", "belly": "#dcc8f0"},
+    "mint":     {"rarity": "common", "body": "#a9dcc3", "ink": "#05120c", "cheek": "#f2c48f", "belly": "#cdeedd"},
+    "peach":    {"rarity": "common", "body": "#f4c7a5", "ink": "#1b0c05", "cheek": "#ee9f9f", "belly": "#f9dfcb"},
+    "leaf":     {"rarity": "common", "body": "#86c661", "ink": "#081203", "cheek": "#f2a891", "belly": "#c2e3a2"},
+    "purple":   {"rarity": "common", "body": "#b48ae0", "ink": "#12071f", "cheek": "#f0a8c0", "belly": "#dcc0f2"},
+    "sky":      {"rarity": "uncommon", "body": "#a9d3f0", "ink": "#05101d", "cheek": "#f2b0c0", "belly": "#d3e9f8"},
+    "lemon":    {"rarity": "uncommon", "body": "#f3e08c", "ink": "#150f01", "cheek": "#f2a891", "belly": "#f9efc4"},
+    "rose":     {"rarity": "uncommon", "body": "#f2b3c9", "ink": "#200710", "cheek": "#e07a9a", "belly": "#f9d6e2"},
+    "cocoa":    {"rarity": "uncommon", "body": "#b08a6e", "ink": "#120804", "cheek": "#e0a090", "belly": "#d6bfae"},
     "black":    {"rarity": "rare", "body": "#3d3745", "ink": "#f0d878", "cheek": "#7a6280", "belly": "#5a5263"},
-    "snow":     {"rarity": "rare", "body": "#f4f2f8", "ink": "#5a5670", "cheek": "#f2b6c8", "belly": "#ffffff"},
-    "teal":     {"rarity": "rare", "body": "#5fbfb6", "ink": "#123f3b", "cheek": "#f2b49a", "belly": "#a6e0da"},
-    "ruby":     {"rarity": "epic", "body": "#d9536b", "ink": "#4a0f1c", "cheek": "#f5b0a0", "belly": "#ee98a6"},
-    "sapphire": {"rarity": "epic", "body": "#4a78d6", "ink": "#0f1f4a", "cheek": "#f2a0c0", "belly": "#94b2ec"},
-    "amethyst": {"rarity": "epic", "body": "#8a52c9", "ink": "#22093f", "cheek": "#f0a0d0", "belly": "#c4a0ea"},
-    "gold":     {"rarity": "legendary", "body": "#f2c94c", "ink": "#6b4a00", "cheek": "#f29b6b", "belly": "#f8e3a0"},
-    "silver":   {"rarity": "legendary", "body": "#c7ccd6", "ink": "#2f3542", "cheek": "#f0a8c0", "belly": "#e6e9ef"},
+    "snow":     {"rarity": "rare", "body": "#f4f2f8", "ink": "#0f0f16", "cheek": "#f2b6c8", "belly": "#ffffff", "outline": True},
+    "teal":     {"rarity": "rare", "body": "#5fbfb6", "ink": "#021211", "cheek": "#f2b49a", "belly": "#a6e0da"},
+    "ruby":     {"rarity": "epic", "body": "#d9536b", "ink": "#190206", "cheek": "#f5b0a0", "belly": "#ee98a6"},
+    "sapphire": {"rarity": "epic", "body": "#4a78d6", "ink": "#020619", "cheek": "#f2a0c0", "belly": "#94b2ec"},
+    "amethyst": {"rarity": "epic", "body": "#8a52c9", "ink": "#080114", "cheek": "#f0a0d0", "belly": "#c4a0ea"},
+    "gold":     {"rarity": "legendary", "body": "#f2c94c", "ink": "#180e00", "cheek": "#f29b6b", "belly": "#f8e3a0"},
+    "silver":   {"rarity": "legendary", "body": "#c7ccd6", "ink": "#0d1015", "cheek": "#f0a8c0", "belly": "#e6e9ef"},
 }
 
 #hatch odds
@@ -1001,6 +1001,12 @@ def buddy_shape(species):
 def buddy_rarity(species):
     """ A species' tier, common to legendary """
     return BUDDY_COLOURS[species_look(species)[0]]["rarity"]
+
+
+@app.template_global()
+def buddy_outlined(species):
+    """ Whether a species is pale enough to need an outline on a light page """
+    return BUDDY_COLOURS[species_look(species)[0]].get("outline", False)
 
 
 @app.template_global()

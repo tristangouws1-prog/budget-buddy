@@ -757,7 +757,7 @@ main[data-swapped] .flash { animation: none !important; }
 /* ── Mobile ── */
 @media (max-width: 600px) {
     .site-header { padding: 14px 16px; }
-    .container { padding: 20px 14px 40px; }
+    .container { padding: 20px 14px 96px; }
     .hero { padding: 26px 22px; }
     .hero-amount { font-size: 2.4rem; }
     .stats-row { grid-template-columns: 1fr; gap: 10px; }
@@ -800,7 +800,7 @@ main[data-swapped] .flash { animation: none !important; }
 /* defaults */
 .buddy-dock, .buddy-room {
     --buddy-body: #c9aee6;
-    --buddy-ink: #4a3a68;
+    --buddy-ink: #130c1e;
     --buddy-cheek: #f0a8c0;
     --buddy-eye: #f7f4fb;      
     --buddy-belly: #dcc8f0;    
@@ -876,6 +876,10 @@ body.theme-dark .buddy-belly-fill rect { fill: color-mix(in srgb, var(--buddy-be
 body.theme-dark .buddy-whisker rect    { fill: color-mix(in srgb, var(--buddy-ink) 80%, #1a1a22); }
 /* dark hat */
 body.theme-dark .witch-shade { fill: #6a6288; }
+/* pale outline */
+.svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.buddy-outlined { filter: url(#buddy-outline); }
+body.theme-dark .buddy-outlined { filter: none; }
 
 /* rarity badges */
 .rarity {
@@ -999,16 +1003,15 @@ body.theme-dark .buddy-egg-spot-fill rect { fill: #8f7fb0; }
         left: 0;
         width: 190px;
     }
+    .buddy-dock.tall-hat.buddy-open .buddy-bubble { bottom: 76px; }
 }
 
-/* phones: by the logo */
+/* phones: bottom left */
 @media (max-width: 600px) {
-    .buddy-dock { position: absolute; top: 8px; right: 14px; left: auto; bottom: auto; align-items: flex-end; }
+    .buddy-dock { left: 12px; bottom: 12px; }
     .buddy-sprite { width: 44px; height: 44px; }
-    .buddy-dock.buddy-open .buddy-bubble { top: 50px; bottom: auto; left: auto; right: 0; }
-    .buddy-dock.buddy-open .buddy-bubble::after {
-        top: -7px; bottom: auto; left: auto; right: 16px; transform: rotate(225deg);
-    }
+    .buddy-dock.buddy-open .buddy-bubble { bottom: 54px; }
+    .buddy-dock.tall-hat.buddy-open .buddy-bubble { bottom: 66px; }
 }
 
 @keyframes buddy-bob {

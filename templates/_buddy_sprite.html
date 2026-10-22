@@ -2,18 +2,22 @@
 #}
 {% set sp = sprite_species if sprite_species is defined else (buddy.species if buddy is defined else "blobcat") %}
 {% set is_frog = buddy_shape(sp) == "frog" %}
+{% set outlined = buddy_outlined(sp) %}
 
 <svg viewBox="0 -1 16 16" shape-rendering="crispEdges" aria-hidden="true">
     {% if is_frog %}
     <!-- frog  -->
-    <g class="buddy-fill">
-        <rect x="3" y="0" width="2" height="3"/>
-        <rect x="11" y="0" width="2" height="3"/>
-        <rect x="2" y="3" width="12" height="1"/>
-        <rect x="1" y="4" width="14" height="9"/>
-        <rect x="2" y="13" width="12" height="1"/>
-        <rect x="1" y="14" width="4" height="1"/>
-        <rect x="11" y="14" width="4" height="1"/>
+    <!-- pale outline -->
+    <g{% if outlined %} class="buddy-outlined"{% endif %}>
+        <g class="buddy-fill">
+            <rect x="3" y="0" width="2" height="3"/>
+            <rect x="11" y="0" width="2" height="3"/>
+            <rect x="2" y="3" width="12" height="1"/>
+            <rect x="1" y="4" width="14" height="9"/>
+            <rect x="2" y="13" width="12" height="1"/>
+            <rect x="1" y="14" width="4" height="1"/>
+            <rect x="11" y="14" width="4" height="1"/>
+        </g>
     </g>
 
     <!-- belly patch -->
@@ -85,26 +89,29 @@
 
     {% else %}
     <!-- blob-cat  -->
-    <!-- ears -->
-    <g class="buddy-fill">
-        <rect x="3" y="0" width="1" height="1"/>
-        <rect x="3" y="1" width="2" height="1"/>
-        <rect x="3" y="2" width="3" height="1"/>
-        <rect x="12" y="0" width="1" height="1"/>
-        <rect x="11" y="1" width="2" height="1"/>
-        <rect x="10" y="2" width="3" height="1"/>
-    </g>
-    <g class="buddy-cheek-fill">
-        <rect x="4" y="2" width="1" height="1"/>
-        <rect x="11" y="2" width="1" height="1"/>
-    </g>
+    <!-- pale outline -->
+    <g{% if outlined %} class="buddy-outlined"{% endif %}>
+        <!-- ears -->
+        <g class="buddy-fill">
+            <rect x="3" y="0" width="1" height="1"/>
+            <rect x="3" y="1" width="2" height="1"/>
+            <rect x="3" y="2" width="3" height="1"/>
+            <rect x="12" y="0" width="1" height="1"/>
+            <rect x="11" y="1" width="2" height="1"/>
+            <rect x="10" y="2" width="3" height="1"/>
+        </g>
+        <g class="buddy-cheek-fill">
+            <rect x="4" y="2" width="1" height="1"/>
+            <rect x="11" y="2" width="1" height="1"/>
+        </g>
 
-    <!-- body blob: -->
-    <g class="buddy-fill">
-        <rect x="3" y="3" width="10" height="1"/>
-        <rect x="2" y="4" width="12" height="9"/>
-        <rect x="3" y="13" width="10" height="1"/>
-        <rect x="4" y="14" width="8" height="1"/>
+        <!-- body blob: -->
+        <g class="buddy-fill">
+            <rect x="3" y="3" width="10" height="1"/>
+            <rect x="2" y="4" width="12" height="9"/>
+            <rect x="3" y="13" width="10" height="1"/>
+            <rect x="4" y="14" width="8" height="1"/>
+        </g>
     </g>
 
     <!-- eyes  -->
