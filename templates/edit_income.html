@@ -18,6 +18,13 @@
             <option value="variable" {{ 'selected' if income.income_type == 'variable' }}>Variable</option>
         </select>
 
+        <label for="category">Category</label>
+        <select id="category" name="category">
+            {% for c in categories %}
+                <option value="{{ c }}" {{ 'selected' if (income.category or 'Other') == c }}>{{ c }}</option>
+            {% endfor %}
+        </select>
+
         <label for="frequency">How often is it paid?</label>
         <select id="frequency" name="frequency">
             <option value="monthly" {{ 'selected' if income.frequency == 'monthly' }}>Monthly</option>

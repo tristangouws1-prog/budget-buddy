@@ -51,9 +51,15 @@
 
 <div class="stats-row">
     <div class="stat-card">
-        <div class="stat-label">Total monthly bills</div>
-        <div class="stat-value">{{ current_user.currency }}{{ total_monthly | money }}</div>
+        <div class="stat-label">Monthly bills</div>
+        <div class="stat-value">{{ current_user.currency }}{{ total_recurring | money }}</div>
     </div>
+    {% if total_once_off %}
+    <div class="stat-card">
+        <div class="stat-label">Once-off bills</div>
+        <div class="stat-value">{{ current_user.currency }}{{ total_once_off | money }}</div>
+    </div>
+    {% endif %}
     <div class="stat-card">
         <div class="stat-label">Bills paid</div>
         <div class="stat-value">{{ paid_count }} / {{ total_count }}</div>
@@ -68,6 +74,7 @@
         <div class="stat-value {% if money_remaining < 0 %}stat-negative{% else %}stat-positive{% endif %}">
             {{ current_user.currency }}{{ money_remaining | money }}
         </div>
+        {% if goals_saved %}<div class="stat-note">after {{ current_user.currency }}{{ goals_saved | money }} saved for goals</div>{% endif %}
     </div>
 </div>
 
@@ -159,17 +166,15 @@
 <!--  Bill list  -->
 <section>
     <div class="filter">
-        <a href="{{ url_for('dashboard', filter='all', sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'all' }}">All</a>
-        <a href="{{ url_for('dashboard', filter='overdue', sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'overdue' }}">Overdue</a>
-        <a href="{{ url_for('dashboard', filter='soon',    sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'soon' }}">Due soon</a>
-        <a href="{{ url_for('dashboard', filter='partial', sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'partial' }}">Part paid</a>
-        <a href="{{ url_for('dashboard', filter='paid',    sort=sort_by) }}" class="{{ 'filter-active' if filter_status == 'paid' }}">Paid</a>
+        <a href="{{ url_for('dashboard', sort=sort_by) }}" class="{{ 'filter-active' if not filters }}">All</a>
+        {% for key, label in filter_names.items() %}
+        <a href="{{ url_for('dashboard', filter=filter_links[key], sort=sort_by) }}" class="{{ 'filter-active' if key in filters }}">{{ label }}</a>
+        {% endfor %}
 
         <span class="filter-divider">Sort:</span>
-        <a href="{{ url_for('dashboard', filter=filter_status, sort='due_day') }}" class="{{ 'filter-active' if sort_by == 'due_day' }}">Due date</a>
-        <a href="{{ url_for('dashboard', filter=filter_status, sort='amount') }}"  class="{{ 'filter-active' if sort_by == 'amount' }}">Amount</a>
-        <a href="{{ url_for('dashboard', filter=filter_status, sort='name') }}"    class="{{ 'filter-active' if sort_by == 'name' }}">Name</a>
-        <a href="{{ url_for('dashboard', filter=filter_status, sort='custom') }}"  class="{{ 'filter-active' if sort_by == 'custom' }}">My order</a>
+        {% for key, label in sorts.items() %}
+        <a href="{{ url_for('dashboard', filter=filters, sort=key) }}" class="{{ 'filter-active' if sort_by == key }}">{{ label }}</a>
+        {% endfor %}
     </div>
 
     {% if sort_by == 'custom' %}
@@ -399,6 +404,11 @@
                     </div>
                 </div>
             {% endfor %}
+        </div>
+    {% elif filters and total_count %}
+        <div class="empty">
+            <p>No bills match these filters.</p>
+            <a class="btn-primary" href="{{ url_for('dashboard') }}">Show all bills</a>
         </div>
     {% else %}
         <div class="empty">

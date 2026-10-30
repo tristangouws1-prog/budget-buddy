@@ -298,6 +298,16 @@ def test_species_and_sprites():
             client.get("/").get_data(as_text=True), f"{item} hides the frog's eyes"
     check("every hat clears the frog's eye bumps")
 
+    html = as_species("golddog")
+    assert '<rect x="0" y="3" width="3" height="5"/>' in html, "floppy ears"
+    assert "buddy-shade-fill" in html and "buddy-whisker" not in html
+    check("the dog has floppy ears and no whiskers")
+
+    html = as_species("snowbat")
+    assert '<rect x="-1" y="7" width="4" height="2"/>' in html, "bat wings"
+    assert 'class="buddy-outlined"' in html, "a white bat is outlined too"
+    check("the bat has wings, and a white one gets the outline")
+
 
 def test_shop_and_room():
     client = fresh()
@@ -342,8 +352,8 @@ def test_shop_and_room():
         bb.Buddy.query.first().xp = 0
         bb.db.session.commit()
     html = client.post("/buddy/buy/top_hat", follow_redirects=True).get_data(as_text=True)
-    assert "unlocks at level 3" in html
-    check("items are locked until the right level")
+    assert "unlocks at house level 3" in html
+    check("items are locked until the right house level")
 
 
 def test_the_house():
@@ -426,10 +436,11 @@ def test_the_room_fits_four():
     check("a full room stays full, and the buddy out front stays out front")
 
     with bb.app.app_context():
-        bb.db.session.get(bb.Buddy, ids[0]).xp = bb.xp_for_level(13) - 5
+        others = bb.house_xp(bb.User.query.first().id) - bb.db.session.get(bb.Buddy, ids[0]).xp
+        bb.db.session.get(bb.Buddy, ids[0]).xp = bb.xp_for_level(13) - 5 - others
         bb.db.session.commit()
         before = bb.Buddy.query.count()
-    add_bill(client, "Gym", 300)              # +10 reaches level 13
+    add_bill(client, "Gym", 300)              # +10 takes the house to level 13
     with bb.app.app_context():
         assert bb.Buddy.query.count() == before + 1, "the house has no cap"
         egg = bb.Buddy.query.order_by(bb.Buddy.id.desc()).first()
@@ -443,6 +454,68 @@ def test_the_room_fits_four():
     assert client.post(f"/buddy/room/{ids[1]}").status_code == 404
     assert ids[1] in in_room()
     check("you cannot move someone else's buddy")
+
+
+def test_eggs_come_from_the_house_level():
+    client = fresh()
+
+    def eggs():
+        with bb.app.app_context():
+            return bb.Buddy.query.filter_by(stage="egg").count()
+
+    def set_house(target, buddy_id):
+        """ Give one buddy enough xp that the whole house adds up to target """
+        with bb.app.app_context():
+            b = bb.db.session.get(bb.Buddy, buddy_id)
+            b.xp = target - (bb.house_xp(b.user_id) - b.xp)
+            bb.db.session.commit()
+
+    set_house(bb.xp_for_level(3) - 5, buddy().id)
+    add_bill(client, "Rent", 6000)                # +10, house level 3
+    assert eggs() == 1
+    check("the house reaching level 3 finds an egg")
+
+    with bb.app.app_context():
+        kitten = bb.Buddy(user_id=bb.User.query.first().id, species="mintcat", xp=195)
+        bb.db.session.add(kitten)
+        bb.db.session.commit()
+        kitten = kitten.id
+        assert bb.house_xp(bb.User.query.first().id) + 10 < bb.xp_for_level(4)
+    client.post(f"/buddy/activate/{kitten}")
+    add_bill(client, "Water", 300)                # kitten reaches level 3, the house doesn't
+    assert buddy().id == kitten and bb.buddy_level(buddy().xp) == 3
+    assert eggs() == 1, "a new buddy levelling up mustn't start the eggs over"
+    check("a fresh buddy reaching its own level 3 finds no egg")
+
+    set_house(bb.xp_for_level(5) - 5, kitten)
+    add_bill(client, "Phone", 400)                # house level 5
+    assert eggs() == 2
+    check("the next egg comes at house level 5")
+
+    gym = add_bill(client, "Gym", 300)
+    set_house(bb.xp_for_level(7) - 10, kitten)
+    client.post(f"/pay/{gym}")                    # +15, house level 7
+    assert eggs() == 3
+    client.post(f"/unpaid/{gym}")                 # back under level 7
+    client.post(f"/pay/{gym}")                    # and over it again
+    assert eggs() == 3, "undoing and paying again mustn't find a second egg"
+    check("each house level's egg is found once, however often it's crossed")
+
+    with bb.app.app_context():
+        baby = bb.Buddy(user_id=bb.User.query.first().id, species="frog")
+        bb.db.session.add(baby)
+        bb.User.query.first().coins = 500
+        bb.db.session.commit()
+        baby = baby.id
+    client.post(f"/buddy/activate/{baby}")
+    client.post("/buddy/buy/top_hat", follow_redirects=True)
+    with bb.app.app_context():
+        assert bb.OwnedCosmetic.query.filter_by(item_key="top_hat").count() == 1
+    check("a level 1 buddy can buy anything the house has unlocked")
+
+    html = client.get("/buddy").get_data(as_text=True)
+    assert "House Lv 7" in html and "Next egg at house level 10" in html
+    check("the buddy page shows the house level and the next egg")
 
 
 def test_one_purse_for_the_whole_house():
@@ -492,9 +565,10 @@ def test_rarer_colours_hatch_less_often():
     for tier, odds in bb.RARITY_ODDS.items():
         share = sum(bb.buddy_rarity(r) == tier for r in rolls) / len(rolls)
         assert abs(share - odds / 100) < 0.01, (tier, share)
-    frogs = sum(bb.buddy_shape(r) == "frog" for r in rolls) / len(rolls)
-    assert abs(frogs - bb.FROG_ODDS) < 0.015, frogs
-    check("hatching follows the odds, and about a third are frogs")
+    for shape in ("cat", "frog", "dog", "bat"):
+        share = sum(bb.buddy_shape(r) == shape for r in rolls) / len(rolls)
+        assert abs(share - 0.25) < 0.015, (shape, share)
+    check("hatching follows the odds, and cats, frogs, dogs and bats are 1 in 4 each")
 
     def hello(species):
         return bb.hatch_message(bb.Buddy(name="Mochi", species=species))
@@ -1963,6 +2037,297 @@ def test_housemates_are_drawn_in_pixels():
     assert "🥚" not in html and "🐱" not in html and "🐸" not in html
     assert html.count('class="mate-icon') == 3
     check("housemates and eggs are pixel art, not emoji")
+
+
+def test_the_room_shares_one_mood():
+    with at(2026, 10, 20, 10):
+        client = fresh()
+        with bb.app.app_context():
+            uid = bb.User.query.first().id
+            bb.db.session.add(bb.Buddy(user_id=uid, species="mintdog", in_room=True))
+            bb.db.session.commit()
+        add_bill(client, "Rent", 6000, day=5)         # overdue
+        client.get("/")                               # notices it
+        html = client.get("/buddy").get_data(as_text=True)
+    assert 'class="buddy-room buddy-mood-worried"' in html
+    assert 'class="room-mate room-mate-1"' in html, "no mood of its own to clash with"
+    check("when the buddy out front worries, the whole room worries with it")
+
+
+# ----------- categories
+def test_bills_grouped_by_category():
+    def group(html, name):
+        """ One group's card from the Categories page """
+        found = re.search(r"<h3>" + re.escape(name) + r"</h3>(.*?)</section>", html, re.S)
+        return found.group(1) if found else ""
+
+    def headings(html):
+        return re.findall(r'<div class="category-head">\s*<h3>([^<]+)</h3>', html)
+
+    with at(2026, 10, 1, 10):
+        client = fresh()
+        add_bill(client, "Cat food", 300, day=5, category="Pets")
+        vet = add_bill(client, "Vet", 450, day=20, category="Pets")
+        add_bill(client, "Car loan", 4200, day=25, kind="loan", category="Car",
+                 total_value=180000, current_balance=96000)
+        add_bill(client, "Store card", 600, day=18, kind="credit", category="Store Credit",
+                 total_value=8000, current_balance=3450)
+        mystery = add_bill(client, "Mystery", 99, day=9, category="<b>Hacked</b>")
+        with bb.app.app_context():
+            filed = {p.name: p.category for p in bb.Payment.query.all()}
+        assert filed == {"Cat food": "Pets", "Vet": "Pets", "Car loan": "Car",
+                         "Store card": "Store Credit", "Mystery": None}, filed
+        check("a bill keeps the category it was given, and a made-up one is turned away")
+
+        html = client.get("/categories").get_data(as_text=True)
+        assert headings(html) == ["Car", "Store Credit", "Pets", "Other"], headings(html)
+        pets = group(html, "Pets")
+        assert "Cat food" in pets and "Vet" in pets and "Car loan" not in pets
+        assert "R750.00" in pets, "Pets costs 300 + 450 a month"
+        assert "Mystery" in group(html, "Other")
+        assert "R96 000.00" in group(html, "Car"), "a loan shows what's still owed"
+        check("by category: each group lists its bills and totals them")
+
+        dashboard = client.get("/").get_data(as_text=True)
+        assert "R5 649.00" in html and "R5 649.00" in dashboard
+        check("the groups add up to the dashboard's monthly total")
+
+        client.post(f"/pay/{vet}")
+        pets = group(client.get("/categories").get_data(as_text=True), "Pets")
+        assert re.search(r"Still to pay</div>\s*<div class=\"category-value\">R300.00<", pets)
+        check("paying a bill comes off its group's still to pay")
+
+        html = client.get("/categories?by=type").get_data(as_text=True)
+        assert headings(html) == ["Fixed monthly", "Loans", "Credit accounts"], headings(html)
+        loans = group(html, "Loans")
+        assert "Car loan" in loans and "R96 000.00" in loans
+        assert "R3 450.00" in group(html, "Credit accounts")
+        assert headings(client.get("/categories?by=nonsense").get_data(as_text=True)) == \
+            ["Car", "Store Credit", "Pets", "Other"]
+        check("by type: all loans and all credit accounts together, with what's owed")
+
+        client.post(f"/edit/{mystery}", data={
+            "name": "Mystery", "description": "", "amount": "99", "due_day": "9",
+            "bill_type": "fixed", "frequency": "monthly", "category": "Groceries"})
+        with bb.app.app_context():
+            assert bb.db.session.get(bb.Payment, mystery).category == "Groceries"
+        assert '<option value="Groceries" selected>' in \
+            client.get(f"/edit/{mystery}").get_data(as_text=True)
+        check("editing a bill changes its category, and the form shows it")
+
+        client.get("/logout")
+        client.post("/register", data={"username": "other", "email": "other@test.local",
+                                       "password": "pw123456", "confirm": "pw123456"},
+                    follow_redirects=True)
+        html = client.get("/categories").get_data(as_text=True)
+        assert "Cat food" not in html and "No bills yet" in html
+        check("you only ever see your own bills")
+
+
+def rands(cents):
+    """ How the pages print an amount, e.g. R5 000.00 """
+    return "R" + bb.money(cents)
+
+
+def stat(html, label):
+    """ One stat card's value from the dashboard """
+    return re.search(re.escape(label) + r'</div>\s*<div class="stat-value[^"]*">\s*([^<]+?)\s*<',
+                     html).group(1)
+
+
+def test_filters_stack_and_bills_sort_by_group():
+    def names(page):
+        return re.findall(r'class="bill-name">([^<]+)<', client.get(page).get_data(as_text=True))
+
+    def link(html, label):
+        """ Where a filter or sort button goes """
+        href = re.search(r'<a href="([^"]*)"[^>]*>' + re.escape(label) + "</a>", html).group(1)
+        return href.replace("&amp;", "&")
+
+    with at(2026, 10, 12, 10):
+        client = fresh()
+        add_bill(client, "Alpha", 100, day=3, category="Pets")
+        add_bill(client, "Bravo", 100, day=14, category="Housing")
+        add_bill(client, "Charlie", 100, day=20)
+        delta = add_bill(client, "Delta", 100, day=25, category="Car")
+        client.post(f"/partial_pay/{delta}", data={"paid_amount": "40"})
+
+        assert names("/?filter=overdue&filter=partial") == ["Alpha", "Delta"]
+        assert names("/?filter=partial&filter=overdue&filter=partial&filter=bogus") == \
+            ["Alpha", "Delta"]
+        assert names("/?filter=all") == ["Alpha", "Bravo", "Charlie", "Delta"]
+        check("two filters show both kinds of bill, repeats and nonsense are ignored")
+
+        html = client.get("/?filter=overdue").get_data(as_text=True)
+        assert link(html, "Part paid") == "/?filter=overdue&filter=partial&sort=due_day"
+        assert link(html, "Overdue") == "/?sort=due_day", "an active filter turns itself off"
+        html = client.get("/?filter=partial&filter=overdue").get_data(as_text=True)
+        assert link(html, "Category") == "/?filter=overdue&filter=partial&sort=category"
+        check("each filter switches only itself on or off, and sorting keeps the filters")
+
+        html = client.get("/?filter=paid").get_data(as_text=True)
+        assert "No bills match these filters" in html and "No bills yet" not in html
+        check("a filter with nothing in it says so, not 'No bills yet'")
+
+        assert names("/?sort=category") == ["Bravo", "Delta", "Alpha", "Charlie"]
+        assert names("/") == ["Bravo", "Delta", "Alpha", "Charlie"], "the sort is remembered"
+        check("by category: in the category list's order, uncategorised last")
+
+        with bb.app.app_context():
+            bb.db.session.get(bb.Payment, delta).category = "Retired name"
+            bb.db.session.commit()
+        assert names("/?sort=category") == ["Bravo", "Alpha", "Charlie", "Delta"]
+        check("a category that's no longer offered sorts with Other instead of breaking the page")
+
+        assert names("/?sort=partial") == ["Delta", "Alpha", "Bravo", "Charlie"]
+        check("part paid first, then by due date")
+
+        add_bill(client, "Couch", 100, day=2, kind="once_off")
+        add_bill(client, "Loan", 100, day=1, kind="loan", total_value=1000, current_balance=500)
+        assert names("/?sort=type") == ["Alpha", "Bravo", "Charlie", "Delta", "Loan", "Couch"]
+        check("by bill type: fixed, then loans, then once-offs, each by due date")
+
+
+def test_once_offs_are_totalled_apart():
+    with at(2026, 10, 12, 10):
+        client = fresh()
+        add_bill(client, "Rent", 5000, day=1)
+        assert "Once-off bills" not in client.get("/").get_data(as_text=True)
+        add_bill(client, "Couch", 1800, day=20, kind="once_off")
+        html = client.get("/").get_data(as_text=True)
+        assert stat(html, "Monthly bills") == rands(500000)
+        assert stat(html, "Once-off bills") == rands(180000)
+        assert f"{rands(680000)} total this month" in html
+    check("once-offs get their own total apart from the monthly bills, the hero counts both")
+
+
+def test_charts_split_spending_and_income():
+    def bars(html, title):
+        card = re.search(title + r" &middot;(.*?)</section>", html, re.S).group(1)
+        return re.findall(r'hbar-name">([^<]+)<.*?hbar-value">([^<]+)<', card, re.S)
+
+    with at(2026, 10, 12, 10):
+        client = fresh()
+        add_bill(client, "Rent", 5000, day=1, category="Housing")
+        add_bill(client, "Couch", 1800, day=20, kind="once_off", category="Housing")
+        add_bill(client, "Food", 2500, day=15, category="Groceries")
+        add_bill(client, "Odd", 100, day=9)
+        for name, amount, category in (("Job", "20000", "Salary"),
+                                       ("Tips", "300", "<b>Hacked</b>")):
+            client.post("/income/add", data={"name": name, "amount": amount, "category": category,
+                                             "income_type": "fixed", "frequency": "monthly"})
+        with bb.app.app_context():
+            filed = {i.name: i.category for i in bb.Income.query.all()}
+        assert filed == {"Job": "Salary", "Tips": None}, filed
+        check("an income keeps its category, and a made-up one is turned away")
+
+        html = client.get("/charts").get_data(as_text=True)
+        assert bars(html, "Spending") == [("Housing", rands(680000)), ("Groceries", rands(250000)),
+                                          ("Other", rands(10000))]
+        assert bars(html, "Income") == [("Salary", rands(2000000)), ("Other", rands(30000))]
+        assert f"Spending &middot; {rands(940000)}" in html
+        check("spending and income are each split by category, biggest first")
+
+        with bb.app.app_context():
+            job = bb.Income.query.filter_by(name="Job").first().id
+        client.post(f"/income/edit/{job}", data={"name": "Job", "amount": "20000",
+                                                 "category": "Business", "income_type": "fixed",
+                                                 "frequency": "monthly"})
+        assert '<option value="Business" selected>' in \
+            client.get(f"/income/edit/{job}").get_data(as_text=True)
+        assert bars(client.get("/charts").get_data(as_text=True), "Income")[0][0] == "Business"
+        check("editing an income moves it to its new category")
+
+        client.get("/logout")
+        client.post("/register", data={"username": "other", "email": "other@test.local",
+                                       "password": "pw123456", "confirm": "pw123456"},
+                    follow_redirects=True)
+        html = client.get("/charts").get_data(as_text=True)
+        assert "Rent" not in html and "Salary" not in html and "Nothing here yet" in html
+        check("the charts only ever show your own money")
+
+
+def test_savings_goals_only_count_once_ticked():
+    def goal(name="New car"):
+        with bb.app.app_context():
+            g = bb.Goal.query.filter_by(name=name).first()
+            return (g.saved_cents, g.ticked_month, g.target_cents) if g else None
+
+    def remaining():
+        return stat(client.get("/").get_data(as_text=True), "Remaining balance")
+
+    with at(2026, 10, 12, 10):
+        client = fresh()
+        add_bill(client, "Rent", 5000, day=1)
+        client.post("/income/add", data={"name": "Job", "amount": "20000", "income_type": "fixed",
+                                         "frequency": "monthly"})
+        assert remaining() == rands(1500000)
+        client.post("/goals", data={"name": "  New car  ", "monthly": "1500", "target": ""})
+        assert goal() == (0, None, None), "a blank target is no target"
+        assert remaining() == rands(1500000)
+        check("adding a goal costs nothing until it's ticked")
+
+        for _ in range(2):
+            client.post("/goals/1/tick", data={"saved": "1"})
+        assert goal() == (150000, "2026-10", None), "a double click saves once"
+        html = client.get("/").get_data(as_text=True)
+        assert stat(html, "Remaining balance") == rands(1350000)
+        assert f"after {rands(150000)} saved for goals" in html
+        check("ticking puts this month's amount aside, once")
+
+        for _ in range(2):
+            client.post("/goals/1/tick", data={"saved": "0"})
+        assert goal() == (0, None, None) and remaining() == rands(1500000)
+        check("undo gives it back, and a second undo can't go below nothing")
+
+        client.post("/goals/1/tick", data={"saved": "1"})
+
+    with at(2026, 11, 3, 10):
+        assert remaining() == rands(1500000), "last month's saving isn't this month's"
+        html = client.get("/goals").get_data(as_text=True)
+        assert "<h3>New car</h3>" in html and "Saved this month" in html
+        client.post("/goals/1/tick", data={"saved": "1"})
+        assert goal() == (300000, "2026-11", None)
+        check("a new month starts unticked and keeps what was already saved")
+
+        client.post("/goals", data={"name": "Holiday", "monthly": "800", "target": "0"})
+        assert goal("Holiday") == (0, None, None), "a zero target is no target"
+        for bad in ({"name": " ", "monthly": "100"}, {"name": "Minus", "monthly": "-5"},
+                    {"name": "Nothing", "monthly": "0"}, {"name": "Words", "monthly": "lots"}):
+            client.post("/goals", data=bad)
+        with bb.app.app_context():
+            assert bb.Goal.query.count() == 2
+        check("a goal needs a name and a real monthly amount")
+
+        client.post("/goals/2/delete")
+        assert goal("Holiday") is None and goal() is not None
+        check("a goal can be deleted")
+
+        client.get("/logout")
+        client.post("/register", data={"username": "other", "email": "other@test.local",
+                                       "password": "pw123456", "confirm": "pw123456"},
+                    follow_redirects=True)
+        assert client.post("/goals/1/tick", data={"saved": "1"}).status_code == 404
+        assert client.post("/goals/1/delete").status_code == 404
+        assert "<h3>New car</h3>" not in client.get("/goals").get_data(as_text=True)
+        assert goal() == (300000, "2026-11", None)
+        check("nobody can see or touch someone else's goals")
+
+
+def test_phones_keep_the_buddys_colours():
+    client = fresh()
+    assert '<meta name="color-scheme" content="only light">' in \
+        client.get("/").get_data(as_text=True)
+    with bb.app.app_context():
+        bb.User.query.first().theme = "dark"
+        bb.db.session.commit()
+    html = client.get("/").get_data(as_text=True)
+    assert '<meta name="color-scheme" content="dark">' in html
+    assert '<body class="theme-dark">' in html
+    client.get("/logout")
+    assert '<meta name="color-scheme" content="only light">' in \
+        client.get("/login").get_data(as_text=True)
+    check("each theme tells the browser its colours, so a phone's dark mode can't grey the cat")
 
 
 # ----------- dev account

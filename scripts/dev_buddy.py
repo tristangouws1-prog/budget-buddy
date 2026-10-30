@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import (app, db, User, Buddy, OwnedCosmetic,
                  BUDDY_SPECIES, BUDDY_SHOP,
-                 buddy_level, buddy_rarity, xp_for_level)
+                 buddy_level, buddy_rarity, house_level, xp_for_level)
 
 
 def describe(label, buddy, user):
@@ -28,7 +28,7 @@ def describe(label, buddy, user):
     print(f"  {label:<7} {buddy.name!r} the {buddy.species} "
           f"({buddy_rarity(buddy.species)}) [{buddy.stage}] - "
           f"Lv {level} ({buddy.xp} XP, {nxt - buddy.xp} to Lv {level + 1}), "
-          f"{user.coins} coins in the purse")
+          f"{user.coins} coins in the purse, house Lv {house_level(user.id)}")
 
 
 def main():
@@ -39,7 +39,7 @@ def main():
                         help="set xp to the minimum for this level")
     parser.add_argument("--coins", type=int, help="set the account's shared coins")
     parser.add_argument("--species", choices=BUDDY_SPECIES, metavar="SPECIES",
-                        help="swap the sprite: colour + cat or frog, e.g. goldfrog")
+                        help="swap the sprite: colour + cat/frog/dog/bat, e.g. golddog")
     parser.add_argument("--stage", choices=["egg", "hatched"])
     parser.add_argument("--name", help="rename the buddy")
     parser.add_argument("--unlock-all", action="store_true",
@@ -120,8 +120,8 @@ def main():
         describe("after", buddy, user)
         print("\nRefresh the page in your browser to see it.")
         if args.xp is not None or args.level is not None:
-            print("Note: setting xp by hand doesn't hand out the milestone "
-                  "eggs that levelling up normally would.")
+            print("Note: setting xp by hand doesn't hand out the house "
+                  "level eggs that earning it normally would.")
 
 
 if __name__ == "__main__":

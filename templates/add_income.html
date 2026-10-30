@@ -18,6 +18,13 @@
             <option value="variable">Variable</option>
         </select>
 
+        <label for="category">Category</label>
+        <select id="category" name="category">
+            {% for c in categories %}
+                <option value="{{ c }}" {% if c == "Other" %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+        </select>
+
         <label for="frequency">How often is it paid?</label>
         <select id="frequency" name="frequency">
             <option value="monthly">Monthly</option>

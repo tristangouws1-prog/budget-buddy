@@ -1,8 +1,11 @@
 <!DOCTYPE html>
+{%- set theme = current_user.theme if current_user.is_authenticated else "pastel" %}
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {# no forced dark #}
+    <meta name="color-scheme" content="{{ 'dark' if theme == 'dark' else 'only light' }}">
     <title>Budget Buddy</title>
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -18,7 +21,7 @@
               href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Nunito+Sans:wght@400;600;700&display=swap">
     </noscript>
 </head>
-<body class="{{ 'theme-' + current_user.theme if current_user.is_authenticated else 'theme-pastel' }}">
+<body class="theme-{{ theme }}">
     <header class="site-header">
         <a href="{{ url_for('dashboard') }}" class="logo">Budget Buddy</a>
         <nav>
@@ -26,6 +29,9 @@
                 <a href="{{ url_for('dashboard') }}">Home</a>
                 <a href="{{ url_for('reminders') }}">Reminders</a>
                 <a href="{{ url_for('history') }}">History</a>
+                <a href="{{ url_for('categories') }}">Categories</a>
+                <a href="{{ url_for('charts') }}">Charts</a>
+                <a href="{{ url_for('goals') }}">Goals</a>
                 <a href="{{ url_for('buddy_page') }}">Buddy</a>
                 <a href="{{ url_for('settings') }}">Settings</a>
                 <a href="{{ url_for('logout') }}">Log out</a>

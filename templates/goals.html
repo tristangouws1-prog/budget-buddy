@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="section-head">
+    <h2>Savings goals</h2>
+</div>
+<p class="form-hint">Goals are optional. Tick one when you've put this month's amount aside &mdash;
+only ticked goals come off your remaining balance.</p>
+
+{% if goals %}
+<p class="category-summary">{{ current_user.currency }}{{ ticked_total | money }} saved this month</p>
+<div class="category-grid">
+    {% for goal in goals %}
+    {% set done = goal.ticked_month == month %}
+    <section class="category-card">
+        <div class="category-head">
+            <h3>{{ goal.name }}</h3>
+            <span class="category-count">{{ current_user.currency }}{{ goal.monthly_cents | money }} / month</span>
+        </div>
+        <div class="category-totals">
+            <div>
+                <div class="stat-label">Saved</div>
+                <div class="category-value">{{ current_user.currency }}{{ goal.saved_cents | money }}</div>
+            </div>
+            {% if goal.target_cents %}
+            <div>
+                <div class="stat-label">Target</div>
+                <div class="category-value">{{ current_user.currency }}{{ goal.target_cents | money }}</div>
+            </div>
+            {% endif %}
+        </div>
+        {% if goal.target_cents %}
+        <div class="bill-progress-bar">
+            <div class="bill-progress-fill" style="width: {{ [100, goal.saved_cents * 100 // goal.target_cents] | min }}%"></div>
+        </div>
+        {% endif %}
+        <div class="goal-actions">
+            <form method="POST" class="soft-form" action="{{ url_for('tick_goal', goal_id=goal.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="saved" value="{{ '0' if done else '1' }}">
+                <button type="submit" class="btn-small {{ 'btn-undo' if done else 'btn-update' }}">
+                    {{ 'Undo' if done else 'Saved this month' }}</button>
+            </form>
+            <form method="POST" action="{{ url_for('delete_goal', goal_id=goal.id) }}"
+                  onsubmit="return confirm('Delete this goal?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn-small btn-delete">Delete</button>
+            </form>
+        </div>
+    </section>
+    {% endfor %}
+</div>
+{% endif %}
+
+<section class="form-card">
+    <h3>Add a goal</h3>
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" maxlength="100" placeholder="e.g. New car" required>
+        <label for="monthly">Save per month ({{ current_user.currency }})</label>
+        <input type="number" id="monthly" name="monthly" step="0.01" min="0.01" placeholder="e.g. 1500" required>
+        <label for="target">Target (optional)</label>
+        <input type="number" id="target" name="target" step="0.01" min="0" placeholder="e.g. 60000">
+        <button type="submit" class="btn-primary btn-block">Add goal</button>
+    </form>
+</section>
+
+{% endblock %}

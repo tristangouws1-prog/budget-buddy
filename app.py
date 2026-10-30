@@ -176,6 +176,9 @@ class Payment(db.Model):
 #how the bill is paid
     payment_method = db.Column(db.String(50), nullable = True)
 
+#bill category
+    category = db.Column(db.String(30), nullable=True)
+
 #cost of subscription or bill
     amount_cents = db.Column(db.Integer, nullable=False)
 
@@ -261,6 +264,26 @@ class Reminder(db.Model):
 #which user this reminder is for
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
 
+class Goal(db.Model):
+    """ An optional savings goal, ticked off month by month """
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)
+
+#per month
+    monthly_cents = db.Column(db.Integer, nullable=False)
+
+#optional target
+    target_cents = db.Column(db.Integer, nullable=True)
+
+#saved so far
+    saved_cents = db.Column(db.Integer, nullable=False, default=0)
+
+#tick month
+    ticked_month = db.Column(db.String(7), nullable=True)
+
+
 class Income(db.Model):
     """Source of income """
 
@@ -281,6 +304,9 @@ class Income(db.Model):
     #variable income
     #reset to False each month automatically
     is_confirmed = db.Column(db.Boolean, default=True)
+
+    #income category
+    category = db.Column(db.String(30), nullable=True)
 
     #which user the income belongs to
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
@@ -517,6 +543,26 @@ def due_sort_date(payment):
     return datetime.date(today.year, today.month, min(payment.due_day, days))
 
 
+def sort_group(sort_by, item):
+    """ Which group a dashboard bill sorts into before its due date: its
+    category, its bill type, or part paid first. Unknown values go last,
+    so a renamed category can't break the page """
+    payment = item["payment"]
+    if sort_by == "category":
+        return CATEGORY_RANK.get(payment.category, CATEGORY_RANK["Other"])
+    if sort_by == "type":
+        return TYPE_RANK.get(payment.bill_type, len(TYPE_RANK))
+    if sort_by == "partial":
+        return item["status"] != "partial"
+    return 0
+
+
+def toggled(filters, key):
+    """ The dashboard filters with one switched on or off, in their usual order """
+    flipped = set(filters) ^ {key}
+    return [f for f in FILTERS if f in flipped]
+
+
 def due_date_text(payment):
     """ The due date in full, e.g. "Friday 25 July 2026".
     Built piece by piece so the day isn't zero padded ("5 July", not "05 July") """
@@ -529,6 +575,23 @@ def clean_frequency(bill_type, raw):
     if bill_type == "once_off" or raw != "weekly":
         return "monthly"
     return "weekly"
+
+
+def this_month_key():
+    """ "2026-10", for goal ticks """
+    return local_today().strftime("%Y-%m")
+
+
+def goals_ticked_cents(user_id):
+    """ What the goals ticked this month put aside """
+    return db.session.query(db.func.coalesce(db.func.sum(Goal.monthly_cents), 0)).filter(
+        Goal.user_id == user_id, Goal.ticked_month == this_month_key()).scalar()
+
+
+def clean_category(raw, options=None):
+    """ One of the offered categories, the bill ones unless told otherwise.
+    "Other" and anything unknown are saved as None """
+    return raw if raw in (options or CATEGORIES) and raw != "Other" else None
 
 
 def clean_due_day(raw, frequency):
@@ -973,8 +1036,7 @@ BUDDY_COLOURS = {
 RARITY_ODDS = {"common": 55, "uncommon": 25, "rare": 12, "epic": 6, "legendary": 2}
 
 #buddy shapes
-BUDDY_SHAPES = ("cat", "frog")
-FROG_ODDS = 1 / 3
+BUDDY_SHAPES = ("cat", "frog", "dog", "bat")
 
 
 def species_name(colour, shape):
@@ -993,7 +1055,7 @@ def species_look(species):
 
 @app.template_global()
 def buddy_shape(species):
-    """ Which drawing a species uses, "cat" or "frog" """
+    """ Which drawing a species uses: cat, frog, dog or bat """
     return species_look(species)[1]
 
 
@@ -1019,10 +1081,10 @@ def buddy_style(species):
 
 
 def roll_species(rng=random):
-    """ A hatching egg's species: a tier by the odds, a colour in it, then cat or frog """
+    """ A hatching egg's species: a tier by the odds, a colour in it, then any shape """
     tier = rng.choices(list(RARITY_ODDS), weights=list(RARITY_ODDS.values()))[0]
     colour = rng.choice([c for c, v in BUDDY_COLOURS.items() if v["rarity"] == tier])
-    return species_name(colour, "frog" if rng.random() < FROG_ODDS else "cat")
+    return species_name(colour, rng.choice(BUDDY_SHAPES))
 
 
 def hatch_message(buddy):
@@ -1049,7 +1111,28 @@ EGG_EVERY = 3
 ROOM_SPOTS = 4
 
 #dashboard sorts
-SORTS = ("due_day", "amount", "name", "custom")
+SORTS = {"due_day": "Due date", "amount": "Amount", "name": "Name", "category": "Category",
+         "type": "Bill type", "partial": "Part paid first", "custom": "My order"}
+
+#status filters
+FILTERS = {"overdue": "Overdue", "soon": "Due soon", "partial": "Part paid", "paid": "Paid"}
+
+#bill categories
+CATEGORIES = ("Housing", "Groceries", "Utilities", "Phone & Internet", "Insurance", "Car",
+              "Transport", "Loans", "Store Credit", "Subscriptions", "Pets", "Medical",
+              "Education", "Other")
+
+#income categories
+INCOME_CATEGORIES = ("Salary", "Freelance", "Business", "Investments", "Grants",
+                     "Gifts", "Other")
+
+#type groups
+BILL_TYPE_GROUPS = {"fixed": "Fixed monthly", "variable": "Variable", "loan": "Loans",
+                    "credit": "Credit accounts", "once_off": "Once-off"}
+
+#sort ranks
+CATEGORY_RANK = {c: i for i, c in enumerate(CATEGORIES)}
+TYPE_RANK = {t: i for i, t in enumerate(BILL_TYPE_GROUPS)}
 
 #how many payment history rows one page of /history shows
 HISTORY_PER_PAGE = 100
@@ -1160,6 +1243,7 @@ def award_xp(user, kind, ref_key, amount):
         return False
     buddy = get_active_buddy(user)
     level_before = buddy_level(buddy.xp)
+    house_before = house_xp(user.id)
     db.session.add(XpEvent(user_id=user.id, kind=kind, ref_key=ref_key, amount=amount))
     buddy.xp += amount
     user.coins += amount
@@ -1177,21 +1261,52 @@ def award_xp(user, kind, ref_key, amount):
         session["buddy_hatched"] = True
         flash(hatch_message(buddy), "success")
     elif buddy.stage == "hatched" and buddy_level(buddy.xp) > level_before:
-        new_level = buddy_level(buddy.xp)
-        flash(f"{buddy.name} reached level {new_level}!", "success")
-        #milestone levels earn a new egg for the house
-        if earns_egg(new_level):
+        flash(f"{buddy.name} reached level {buddy_level(buddy.xp)}!", "success")
+
+    #house eggs
+    for level in range(buddy_level(house_before) + 1, buddy_level(house_before + amount) + 1):
+        if earns_egg(level) and not egg_found(user.id, level):
+            #once ever
+            db.session.add(XpEvent(user_id=user.id, kind="egg", ref_key=f"house:{level}",
+                                   amount=0))
             db.session.add(Buddy(user_id=user.id, stage="egg", is_active=False,
                                  in_room=room_has_space(user.id)))
             db.session.commit()
-            flash("You found a new egg! It's waiting in the house.", "success")
+            flash(f"Your house reached level {level}! You found a new egg - "
+                  "it's waiting in the house.", "success")
     return True
 
 
+def house_xp(user_id):
+    """ The house's xp: every buddy's xp added together """
+    return db.session.query(db.func.coalesce(db.func.sum(Buddy.xp), 0)).filter(
+        Buddy.user_id == user_id).scalar()
+
+
+def house_level(user_id):
+    """ The house's level, from all the buddies' xp. It decides eggs and shop locks """
+    return buddy_level(house_xp(user_id))
+
+
 def earns_egg(level):
-    """ Whether reaching a level finds an egg: 3, 5, 7, 10, then every 3 """
+    """ Whether reaching a house level finds an egg: 3, 5, 7, 10, then every 3 """
     last = EGG_LEVELS[-1]
     return level in EGG_LEVELS or (level > last and (level - last) % EGG_EVERY == 0)
+
+
+def egg_found(user_id, level):
+    """ Whether this house level's egg was already given, so undo and redo can't repeat it """
+    return XpEvent.query.filter_by(user_id=user_id, kind="egg",
+                                   ref_key=f"house:{level}").first() is not None
+
+
+def next_egg_level(user_id, level):
+    """ The next house level that still has an egg waiting """
+    found = {e.ref_key for e in XpEvent.query.filter_by(user_id=user_id, kind="egg")}
+    nxt = level + 1
+    while not earns_egg(nxt) or f"house:{nxt}" in found:
+        nxt += 1
+    return nxt
 
 
 def room_has_space(user_id):
@@ -1816,7 +1931,9 @@ def inject_buddy():
 def dashboard():
     """ Home Page: Show totals,upcoming reminders and overdues, list of bills"""
 
-    filter_status = request.args.get("filter", "all")
+    #multi filter
+    asked_filters = request.args.getlist("filter")
+    filters = [f for f in FILTERS if f in asked_filters]
     #remembered (#76)
     asked = request.args.get("sort")
     if asked in SORTS and asked != current_user.bill_sort:
@@ -1859,10 +1976,13 @@ def dashboard():
     #unfiltered
     paid_count = sum(1 for item in payments_with_status if item["status"] == "paid")
     total_count = len(payments_with_status)
+    #once-off split
+    total_once_off = sum(item["month_cost"] for item in payments_with_status
+                         if item["payment"].bill_type == "once_off")
 
     #filter
-    if filter_status != "all":
-        payments_with_status = [p for p in payments_with_status if p["status"] == filter_status]
+    if filters:
+        payments_with_status = [p for p in payments_with_status if p["status"] in filters]
 
     #sort
     if sort_by == "amount":
@@ -1876,12 +1996,13 @@ def dashboard():
         )
     else:
         #by date
-        payments_with_status.sort(
-            key=lambda p: (due_sort_date(p["payment"]), p["payment"].name.lower()))
+        payments_with_status.sort(key=lambda p: (
+            sort_group(sort_by, p), due_sort_date(p["payment"]), p["payment"].name.lower()))
 
     #monthly totals. a weekly bill counts every week of the month, and each
     #week marked paid comes off what's left
     total_monthly = sum(month_obligation(p) for p in payments)
+    total_recurring = total_monthly - total_once_off
     #left = this month's outstanding PLUS anything carried over from before
     still_owed = {p.id: remaining_this_month(p, paid_map.get(p.id, 0)) for p in payments}
     carried = sum(p.carried_over_cents or 0 for p in payments)
@@ -1912,7 +2033,9 @@ def dashboard():
     income_sources = Income.query.filter_by(user_id=current_user.id).all()
     #weekly wages count as their monthly equivalent
     total_income = sum(monthly_equivalent(i.amount_cents, i.frequency) for i in income_sources)
-    money_remaining = total_income - total_monthly
+    #ticked goals
+    goals_saved = goals_ticked_cents(current_user.id)
+    money_remaining = total_income - total_monthly - goals_saved
 
     # render template loads dashboard.html
     return render_template(
@@ -1932,7 +2055,13 @@ def dashboard():
         income_sources=income_sources,
         total_income=total_income,
         money_remaining=money_remaining,
-        filter_status=filter_status,
+        goals_saved=goals_saved,
+        total_once_off=total_once_off,
+        total_recurring=total_recurring,
+        filters=filters,
+        filter_names=FILTERS,
+        filter_links={f: toggled(filters, f) for f in FILTERS},
+        sorts=SORTS,
         sort_by=sort_by
     )
 
@@ -1947,6 +2076,7 @@ def add_payment():
         name = request.form["name"]
         amount_cents = require_cents(request.form["amount"])
         payment_method = request.form.get("payment_method") or None
+        category = clean_category(request.form.get("category"))
         bill_type = request.form.get("bill_type", "fixed")
         frequency = clean_frequency(bill_type, request.form.get("frequency"))
         #a weekly bill's day is a weekday, so 1..7 whatever the box said
@@ -1968,6 +2098,7 @@ def add_payment():
             amount_cents=amount_cents,
             due_day=due_day,
             payment_method=payment_method,
+            category=category,
             bill_type=bill_type,
             frequency=frequency,
             total_value_cents=total_value_cents,
@@ -1994,7 +2125,7 @@ def add_payment():
         return redirect(url_for("dashboard"))
 
     #when request is just GET then show empty form
-    return render_template("add_payment.html")
+    return render_template("add_payment.html", categories=CATEGORIES)
 
 
 @app.route("/income/add", methods=["GET", "POST"])
@@ -2014,6 +2145,7 @@ def add_income():
             amount_cents=amount_cents,
             income_type=income_type,
             frequency=frequency,
+            category=clean_category(request.form.get("category"), INCOME_CATEGORIES),
             user_id=current_user.id,
         )
 
@@ -2023,7 +2155,7 @@ def add_income():
         flash(f"Added '{name}' as an income source.", "success")
         return redirect(url_for("dashboard"))
 
-    return render_template("add_income.html")
+    return render_template("add_income.html", categories=INCOME_CATEGORIES)
 
 @app.route("/edit/<int:payment_id>", methods=["GET", "POST"])
 @login_required
@@ -2035,6 +2167,7 @@ def edit_payment(payment_id):
         payment.name = request.form["name"]
         payment.amount_cents = require_cents(request.form["amount"])
         payment.payment_method = request.form.get("payment_method") or None
+        payment.category = clean_category(request.form.get("category"))
         payment.bill_type = request.form.get("bill_type", "fixed")
         payment.frequency = clean_frequency(payment.bill_type, request.form.get("frequency"))
         #switching a bill to weekly re-reads the day as a weekday, so it can
@@ -2055,7 +2188,7 @@ def edit_payment(payment_id):
         flash(f"Updated '{payment.name}' successfully", "success")
         return redirect(url_for("dashboard"))
     #show new form with updated values
-    return render_template("edit_payment.html", payment=payment)
+    return render_template("edit_payment.html", payment=payment, categories=CATEGORIES)
 
 
 @app.route("/income/edit/<int:income_id>", methods=["GET", "POST"])
@@ -2068,11 +2201,12 @@ def edit_income(income_id):
         income.amount_cents = require_cents(request.form["amount"])
         income.income_type = request.form.get("income_type", "fixed")
         income.frequency = request.form.get("frequency", "monthly")
+        income.category = clean_category(request.form.get("category"), INCOME_CATEGORIES)
         db.session.commit()
         flash(f"Updated '{income.name}' successfully", "success")
         return redirect(url_for("dashboard"))
     
-    return render_template("edit_income.html", income=income)
+    return render_template("edit_income.html", income=income, categories=INCOME_CATEGORIES)
 
 
 @app.route("/partial_pay/<int:payment_id>", methods=["POST"])
@@ -2472,6 +2606,133 @@ def month_chips(bills, paid_by, year, month):
     return chips
 
 
+def category_bars(totals):
+    """ [(name, cents, width %)] biggest first, for the charts page """
+    top = max(totals.values(), default=0) or 1
+    return [(k, v, max(1, round(v / top * 100)))
+            for k, v in sorted(totals.items(), key=lambda kv: (-kv[1], kv[0])) if v > 0]
+
+
+@app.route("/charts")
+@login_required
+def charts():
+    """ This month's spending and income, each split by category """
+    spending = {}
+    for p in bills_of(current_user.id):
+        key = p.category or "Other"
+        spending[key] = spending.get(key, 0) + month_obligation(p)
+    income = {}
+    for i in Income.query.filter_by(user_id=current_user.id):
+        key = i.category or "Other"
+        income[key] = income.get(key, 0) + monthly_equivalent(i.amount_cents, i.frequency)
+    return render_template("charts.html",
+                           spending=category_bars(spending), income=category_bars(income),
+                           spending_total=sum(spending.values()),
+                           income_total=sum(income.values()))
+
+
+def get_owned_goal_or_404(goal_id):
+    """ Fetch a goal by id but only if it belongs to the logged-in user """
+    return Goal.query.filter_by(id=goal_id, user_id=current_user.id).first_or_404()
+
+
+@app.route("/goals", methods=["GET", "POST"])
+@login_required
+def goals():
+    """ Optional savings goals. Adding one never touches the budget """
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()[:100]
+        monthly = require_cents(request.form.get("monthly"))
+        if not name or not monthly:
+            flash("A goal needs a name and a monthly amount.", "warning")
+            return redirect(url_for("goals"))
+        #blank target
+        target = parse_cents(request.form.get("target")) or None
+        db.session.add(Goal(user_id=current_user.id, name=name, monthly_cents=monthly,
+                            target_cents=target))
+        db.session.commit()
+        flash(f"Added the goal '{name}'.", "success")
+        return redirect(url_for("goals"))
+
+    month = this_month_key()
+    my_goals = Goal.query.filter_by(user_id=current_user.id).order_by(Goal.id).all()
+    return render_template("goals.html", goals=my_goals, month=month,
+                           ticked_total=sum(g.monthly_cents for g in my_goals
+                                            if g.ticked_month == month))
+
+
+@app.route("/goals/<int:goal_id>/tick", methods=["POST"])
+@login_required
+def tick_goal(goal_id):
+    """ Mark this month's saving done, or undo it.
+    The form says which, so a double click can't undo the first click """
+    goal = get_owned_goal_or_404(goal_id)
+    month = this_month_key()
+    saved = request.form.get("saved") == "1"
+    if saved and goal.ticked_month != month:
+        goal.ticked_month = month
+        goal.saved_cents += goal.monthly_cents
+    elif not saved and goal.ticked_month == month:
+        goal.ticked_month = None
+        goal.saved_cents = max(0, goal.saved_cents - goal.monthly_cents)
+    db.session.commit()
+    return redirect(url_for("goals"))
+
+
+@app.route("/goals/<int:goal_id>/delete", methods=["POST"])
+@login_required
+def delete_goal(goal_id):
+    """ Delete a goal """
+    goal = get_owned_goal_or_404(goal_id)
+    db.session.delete(goal)
+    db.session.commit()
+    flash(f"Deleted the goal '{goal.name}'.", "success")
+    return redirect(url_for("goals"))
+
+
+@app.route("/categories")
+@login_required
+def categories():
+    """ Every bill grouped by category or by type, with each group's totals """
+    by = request.args.get("by")
+    if by not in ("category", "type"):
+        by = "category"
+    payments = bills_of(current_user.id)
+    paid_map = paid_this_month_by_bill(current_user.id)
+
+    groups = {}
+    for p in payments:
+        key = (p.category or "Other") if by == "category" else p.bill_type
+        groups.setdefault(key, []).append(p)
+    #fixed order
+    order = list(CATEGORIES if by == "category" else BILL_TYPE_GROUPS)
+    keys = sorted(groups, key=lambda k: (order.index(k) if k in order else len(order), k))
+
+    cards = []
+    for key in keys:
+        rows = []
+        for p in sorted(groups[key], key=lambda p: (due_sort_date(p), p.name.lower())):
+            paid = paid_map.get(p.id, 0)
+            rows.append({
+                "payment": p,
+                "status": get_status(p, paid),
+                "month": month_obligation(p),
+                "left": remaining_this_month(p, paid) + (p.carried_over_cents or 0),
+                "balance": (p.current_balance_cents
+                            if p.bill_type in ("loan", "credit") else None),
+            })
+        balances = [r["balance"] for r in rows if r["balance"] is not None]
+        cards.append({
+            "name": key if by == "category" else BILL_TYPE_GROUPS.get(key, key),
+            "rows": rows,
+            "month": sum(r["month"] for r in rows),
+            "left": sum(r["left"] for r in rows),
+            "owed": sum(balances) if balances else None,
+        })
+    return render_template("categories.html", by=by, cards=cards,
+                           month_total=sum(c["month"] for c in cards))
+
+
 @app.route("/history")
 @login_required
 def history():
@@ -2659,8 +2920,14 @@ def buddy_page():
     buddies = (Buddy.query.filter_by(user_id=current_user.id)
                .order_by(Buddy.created_at).all())
     levels = {b.id: buddy_level(b.xp) for b in buddies}
+    #house level
+    house_total = sum(b.xp for b in buddies)
+    house = buddy_level(house_total)
+    next_egg = next_egg_level(current_user.id, house)
     return render_template("buddy.html", shop=BUDDY_SHOP, owned=owned,
                            buddies=buddies, levels=levels, room_spots=ROOM_SPOTS,
+                           house_level=house, next_egg=next_egg,
+                           egg_xp_to_go=xp_for_level(next_egg) - house_total,
                            slot_labels=SLOT_LABELS, wear_slots=WEARABLE_SLOTS)
 
 
@@ -2727,8 +2994,8 @@ def buy_cosmetic(item_key):
     if OwnedCosmetic.query.filter_by(user_id=current_user.id, item_key=item_key).first():
         flash("You already own that.", "warning")
         return redirect(url_for("buddy_page"))
-    if buddy_level(buddy.xp) < item["min_level"]:
-        flash(f"{item['name']} unlocks at level {item['min_level']}.", "warning")
+    if house_level(current_user.id) < item["min_level"]:
+        flash(f"{item['name']} unlocks at house level {item['min_level']}.", "warning")
         return redirect(url_for("buddy_page"))
     if current_user.coins < item["price"]:
         flash(f"Not enough coins - {item['name']} costs {item['price']}.", "warning")

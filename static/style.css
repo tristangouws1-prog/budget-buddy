@@ -214,6 +214,8 @@ h1, h2, h3, .logo, .hero-amount {
     box-shadow: var(--shadow-sm);
     animation: rise 0.5s ease both;
 }
+/* odd card out */
+.stats-row .stat-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .stat-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
 .stat-value { font-family: 'Fraunces', serif; font-size: 1.6rem; font-weight: 600; margin-top: 2px; }
 .stat-negative { color: var(--overdue-text); }
@@ -689,6 +691,70 @@ h1, h2, h3, .logo, .hero-amount {
     color: var(--muted);
 }
 
+/* ── Categories ── */
+.category-summary { color: var(--muted); font-weight: 700; font-size: 0.9rem; margin: -4px 0 16px; }
+.category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+}
+.category-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    padding: 18px 20px 8px;
+    animation: rise 0.5s ease both;
+}
+.category-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.category-head h3 { font-size: 1.1rem; }
+.category-count { color: var(--muted); font-size: 0.82rem; font-weight: 700; white-space: nowrap; }
+.category-totals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 22px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+.category-value { font-family: 'Fraunces', serif; font-size: 1.15rem; font-weight: 600; margin-top: 2px; }
+.category-bills { list-style: none; margin: 0; padding: 0; }
+.category-bills li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-top: 1px solid var(--border);
+}
+.category-bills li:first-child { border-top: none; }
+.category-bill-main { flex: 1; min-width: 0; }
+.category-bill-name {
+    display: block;
+    font-weight: 700;
+    color: var(--ink);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.category-bill-name:hover { color: var(--primary-text); text-decoration: underline; }
+.category-bill-meta { font-size: 0.8rem; color: var(--muted); }
+.category-bill-amount { font-weight: 700; text-align: right; white-space: nowrap; }
+.category-bill-owed { display: block; font-size: 0.78rem; font-weight: 600; color: var(--muted); }
+
+/* ── Charts ── */
+.hbar-list { list-style: none; margin: 0; padding: 0; }
+.hbar-list li { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+.hbar-name { flex: 0 0 34%; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar-track { flex: 1; height: 12px; background: var(--neutral-bg); border-radius: 6px; overflow: hidden; }
+.hbar-fill { display: block; height: 100%; border-radius: 6px; background: var(--primary); }
+.hbar-income { background: var(--primary-dark); }
+.hbar-value { font-weight: 700; white-space: nowrap; font-size: 0.9rem; }
+
+/* ── Goals ── */
+.goal-actions { display: flex; gap: 8px; padding: 12px 0; }
+.stat-note { font-size: 0.78rem; color: var(--muted); font-weight: 600; }
+
 /* ── Empty state ── */
 .empty {
     text-align: center;
@@ -753,6 +819,14 @@ main[data-swapped] .flash { animation: none !important; }
 .bill:nth-child(4) { animation-delay: 0.18s; }
 .bill:nth-child(5) { animation-delay: 0.24s; }
 .bill:nth-child(6) { animation-delay: 0.30s; }
+
+/* ── Tablets ── */
+/* nav row */
+@media (max-width: 1240px) {
+    .site-header { flex-wrap: wrap; gap: 8px; }
+    .site-header nav { width: 100%; overflow-x: auto; scrollbar-width: thin; }
+    .site-header nav a { flex: none; white-space: nowrap; }
+}
 
 /* ── Mobile ── */
 @media (max-width: 600px) {
@@ -866,6 +940,8 @@ main[data-swapped] .flash { animation: none !important; }
 .buddy-eye-fill rect   { fill: var(--buddy-eye); }
 .buddy-belly-fill rect { fill: var(--buddy-belly); }
 .buddy-whisker rect    { fill: var(--buddy-ink); opacity: 0.5; }
+/* ears, wings */
+.buddy-shade-fill rect { fill: color-mix(in srgb, var(--buddy-body) 75%, #000); }
 
 /* dark dimming */
 body.theme-dark .buddy-fill rect       { fill: color-mix(in srgb, var(--buddy-body) 72%, #1a1a22); }
@@ -874,6 +950,7 @@ body.theme-dark .buddy-cheek-fill rect { fill: color-mix(in srgb, var(--buddy-ch
 body.theme-dark .buddy-eye-fill rect   { fill: color-mix(in srgb, var(--buddy-eye) 85%, #1a1a22); }
 body.theme-dark .buddy-belly-fill rect { fill: color-mix(in srgb, var(--buddy-belly) 72%, #1a1a22); }
 body.theme-dark .buddy-whisker rect    { fill: color-mix(in srgb, var(--buddy-ink) 80%, #1a1a22); }
+body.theme-dark .buddy-shade-fill rect { fill: color-mix(in srgb, color-mix(in srgb, var(--buddy-body) 75%, #000) 72%, #1a1a22); }
 /* dark hat */
 body.theme-dark .witch-shade { fill: #6a6288; }
 /* pale outline */
@@ -1107,7 +1184,7 @@ body.theme-dark .buddy-egg-spot-fill rect { fill: #8f7fb0; }
 }
 .buddy-rename .btn-primary { padding: 8px 16px; }
 .buddy-stats { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-.buddy-coins, .buddy-xp-total {
+.buddy-coins, .buddy-xp-total, .buddy-house {
     font-size: 0.8rem;
     font-weight: 700;
     color: var(--muted);

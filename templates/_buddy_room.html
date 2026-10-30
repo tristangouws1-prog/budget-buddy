@@ -84,7 +84,8 @@ The buddy stands bottom centre #}
     {% if buddies is defined %}
     {% for mate in buddies if mate.in_room and not mate.is_active %}
     {% if loop.index <= 4 %}
-    <div class="room-mate room-mate-{{ loop.index }} buddy-mood-happy" style="{{ buddy_style(mate.species) }}">
+    {# room mood #}
+    <div class="room-mate room-mate-{{ loop.index }}" style="{{ buddy_style(mate.species) }}">
         {% if mate.stage == "egg" %}
         {% include "_buddy_egg.html" %}
         {% else %}

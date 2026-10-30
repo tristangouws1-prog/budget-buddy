@@ -1,7 +1,9 @@
 {# The buddy
 #}
 {% set sp = sprite_species if sprite_species is defined else (buddy.species if buddy is defined else "blobcat") %}
-{% set is_frog = buddy_shape(sp) == "frog" %}
+{% set shape = buddy_shape(sp) %}
+{% set is_frog = shape == "frog" %}
+{% set is_dog = shape == "dog" %}
 {% set outlined = buddy_outlined(sp) %}
 
 <svg viewBox="0 -1 16 16" shape-rendering="crispEdges" aria-hidden="true">
@@ -85,6 +87,177 @@
             <rect x="3" y="9" width="1" height="1"/>
             <rect x="12" y="9" width="1" height="1"/>
         </g>
+    </g>
+
+    {% elif is_dog %}
+    <!-- dog -->
+    <!-- pale outline -->
+    <g{% if outlined %} class="buddy-outlined"{% endif %}>
+        <g class="buddy-fill">
+            <rect x="4" y="2" width="8" height="1"/>
+            <rect x="3" y="3" width="10" height="1"/>
+            <rect x="2" y="4" width="12" height="9"/>
+            <rect x="3" y="13" width="10" height="1"/>
+            <rect x="4" y="14" width="8" height="1"/>
+        </g>
+        <!-- floppy ears -->
+        <g class="buddy-shade-fill">
+            <rect x="1" y="2" width="3" height="1"/>
+            <rect x="0" y="3" width="3" height="5"/>
+            <rect x="1" y="8" width="2" height="1"/>
+            <rect x="12" y="2" width="3" height="1"/>
+            <rect x="13" y="3" width="3" height="5"/>
+            <rect x="13" y="8" width="2" height="1"/>
+        </g>
+    </g>
+
+    <!-- muzzle -->
+    <g class="buddy-belly-fill">
+        <rect x="6" y="9" width="4" height="1"/>
+        <rect x="5" y="10" width="6" height="3"/>
+    </g>
+
+    <!-- eyes -->
+    <g class="buddy-eyes buddy-ink-fill">
+        <g class="buddy-eyes-open">
+            <rect x="5" y="7" width="1" height="2"/>
+            <rect x="10" y="7" width="1" height="2"/>
+        </g>
+        <g class="buddy-eyes-happy">
+            <rect x="4" y="7" width="1" height="1"/>
+            <rect x="5" y="6" width="1" height="1"/>
+            <rect x="6" y="7" width="1" height="1"/>
+            <rect x="9" y="7" width="1" height="1"/>
+            <rect x="10" y="6" width="1" height="1"/>
+            <rect x="11" y="7" width="1" height="1"/>
+        </g>
+    </g>
+
+    <!-- eyebrows -->
+    <g class="buddy-brows buddy-ink-fill">
+        <rect x="4" y="5" width="2" height="1"/>
+        <rect x="10" y="5" width="2" height="1"/>
+    </g>
+
+    <!-- cheeks -->
+    <g class="buddy-cheek-fill">
+        <rect x="3" y="10" width="1" height="1"/>
+        <rect x="12" y="10" width="1" height="1"/>
+    </g>
+
+    <!-- nose, mouth -->
+    <g class="buddy-ink-fill">
+        <rect x="7" y="9" width="2" height="1"/>
+        <g class="buddy-mouth-happy">
+            <rect x="5" y="10" width="1" height="1"/>
+            <rect x="6" y="11" width="4" height="1"/>
+            <rect x="10" y="10" width="1" height="1"/>
+        </g>
+        <g class="buddy-mouth-neutral">
+            <rect x="7" y="11" width="2" height="1"/>
+        </g>
+        <g class="buddy-mouth-worried">
+            <rect x="7" y="11" width="2" height="1"/>
+            <rect x="6" y="12" width="1" height="1"/>
+            <rect x="9" y="12" width="1" height="1"/>
+        </g>
+    </g>
+    <!-- tongue -->
+    <g class="buddy-mouth-happy buddy-cheek-fill">
+        <rect x="7" y="12" width="2" height="1"/>
+    </g>
+
+    {% elif shape == "bat" %}
+    <!-- bat -->
+    <!-- pale outline -->
+    <g{% if outlined %} class="buddy-outlined"{% endif %}>
+        <!-- wings -->
+        <g class="buddy-shade-fill">
+            <rect x="-1" y="4" width="1" height="1"/>
+            <rect x="-1" y="5" width="2" height="1"/>
+            <rect x="-1" y="6" width="3" height="1"/>
+            <rect x="-1" y="7" width="4" height="2"/>
+            <rect x="0" y="9" width="1" height="1"/>
+            <rect x="2" y="9" width="1" height="1"/>
+            <rect x="16" y="4" width="1" height="1"/>
+            <rect x="15" y="5" width="2" height="1"/>
+            <rect x="14" y="6" width="3" height="1"/>
+            <rect x="13" y="7" width="4" height="2"/>
+            <rect x="15" y="9" width="1" height="1"/>
+            <rect x="13" y="9" width="1" height="1"/>
+        </g>
+        <!-- ears, body -->
+        <g class="buddy-fill">
+            <rect x="3" y="-1" width="1" height="1"/>
+            <rect x="3" y="0" width="2" height="2"/>
+            <rect x="3" y="2" width="3" height="1"/>
+            <rect x="12" y="-1" width="1" height="1"/>
+            <rect x="11" y="0" width="2" height="2"/>
+            <rect x="10" y="2" width="3" height="1"/>
+            <rect x="3" y="3" width="10" height="9"/>
+            <rect x="4" y="12" width="8" height="1"/>
+            <rect x="5" y="13" width="6" height="1"/>
+            <rect x="5" y="14" width="1" height="1"/>
+            <rect x="10" y="14" width="1" height="1"/>
+        </g>
+        <g class="buddy-cheek-fill">
+            <rect x="4" y="1" width="1" height="1"/>
+            <rect x="11" y="1" width="1" height="1"/>
+        </g>
+    </g>
+
+    <!-- eyes -->
+    <g class="buddy-eyes buddy-ink-fill">
+        <g class="buddy-eyes-open">
+            <rect x="5" y="7" width="1" height="2"/>
+            <rect x="10" y="7" width="1" height="2"/>
+        </g>
+        <g class="buddy-eyes-happy">
+            <rect x="4" y="7" width="1" height="1"/>
+            <rect x="5" y="6" width="1" height="1"/>
+            <rect x="6" y="7" width="1" height="1"/>
+            <rect x="9" y="7" width="1" height="1"/>
+            <rect x="10" y="6" width="1" height="1"/>
+            <rect x="11" y="7" width="1" height="1"/>
+        </g>
+    </g>
+
+    <!-- eyebrows -->
+    <g class="buddy-brows buddy-ink-fill">
+        <rect x="4" y="5" width="2" height="1"/>
+        <rect x="10" y="5" width="2" height="1"/>
+    </g>
+
+    <!-- cheeks -->
+    <g class="buddy-cheek-fill">
+        <rect x="4" y="9" width="1" height="1"/>
+        <rect x="11" y="9" width="1" height="1"/>
+    </g>
+
+    <!-- mouth -->
+    <g class="buddy-ink-fill">
+        <g class="buddy-mouth-happy">
+            <rect x="5" y="10" width="1" height="1"/>
+            <rect x="6" y="11" width="4" height="1"/>
+            <rect x="10" y="10" width="1" height="1"/>
+        </g>
+        <g class="buddy-mouth-neutral">
+            <rect x="6" y="11" width="4" height="1"/>
+        </g>
+        <g class="buddy-mouth-worried">
+            <rect x="6" y="10" width="4" height="1"/>
+            <rect x="5" y="11" width="1" height="1"/>
+            <rect x="10" y="11" width="1" height="1"/>
+        </g>
+    </g>
+    <!-- fangs -->
+    <g class="buddy-mouth-happy buddy-eye-fill">
+        <rect x="6" y="12" width="1" height="1"/>
+        <rect x="9" y="12" width="1" height="1"/>
+    </g>
+    <g class="buddy-mouth-neutral buddy-eye-fill">
+        <rect x="6" y="12" width="1" height="1"/>
+        <rect x="9" y="12" width="1" height="1"/>
     </g>
 
     {% else %}
@@ -174,9 +347,16 @@
     <!-- cosmetics  -->
     {% if "party_hat" in buddy_equipped %}
     <g class="cos-party-hat">
+        {% if is_frog %}
+        <!-- between eyes -->
+        <rect x="7" y="-1" width="2" height="1" fill="#f2c14e"/>
+        <rect x="7" y="0" width="2" height="1" fill="#e06a6a"/>
+        <rect x="6" y="1" width="4" height="2" fill="#e06a6a"/>
+        {% else %}
         <rect x="7" y="0" width="1" height="1" fill="#f2c14e"/>
         <rect x="6" y="1" width="3" height="1" fill="#e06a6a"/>
         <rect x="5" y="2" width="5" height="1" fill="#e06a6a"/>
+        {% endif %}
     </g>
     {% endif %}
     {% if "flower" in buddy_equipped %}
@@ -188,6 +368,13 @@
         <rect x="13" y="5" width="1" height="1" fill="#f2a0c0"/>
         <rect x="12" y="6" width="1" height="1" fill="#f2a0c0"/>
         <rect x="12" y="5" width="1" height="1" fill="#f2c14e"/>
+        {% elif is_dog %}
+        <!-- ear flower -->
+        <rect x="12" y="1" width="1" height="1" fill="#f2a0c0"/>
+        <rect x="11" y="2" width="1" height="1" fill="#f2a0c0"/>
+        <rect x="13" y="2" width="1" height="1" fill="#f2a0c0"/>
+        <rect x="12" y="3" width="1" height="1" fill="#f2a0c0"/>
+        <rect x="12" y="2" width="1" height="1" fill="#f2c14e"/>
         {% else %}
         <rect x="11" y="0" width="1" height="1" fill="#f2a0c0"/>
         <rect x="10" y="1" width="1" height="1" fill="#f2a0c0"/>
@@ -199,9 +386,16 @@
     {% endif %}
     {% if "top_hat" in buddy_equipped %}
     <g class="cos-top-hat">
+        {% if is_frog %}
+        <!-- between eyes -->
+        <rect x="6" y="-1" width="4" height="3" fill="#3a3a44"/>
+        <rect x="6" y="2" width="4" height="1" fill="#e06a6a"/>
+        <rect x="5" y="3" width="6" height="1" fill="#3a3a44"/>
+        {% else %}
         <rect x="5" y="0" width="6" height="3" fill="#3a3a44"/>
         <rect x="5" y="2" width="6" height="1" fill="#e06a6a"/>
         <rect x="4" y="3" width="8" height="1" fill="#3a3a44"/>
+        {% endif %}
     </g>
     {% endif %}
     {% if "witch_hat" in buddy_equipped %}

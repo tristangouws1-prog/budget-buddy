@@ -24,12 +24,19 @@
        </select>
 
         <label for="bill_type">Bill type</label>
-        <select id="bill_type" name="bill_type" onchange="toggleBalanceFields(this.value)">
+        <select id="bill_type" name="bill_type" onchange="toggleBalanceFields(this.value); suggestCategory(this.value)">
             <option value="fixed">Fixed monthly</option>
             <option value="variable">Variable </option>
             <option value="loan">Loan</option>
             <option value="credit">Credit account</option>
             <option value="once_off"> Once-off</option>
+        </select>
+
+        <label for="category">Category</label>
+        <select id="category" name="category" onchange="this.dataset.picked = '1'">
+            {% for c in categories %}
+                <option value="{{ c }}" {% if c == "Other" %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
         </select>
 
         <div id="frequency-field">
@@ -103,6 +110,16 @@
 </section>
 
 <script>
+// auto category
+function suggestCategory(type) {
+    const box = document.getElementById('category');
+    const auto = {loan: 'Loans', credit: 'Store Credit'};
+    if (box.dataset.picked) return;
+    if (box.value === 'Other' || Object.values(auto).includes(box.value)) {
+        box.value = auto[type] || 'Other';
+    }
+}
+
 function toggleBalanceFields(type) {
     const fields = document.getElementById('balance-fields');
     const loanFields = document.getElementById('loan-only-fields');

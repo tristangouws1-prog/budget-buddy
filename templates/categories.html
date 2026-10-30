@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="section-head">
+    <h2>Categories</h2>
+</div>
+<p class="form-hint">Every bill grouped together, with what each group costs this month
+and what's still to pay.</p>
+
+<nav class="filter" aria-label="Group bills">
+    <a href="{{ url_for('categories', by='category') }}" class="{{ 'filter-active' if by == 'category' }}">By category</a>
+    <a href="{{ url_for('categories', by='type') }}" class="{{ 'filter-active' if by == 'type' }}">By type</a>
+</nav>
+
+{% if cards %}
+<p class="category-summary">{{ current_user.currency }}{{ month_total | money }} this month across
+{{ cards | length }} group{{ '' if cards | length == 1 else 's' }}</p>
+
+<div class="category-grid">
+    {% for card in cards %}
+    <section class="category-card">
+        <div class="category-head">
+            <h3>{{ card.name }}</h3>
+            <span class="category-count">{{ card.rows | length }} bill{{ '' if card.rows | length == 1 else 's' }}</span>
+        </div>
+
+        <div class="category-totals">
+            <div>
+                <div class="stat-label">This month</div>
+                <div class="category-value">{{ current_user.currency }}{{ card.month | money }}</div>
+            </div>
+            <div>
+                <div class="stat-label">Still to pay</div>
+                <div class="category-value">{{ current_user.currency }}{{ card.left | money }}</div>
+            </div>
+            {% if card.owed is not none %}
+            <div>
+                <div class="stat-label">Still owed</div>
+                <div class="category-value">{{ current_user.currency }}{{ card.owed | money }}</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <ul class="category-bills">
+            {% for row in card.rows %}
+            <li>
+                <div class="category-bill-main">
+                    <a href="{{ url_for('edit_payment', payment_id=row.payment.id) }}"
+                       class="category-bill-name">{{ row.payment.name }}</a>
+                    <span class="category-bill-meta">
+                        <span class="status-badge badge-{{ row.status }}">
+                            {{ 'part paid' if row.status == 'partial' else row.status }}
+                        </span>
+                        {% if row.payment.frequency == 'weekly' %}Every {{ row.payment.due_day | weekday_name }}{% else %}Due {{ row.payment.due_day | ordinal }}{% endif %}
+                    </span>
+                </div>
+                <div class="category-bill-amount">
+                    {{ current_user.currency }}{{ row.month | money }}
+                    {% if row.balance is not none %}
+                    <span class="category-bill-owed">{{ current_user.currency }}{{ row.balance | money }} owed</span>
+                    {% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty">
+    <p>No bills yet - add one and give it a category to see it here.</p>
+    <a href="{{ url_for('add_payment') }}" class="btn-primary">+ Add a bill</a>
+</div>
+{% endif %}
+
+{% endblock %}
