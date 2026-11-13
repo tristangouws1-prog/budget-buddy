@@ -330,6 +330,27 @@ h1, h2, h3, .logo, .hero-amount {
 .bill-name { font-weight: 700; font-size: 1rem; display: block; }
 .bill-meta { font-size: 0.82rem; color: var(--muted); margin-top: 3px; display: block; }
 
+/* notes toggle */
+.bill-details { margin-top: 6px; font-size: 0.82rem; }
+.bill-details summary {
+    cursor: pointer;
+    width: fit-content;
+    font-weight: 700;
+    color: var(--muted);
+}
+.bill-details summary:hover { color: var(--ink); }
+.bill-details p {
+    margin: 6px 0 0;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--ink);
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    user-select: text;
+}
+
 /* small pill showing how the bill is paid */
 .method-badge {
     display: inline-block;
@@ -550,7 +571,8 @@ h1, h2, h3, .logo, .hero-amount {
     color: var(--ink);
 }
 .form-card input,
-.form-card select {
+.form-card select,
+.form-card textarea {
     width: 100%;
     padding: 12px 16px;
     border: 1.5px solid var(--border);
@@ -562,12 +584,15 @@ h1, h2, h3, .logo, .hero-amount {
     transition: border-color 0.15s, box-shadow 0.15s;
 }
 .form-card input:focus,
-.form-card select:focus {
+.form-card select:focus,
+.form-card textarea:focus {
     outline: none;
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(127,128,212,0.12);
 }
-.form-card input::placeholder { color: var(--muted); }
+.form-card input::placeholder,
+.form-card textarea::placeholder { color: var(--muted); }
+.form-card textarea { resize: vertical; min-height: 80px; line-height: 1.45; }
 
 /* a checkbox inline with its label, instead of stacked */
 .form-card label.checkbox-row {

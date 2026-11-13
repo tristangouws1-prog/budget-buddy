@@ -2247,6 +2247,79 @@ def test_charts_split_spending_and_income():
         check("the charts only ever show your own money")
 
 
+def test_bill_and_income_descriptions():
+    def details(html):
+        return re.findall(r'class="bill-details">\s*<summary>Details</summary>\s*<p>(.*?)</p>',
+                          html, re.S)
+
+    with at(2026, 11, 13, 10):
+        client = fresh()
+        notes = "  Acc 1234567890\r\nBranch 250655\r\nRef: FLAT 4B <b>x</b>  "
+        rent = add_bill(client, "Rent", 8500, day=1, description=notes)
+        add_bill(client, "Gym", 300, day=20)
+        with bb.app.app_context():
+            assert bb.db.session.get(bb.Payment, rent).description == \
+                "Acc 1234567890\nBranch 250655\nRef: FLAT 4B <b>x</b>"
+            assert bb.Payment.query.filter_by(name="Gym").first().description is None
+        check("a bill keeps its description trimmed, and a blank one saves as nothing")
+
+        html = client.get("/").get_data(as_text=True)
+        assert details(html) == ["Acc 1234567890\nBranch 250655\nRef: FLAT 4B &lt;b&gt;x&lt;/b&gt;"]
+        check("the dashboard shows it under Details, escaped, and only on bills that have one")
+
+        edit = {"name": "Rent", "amount": "8500", "due_day": "1",
+                "bill_type": "fixed", "frequency": "monthly"}
+        assert "Branch 250655\nRef: FLAT 4B &lt;b&gt;x&lt;/b&gt;</textarea>" in \
+            client.get(f"/edit/{rent}").get_data(as_text=True)
+        client.post(f"/edit/{rent}", data={**edit, "description": "x" * 600})
+        with bb.app.app_context():
+            assert bb.db.session.get(bb.Payment, rent).description == "x" * 500
+        client.post(f"/edit/{rent}", data={**edit, "description": "   "})
+        with bb.app.app_context():
+            assert bb.db.session.get(bb.Payment, rent).description is None
+        assert details(client.get("/").get_data(as_text=True)) == []
+        check("editing shows the old text, caps a long one at 500, and blanking it clears it")
+
+        client.post(f"/edit/{rent}", data={**edit, "description": "Ref: FLAT 4B"})
+        with bb.app.app_context():
+            user = bb.User.query.first()
+            p = bb.db.session.get(bb.Payment, rent)
+            for message in (bb.due_soon_message(p, user), bb.overdue_message(p, user),
+                            bb.monthly_message(p, user)):
+                assert "FLAT 4B" not in message, message
+        check("reminders leave the description out")
+
+        client.post("/income/add", data={"name": "Job", "amount": "20000", "income_type": "fixed",
+                                         "frequency": "monthly", "description": "Paid by ACME"})
+        client.post("/income/add", data={"name": "Tips", "amount": "300", "income_type": "fixed",
+                                         "frequency": "monthly"})
+        with bb.app.app_context():
+            saved = {i.name: i.description for i in bb.Income.query.all()}
+            job = bb.Income.query.filter_by(name="Job").first().id
+        assert saved == {"Job": "Paid by ACME", "Tips": None}, saved
+        assert "Paid by ACME" in details(client.get("/").get_data(as_text=True))
+        check("an income keeps its description and shows it under Details")
+
+        income_edit = {"name": "Job", "amount": "20000", "income_type": "fixed",
+                       "frequency": "monthly"}
+        assert ">Paid by ACME</textarea>" in client.get(f"/income/edit/{job}").get_data(as_text=True)
+        client.post(f"/income/edit/{job}", data={**income_edit, "description": "Ref: SALARY"})
+        with bb.app.app_context():
+            assert bb.db.session.get(bb.Income, job).description == "Ref: SALARY"
+        client.post(f"/income/edit/{job}", data=income_edit)
+        with bb.app.app_context():
+            assert bb.db.session.get(bb.Income, job).description is None
+        check("editing an income changes or clears its description")
+
+        client.get("/logout")
+        client.post("/register", data={"username": "other", "email": "other@test.local",
+                                       "password": "pw123456", "confirm": "pw123456"},
+                    follow_redirects=True)
+        assert "FLAT 4B" not in client.get("/").get_data(as_text=True)
+        assert client.get(f"/edit/{rent}").status_code == 404
+        check("nobody else can see your descriptions")
+
+
 def test_savings_goals_only_count_once_ticked():
     def goal(name="New car"):
         with bb.app.app_context():

@@ -18,6 +18,15 @@
     {% endif %}
 {% endmacro %}
 
+{% macro details_toggle(text) %}
+    {% if text %}
+        <details class="bill-details">
+            <summary>Details</summary>
+            <p>{{ text }}</p>
+        </details>
+    {% endif %}
+{% endmacro %}
+
 <section class="hero">
     <p class="hero-label">Left to pay this month</p>
     <p class="hero-amount">{{ current_user.currency }}{{ total_unpaid | money }}</p>
@@ -105,6 +114,7 @@
                                 <button type="submit" class="btn-small btn-update">Confirm</button>
                             </form>
                         {% endif %}
+                        {{ details_toggle(income.description) }}
                     </div>
                     <div class="bill-right">
                         <span class="bill-amount">{{ current_user.currency }}{{ income.amount_cents | money }}</span>
@@ -247,6 +257,7 @@
                                 Due in {{ item.days_left }} day{{ 's' if item.days_left != 1 else '' }}
                             {% endif %}
                         </span>
+                        {{ details_toggle(item.payment.description) }}
 
                         {% if item.payment.frequency == 'weekly' %}
                             <span class="bill-balance-label">
@@ -447,6 +458,17 @@ if (!window.billDragBound) {
         if (!bill || !list()) return;
         bill.classList.remove('dragging');
         await saveOrder();
+    });
+
+    // selectable details
+    document.addEventListener('pointerdown', event => {
+        const details = event.target.closest && event.target.closest('.bill-details');
+        const bill = details && details.closest('.bill[draggable]');
+        if (!bill) return;
+        bill.draggable = false;
+        const restore = () => { bill.draggable = true; };
+        document.addEventListener('pointerup', restore, {once: true});
+        document.addEventListener('pointercancel', restore, {once: true});
     });
 
     // phones, keyboards

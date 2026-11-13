@@ -104,6 +104,11 @@
             </select>
         </div>
 
+        <label for="description">Description (optional)</label>
+        <p class="form-hint">Payment details, account number, or the reference to use.</p>
+        <textarea id="description" name="description" rows="3" maxlength="500"
+                  placeholder="e.g. Acc 1234567890, branch 250655, ref: FLAT 4B">{{ payment.description or '' }}</textarea>
+
         <button type="submit" class="btn-primary btn-block">Save changes</button>
     </form>
 

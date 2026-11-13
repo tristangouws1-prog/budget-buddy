@@ -170,8 +170,8 @@ class Payment(db.Model):
 #short name of bill
     name = db.Column(db.String(100), nullable=False)
 
-#longer description
-    description = db.Column(db.String(100), nullable=True)
+#payment details
+    description = db.Column(db.String(500), nullable=True)
 
 #how the bill is paid
     payment_method = db.Column(db.String(50), nullable = True)
@@ -307,6 +307,9 @@ class Income(db.Model):
 
     #income category
     category = db.Column(db.String(30), nullable=True)
+
+    #details
+    description = db.Column(db.String(500), nullable=True)
 
     #which user the income belongs to
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
@@ -592,6 +595,15 @@ def clean_category(raw, options=None):
     """ One of the offered categories, the bill ones unless told otherwise.
     "Other" and anything unknown are saved as None """
     return raw if raw in (options or CATEGORIES) and raw != "Other" else None
+
+
+DESCRIPTION_MAX = 500
+
+
+def clean_description(raw):
+    """ The notes box trimmed and capped, None when left empty """
+    text = (raw or "").replace("\r\n", "\n").strip()[:DESCRIPTION_MAX].strip()
+    return text or None
 
 
 def clean_due_day(raw, frequency):
@@ -2074,6 +2086,7 @@ def add_payment():
     if request.method == "POST":
 #name = short name e.g. "Spotify"
         name = request.form["name"]
+        description = clean_description(request.form.get("description"))
         amount_cents = require_cents(request.form["amount"])
         payment_method = request.form.get("payment_method") or None
         category = clean_category(request.form.get("category"))
@@ -2095,6 +2108,7 @@ def add_payment():
 #create a new payment, one row of information, owned by the logged-in user
         new_payment = Payment(
             name=name,
+            description=description,
             amount_cents=amount_cents,
             due_day=due_day,
             payment_method=payment_method,
@@ -2146,6 +2160,7 @@ def add_income():
             income_type=income_type,
             frequency=frequency,
             category=clean_category(request.form.get("category"), INCOME_CATEGORIES),
+            description=clean_description(request.form.get("description")),
             user_id=current_user.id,
         )
 
@@ -2165,6 +2180,7 @@ def edit_payment(payment_id):
     if request.method == "POST":
         #overwrite the bill's fields with new values
         payment.name = request.form["name"]
+        payment.description = clean_description(request.form.get("description"))
         payment.amount_cents = require_cents(request.form["amount"])
         payment.payment_method = request.form.get("payment_method") or None
         payment.category = clean_category(request.form.get("category"))
@@ -2202,6 +2218,7 @@ def edit_income(income_id):
         income.income_type = request.form.get("income_type", "fixed")
         income.frequency = request.form.get("frequency", "monthly")
         income.category = clean_category(request.form.get("category"), INCOME_CATEGORIES)
+        income.description = clean_description(request.form.get("description"))
         db.session.commit()
         flash(f"Updated '{income.name}' successfully", "success")
         return redirect(url_for("dashboard"))
